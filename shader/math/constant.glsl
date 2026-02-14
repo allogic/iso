@@ -1,0 +1,31 @@
+#ifndef MATH_CONSTANT_H
+#define MATH_CONSTANT_H
+
+#define FLT_MAX (3.402823466E+38)
+
+#define PI_HALF (1.57079632679489655800)
+#define PI (3.14159265358979323846)
+#define TAU (6.28318530717958623200)
+
+#define DEG_TO_RAD (0.01745329251994329547)
+#define RAD_TO_DEG (57.29577951308232286465)
+
+#define EXPONENT_2 (1E+2)
+#define EXPONENT_3 (1E+3)
+#define EXPONENT_4 (1E+4)
+#define EXPONENT_5 (1E+5)
+#define EXPONENT_6 (1E+6)
+#define EXPONENT_7 (1E+7)
+#define EXPONENT_8 (1E+8)
+#define EXPONENT_9 (1E+9)
+
+#define EPSILON_2 (1E-2)
+#define EPSILON_3 (1E-3)
+#define EPSILON_4 (1E-4)
+#define EPSILON_5 (1E-5)
+#define EPSILON_6 (1E-6)
+#define EPSILON_7 (1E-7)
+#define EPSILON_8 (1E-8)
+#define EPSILON_9 (1E-9)
+
+#endif // MATH_CONSTANT_H

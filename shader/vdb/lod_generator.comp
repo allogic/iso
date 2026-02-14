@@ -1,0 +1,72 @@
+#version 460 core
+
+#extension GL_ARB_shading_language_include : require
+#extension GL_EXT_nonuniform_qualifier : require
+
+#include "../vdb/common.glsl"
+
+#define VDB_GET_VOXEL(CHUNK_INDEX, VOXEL_POSITION) \
+	(uint(imageLoad(vdb_chunk_data[CHUNK_INDEX], VOXEL_POSITION).r))
+
+#define VDB_SET_VOXEL(CHUNK_INDEX, VOXEL_POSITION, VOXEL) \
+	(imageStore(vdb_chunk_data[CHUNK_INDEX], VOXEL_POSITION, uvec4(VOXEL, 0, 0, 0)))
+
+layout (local_size_x = 8) in;
+layout (local_size_y = 8) in;
+layout (local_size_z = 8) in;
+
+layout (binding = 0) uniform vdb_cluster_info_t {
+	ivec3 cluster_dim;
+} vdb_cluster_info;
+layout (binding = 1, r32ui) uniform uimage3D vdb_chunk_data[];
+
+layout (push_constant) uniform vdb_lod_generator_push_constant_t {
+	ivec3 chunk_position;
+	int chunk_index;
+	int chunk_lod;
+} vdb_lod_generator_push_constant;
+
+void main() {
+	ivec3 chunk_position = vdb_lod_generator_push_constant.chunk_position;
+
+	ivec3 curr_voxel_position = ivec3(gl_GlobalInvocationID.xyz);
+	ivec3 prev_voxel_position = curr_voxel_position * 2;
+
+	int curr_lod = vdb_lod_generator_push_constant.chunk_lod;
+	int prev_lod = curr_lod - 1;
+
+	int curr_voxels_per_axis = 0; // VDB_VOXELS_PER_AXIS(curr_lod);
+	int prev_voxels_per_axis = 0; // VDB_VOXELS_PER_AXIS(prev_lod);
+
+	if (curr_voxel_position.x < curr_voxels_per_axis &&
+		curr_voxel_position.y < curr_voxels_per_axis &&
+		curr_voxel_position.z < curr_voxels_per_axis) {
+
+		int curr_chunk_index = curr_lod + (vdb_lod_generator_push_constant.chunk_index * VDB_LOD_COUNT_PLUS_ONE);
+		int prev_chunk_index = prev_lod + (vdb_lod_generator_push_constant.chunk_index * VDB_LOD_COUNT_PLUS_ONE);
+
+		uint curr_voxel = VDB_EMPTY_VOXEL;
+		uint prev_voxel = VDB_EMPTY_VOXEL;
+
+		bool is_solid = false;
+
+		for (int z = 0; z < 2; z++) {
+			for (int y = 0; y < 2; y++) {
+				for (int x = 0; x < 2; x++) {
+
+					prev_voxel = VDB_GET_VOXEL(prev_chunk_index, prev_voxel_position + ivec3(x, y, z));
+
+					if (VDB_VOXEL_IS_SOLID(prev_voxel)) {
+						is_solid = true;
+					}
+				}
+			}
+		}
+
+		if (is_solid) {
+			curr_voxel = VDB_VOXEL_SET_SOLID(curr_voxel);
+		}
+
+		VDB_SET_VOXEL(curr_chunk_index, curr_voxel_position, curr_voxel);
+	}
+}

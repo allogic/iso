@@ -1,0 +1,209 @@
+#version 460 core
+
+#extension GL_ARB_shading_language_include : require
+#extension GL_EXT_nonuniform_qualifier : require
+#extension GL_EXT_mesh_shader : require
+
+#include "../vdb/common.glsl"
+
+const int TILE = 8;
+const int PADDED = VDB_CHUNK_SIZE + 2;
+const int MAX_VERTICES = 256;
+const int MAX_PRIMITIVES = 128;
+const int SUB_DIVISION = 4;
+const int SUBPARTS_PER_LAYER = SUB_DIVISION * SUB_DIVISION;
+const int SUB_SIZE = VDB_CHUNK_SIZE / SUB_DIVISION;
+
+layout (local_size_x = SUBPARTS_PER_LAYER) in;
+layout (local_size_y = 1) in;
+layout (local_size_z = 1) in;
+
+layout (triangles) out;
+layout (max_vertices = MAX_VERTICES) out;
+layout (max_primitives = MAX_PRIMITIVES) out;
+
+layout (location = 0) out vec4 output_color[];
+
+layout (binding = 0) uniform camera_info_t {
+	vec3 position;
+	float max_ray_distance;
+	mat4 view;
+	mat4 projection;
+	mat4 view_projection;
+	mat4 view_projection_inv;
+	vec4 frustum_plane[6];
+} camera_info;
+layout (binding = 2) readonly buffer vdb_chunk_mask_buffer_t {
+	vdb_chunk_mask_t chunk_mask[];
+} vdb_chunk_mask_buffer;
+
+taskPayloadSharedEXT vdb_payload_t vdb_payload;
+
+uint mask_index(uint u, uint v) {
+    return v * PADDED + u;
+}
+
+void greedy_emit(
+    uint slice,
+    ivec3 base_axis,
+    ivec3 du,
+    ivec3 dv,
+    bool flip_winding,
+    inout int vert_count,
+    inout int prim_count,
+    int sub_u,
+    int sub_v
+) {
+    uint rows[TILE];
+
+    uint slice_base_v = slice + 1; // z / y / x slice (with border)
+
+	vdb_chunk_mask_t chunk_mask = vdb_chunk_mask_buffer.chunk_mask[vdb_payload.chunk_index];
+
+    // ---- build bit rows ----
+    for (int v = 0; v < TILE; v++) {
+        uint row = 0u;
+
+        uint vv = uint(sub_v * TILE + v) + 1;
+        for (int u = 0; u < TILE; u++) {
+            uint uu = uint(sub_u * TILE + u) + 1;
+
+            uint idx = mask_index(uu, vv);
+
+            uint face = 0u;
+            switch (vdb_payload.axis) {
+                case VDB_AXIS_POS_X: face = chunk_mask.px_mask[idx]; break;
+                case VDB_AXIS_NEG_X: face = chunk_mask.nx_mask[idx]; break;
+                case VDB_AXIS_POS_Y: face = chunk_mask.py_mask[idx]; break;
+                case VDB_AXIS_NEG_Y: face = chunk_mask.ny_mask[idx]; break;
+                case VDB_AXIS_POS_Z: face = chunk_mask.pz_mask[idx]; break;
+                case VDB_AXIS_NEG_Z: face = chunk_mask.nz_mask[idx]; break;
+            }
+
+            if (face != 0u)
+                row |= (1u << u);
+        }
+        rows[v] = row;
+    }
+
+    // ---- greedy merge ----
+    for (int v = 0; v < TILE; v++) {
+        while (rows[v] != 0u) {
+            int u = findLSB(rows[v]);
+
+            int w = 1;
+            while ((u + w < TILE) && bool(rows[v] & (1u << (u + w))))
+                w++;
+
+            uint quad = ((1u << w) - 1u) << u;
+
+            int h = 1;
+            while (v + h < TILE && (rows[v + h] & quad) == quad)
+                h++;
+
+            vec3 base =
+                vec3(vdb_payload.chunk_position * VDB_CHUNK_SIZE) +
+                vec3(slice) * vec3(base_axis) +
+                vec3(sub_u * TILE + u) * vec3(du) +
+                vec3(sub_v * TILE + v) * vec3(dv);
+
+            vec3 v0 = base;
+            vec3 v1 = base + vec3(du) * float(w);
+            vec3 v2 = v1   + vec3(dv) * float(h);
+            vec3 v3 = base + vec3(dv) * float(h);
+
+            int vc = vert_count;
+
+            gl_MeshVerticesEXT[vc+0].gl_Position = camera_info.view_projection * vec4(v0,1);
+            gl_MeshVerticesEXT[vc+1].gl_Position = camera_info.view_projection * vec4(v1,1);
+            gl_MeshVerticesEXT[vc+2].gl_Position = camera_info.view_projection * vec4(v2,1);
+            gl_MeshVerticesEXT[vc+3].gl_Position = camera_info.view_projection * vec4(v3,1);
+
+            output_color[vert_count + 0] = vec4(base_axis, 1.0);
+            output_color[vert_count + 1] = vec4(base_axis, 1.0);
+            output_color[vert_count + 2] = vec4(base_axis, 1.0);
+            output_color[vert_count + 3] = vec4(base_axis, 1.0);
+
+            if (!flip_winding) {
+                gl_PrimitiveTriangleIndicesEXT[prim_count++] = uvec3(vc,vc+1,vc+2);
+                gl_PrimitiveTriangleIndicesEXT[prim_count++] = uvec3(vc,vc+2,vc+3);
+            } else {
+                gl_PrimitiveTriangleIndicesEXT[prim_count++] = uvec3(vc,vc+2,vc+1);
+                gl_PrimitiveTriangleIndicesEXT[prim_count++] = uvec3(vc,vc+3,vc+2);
+            }
+
+            vert_count += 4;
+
+            for (int k = 0; k < h; k++)
+                rows[v + k] &= ~quad;
+        }
+    }
+}
+
+void main() {
+	uint active_index = gl_WorkGroupID.y;
+	uint sub_tile_index = gl_WorkGroupID.x;
+
+	int sub_u = int(sub_tile_index % SUB_DIVISION);
+	int sub_v = int(sub_tile_index / SUB_DIVISION);
+
+	int vert_count = 0;
+	int prim_count = 0;
+
+	int slice = -1;
+	int current_active = 0;
+
+	uint any_mask = 0u;
+
+    switch (vdb_payload.axis) {
+        case VDB_AXIS_POS_X: any_mask = vdb_payload.any_px_faces; break;
+        case VDB_AXIS_NEG_X: any_mask = vdb_payload.any_nx_faces; break;
+        case VDB_AXIS_POS_Y: any_mask = vdb_payload.any_py_faces; break;
+        case VDB_AXIS_NEG_Y: any_mask = vdb_payload.any_ny_faces; break;
+        case VDB_AXIS_POS_Z: any_mask = vdb_payload.any_pz_faces; break;
+        case VDB_AXIS_NEG_Z: any_mask = vdb_payload.any_nz_faces; break;
+    }
+
+    for (int candidate = 0; candidate < VDB_CHUNK_SIZE; candidate++) {
+        if ((any_mask & (1u << candidate)) != 0u) {
+            if (current_active == int(active_index)) {
+                slice = candidate;
+                break;
+            }
+            current_active++;
+        }
+    }
+
+    if (slice < 0) {
+        SetMeshOutputsEXT(0, 0);
+        return;
+    }
+
+	switch (vdb_payload.axis) {
+		case VDB_AXIS_POS_X:
+			greedy_emit(slice, ivec3(1,0,0), ivec3(0,1,0), ivec3(0,0,1), false, vert_count, prim_count, sub_u, sub_v);
+			break;
+
+		case VDB_AXIS_NEG_X:
+			greedy_emit(slice, ivec3(0,0,0), ivec3(0,1,0), ivec3(0,0,1), true, vert_count, prim_count, sub_u, sub_v);
+			break;
+
+		case VDB_AXIS_POS_Y:
+			greedy_emit(slice, ivec3(0,1,0), ivec3(1,0,0), ivec3(0,0,1), false, vert_count, prim_count, sub_u, sub_v);
+			break;
+
+		case VDB_AXIS_NEG_Y:
+			greedy_emit(slice, ivec3(0,0,0), ivec3(1,0,0), ivec3(0,0,1), true, vert_count, prim_count, sub_u, sub_v);
+			break;
+
+		case VDB_AXIS_POS_Z:
+			greedy_emit(slice, ivec3(0,0,1), ivec3(1,0,0), ivec3(0,1,0), false, vert_count, prim_count, sub_u, sub_v);
+			break;
+
+		case VDB_AXIS_NEG_Z:
+			greedy_emit(slice, ivec3(0,0,0), ivec3(1,0,0), ivec3(0,1,0), true, vert_count, prim_count, sub_u, sub_v);
+			break;
+	}
+
+	SetMeshOutputsEXT(vert_count, prim_count);
+}

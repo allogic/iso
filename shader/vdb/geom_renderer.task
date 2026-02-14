@@ -1,0 +1,105 @@
+#version 460 core
+
+#extension GL_ARB_shading_language_include : require
+#extension GL_EXT_nonuniform_qualifier : require
+#extension GL_EXT_mesh_shader : require
+
+#include "../vdb/common.glsl"
+
+const int SUB_DIVISION = 4;
+const int SUBPARTS_PER_LAYER = SUB_DIVISION * SUB_DIVISION;
+
+layout (local_size_x = 1) in;
+layout (local_size_y = 1) in;
+layout (local_size_z = 1) in;
+
+layout (binding = 0) uniform camera_info_t {
+	vec3 position;
+	float max_ray_distance;
+	mat4 view;
+	mat4 projection;
+	mat4 view_projection;
+	mat4 view_projection_inv;
+	vec4 frustum_plane[6];
+} camera_info;
+layout (binding = 1) readonly buffer vdb_chunk_info_buffer_t {
+	vdb_chunk_info_t chunk_info[];
+} vdb_chunk_info_buffer;
+layout (binding = 2) readonly buffer vdb_chunk_mask_buffer_t {
+	vdb_chunk_mask_t chunk_mask[];
+} vdb_chunk_mask_buffer;
+
+layout (push_constant) uniform vdb_geom_renderer_push_constant_t {
+	uint axis;
+} vdb_geom_renderer_push_constant;
+
+taskPayloadSharedEXT vdb_payload_t vdb_payload;
+
+void main() {
+	uint chunk_index = gl_GlobalInvocationID.x;
+	
+	if (chunk_index > VDB_CHUNK_COUNT) {
+		return;
+	}
+
+	vdb_chunk_info_t chunk_info = vdb_chunk_info_buffer.chunk_info[chunk_index];
+	vdb_chunk_mask_t chunk_mask = vdb_chunk_mask_buffer.chunk_mask[chunk_index];
+
+	uint active_slice_count = 0u;
+    uint any_mask = 0u;
+
+    switch (vdb_geom_renderer_push_constant.axis) {
+
+        case VDB_AXIS_POS_X:
+            any_mask = chunk_mask.any_px_faces;
+            break;
+
+        case VDB_AXIS_NEG_X:
+            any_mask = chunk_mask.any_nx_faces;
+            break;
+
+        case VDB_AXIS_POS_Y:
+            any_mask = chunk_mask.any_py_faces;
+            break;
+
+        case VDB_AXIS_NEG_Y:
+            any_mask = chunk_mask.any_ny_faces;
+            break;
+
+        case VDB_AXIS_POS_Z:
+            any_mask = chunk_mask.any_pz_faces;
+            break;
+
+        case VDB_AXIS_NEG_Z:
+            any_mask = chunk_mask.any_nz_faces;
+            break;
+    }
+
+    if (any_mask == 0u)
+        return;
+
+    for (int slice = 0; slice < VDB_CHUNK_SIZE; slice++) {
+        if ((any_mask & (1u << slice)) != 0u)
+            active_slice_count++;
+    }
+
+    if (active_slice_count == 0u)
+        return;
+
+    vdb_payload.chunk_position = chunk_info.chunk_position;
+    vdb_payload.chunk_index    = chunk_index;
+    vdb_payload.any_px_faces = chunk_mask.any_px_faces;
+    vdb_payload.any_nx_faces = chunk_mask.any_nx_faces;
+    vdb_payload.any_py_faces = chunk_mask.any_py_faces;
+    vdb_payload.any_ny_faces = chunk_mask.any_ny_faces;
+    vdb_payload.any_pz_faces = chunk_mask.any_pz_faces;
+    vdb_payload.any_nz_faces = chunk_mask.any_nz_faces;
+
+    vdb_payload.axis = vdb_geom_renderer_push_constant.axis;
+
+    EmitMeshTasksEXT(
+        SUBPARTS_PER_LAYER,
+        active_slice_count,
+        1u
+    );
+}

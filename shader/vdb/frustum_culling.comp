@@ -1,0 +1,52 @@
+#version 460 core
+
+#extension GL_ARB_shading_language_include : require
+#extension GL_EXT_nonuniform_qualifier : require
+
+#include "../vdb/common.glsl"
+
+layout (local_size_x = 8) in;
+layout (local_size_y = 8) in;
+layout (local_size_z = 8) in;
+
+layout (binding = 0) uniform camera_info_t {
+	vec3 position;
+	float max_ray_distance;
+	mat4 view;
+	mat4 projection;
+	mat4 view_projection;
+	mat4 view_projection_inv;
+	vec4 frustum_plane[6];
+} camera_info;
+layout (binding = 1) buffer vdb_chunk_info_buffer_t {
+	vdb_chunk_info_t chunk_info[];
+} vdb_chunk_info_buffer;
+
+int aabb_in_frustum(vec3 box_min, vec3 box_max) {
+	for (int i = 0; i < 6; i++) {
+
+		vec3 position = vec3(
+			camera_info.frustum_plane[i].y > 0.0 ? box_max.y : box_min.y,
+			camera_info.frustum_plane[i].x > 0.0 ? box_max.x : box_min.x,
+			camera_info.frustum_plane[i].z > 0.0 ? box_max.z : box_min.z
+		);
+
+		if (dot(camera_info.frustum_plane[i], vec4(position, 1.0)) < 0.0) {
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
+void main() {
+	uint chunk_index = gl_GlobalInvocationID.x;
+	
+	if (chunk_index > VDB_CHUNK_COUNT) {
+		return;
+	}
+
+	vdb_chunk_info_t chunk_info = vdb_chunk_info_buffer.chunk_info[chunk_index];
+
+	vdb_chunk_info_buffer.chunk_info[chunk_index].visible = aabb_in_frustum(chunk_info.aabb_min, chunk_info.aabb_max);
+}
