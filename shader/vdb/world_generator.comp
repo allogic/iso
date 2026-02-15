@@ -45,7 +45,7 @@ float vdb_default_density(vec3 sample_position, float ground_level, float cluste
 	float norm_y = sample_position.y / cluster_height;
 	float height_thresh = ground_level / cluster_height;
 
-	float blend = 1.0 - smoothstep(height_thresh - 0.01, height_thresh + 0.01, norm_y);
+	float blend = smoothstep(height_thresh + 0.3, height_thresh - 0.3, norm_y);
 
 	density *= blend;
 
@@ -70,11 +70,9 @@ void main() {
 
 	uint voxel = VDB_EMPTY_VOXEL;
 
-	if (density > VDB_SURFACE_THRESHOLD) {
+	if (density <= VDB_SURFACE_THRESHOLD) {
 		voxel = VDB_VOXEL_SET_SOLID(voxel);
 	}
-
-	//voxel = VDB_VOXEL_SET_SOLID(voxel); // TODO
 
 	vdb_set_voxel(voxel_position, voxel);
 }

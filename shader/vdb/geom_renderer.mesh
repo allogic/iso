@@ -40,29 +40,22 @@ uint get_voxel(ivec3 voxel_position) {
 }
 
 float base_depth(vec3 p) {
-	return (p.x + p.y - p.z) * DEPTH_SCALE;
+	return (p.x + p.z + p.y) * DEPTH_SCALE;
 }
 
-vec3 iso_project(vec3 p, float elevation) {
-	float iso_x = p.x - p.y;
-	float iso_y = (p.x + p.y) * 0.5 - p.z + elevation;
-	float iso_z = (p.x + p.y - p.z) * 0.1;
-
-	return vec3(iso_x, iso_y, iso_z);
-}
-
-vec3 iso_project(vec3 p, float elevation, float depth_bias) {
-	float iso_x = p.x - p.y;
-	float iso_y = (p.x + p.y) * 0.5 - p.z + elevation;
+vec3 iso_project(vec3 p, float depth_bias) {
+	float iso_x = p.x - p.z;
+	float iso_y = (p.x + p.z) * 0.5 - p.y;
 	float iso_z = base_depth(p) + depth_bias;
+
 	return vec3(iso_x, iso_y, iso_z);
 }
 
-void emit_quad(uint v, uint t, vec3 a, vec3 b, vec3 c, vec3 d, float elevation, float depth_bias, vec3 color) {
-	gl_MeshVerticesEXT[v + 0].gl_Position = camera_info.view_projection * vec4(iso_project(a, elevation, depth_bias), 1);
-	gl_MeshVerticesEXT[v + 1].gl_Position = camera_info.view_projection * vec4(iso_project(b, elevation, depth_bias), 1);
-	gl_MeshVerticesEXT[v + 2].gl_Position = camera_info.view_projection * vec4(iso_project(c, elevation, depth_bias), 1);
-	gl_MeshVerticesEXT[v + 3].gl_Position = camera_info.view_projection * vec4(iso_project(d, elevation, depth_bias), 1);
+void emit_quad(uint v, uint t, vec3 a, vec3 b, vec3 c, vec3 d, float depth_bias, vec3 color) {
+	gl_MeshVerticesEXT[v + 0].gl_Position = camera_info.view_projection * vec4(iso_project(a, depth_bias), 1);
+	gl_MeshVerticesEXT[v + 1].gl_Position = camera_info.view_projection * vec4(iso_project(b, depth_bias), 1);
+	gl_MeshVerticesEXT[v + 2].gl_Position = camera_info.view_projection * vec4(iso_project(c, depth_bias), 1);
+	gl_MeshVerticesEXT[v + 3].gl_Position = camera_info.view_projection * vec4(iso_project(d, depth_bias), 1);
 
 	output_color[v + 0] = color;
 	output_color[v + 1] = color;
@@ -73,66 +66,64 @@ void emit_quad(uint v, uint t, vec3 a, vec3 b, vec3 c, vec3 d, float elevation, 
 	gl_PrimitiveTriangleIndicesEXT[t + 1] = uvec3(v + 2, v + 3, v + 0);
 }
 
-void emit_tile(uint tile, vec3 grid_position) {
+void emit_tile(uint tile, vec3 voxel_position) {
 	float s = TILE_SIZE;
 	float h = TILE_HEIGHT;
 
-	float elevation = grid_position.z * h;
-
-	vec3 base = vec3(grid_position.xy - vec2(1.0), 0.0) * s;
+	vec3 world_base = vec3(
+		voxel_position.x * s,
+		voxel_position.y * h,
+		voxel_position.z * s
+	);
 
 	uint v = tile * 12;
 	uint t = tile * 6;
 
-	float depth_top  = base_depth(grid_position) - DEPTH_EPS;
-	float depth_side = base_depth(grid_position) + DEPTH_EPS;
+	float depth_top  = base_depth(voxel_position) - DEPTH_EPS;
+	float depth_side = base_depth(voxel_position) + DEPTH_EPS;
 
 	emit_quad(
 		v + 0, t + 0,
-		base + vec3(0, s, 0),
-		base + vec3(s, s, 0),
-		base + vec3(s, 0, 0),
-		base + vec3(0, 0, 0),
-		elevation,
+		world_base + vec3(0, 0, s),
+		world_base + vec3(s, 0, s),
+		world_base + vec3(s, 0, 0),
+		world_base + vec3(0, 0, 0),
 		depth_top,
 		vec3(0.8, 0.9, 1.0)
 	);
 
 	emit_quad(
 		v + 4, t + 2,
-		base + vec3(0, 0, 0),
-		base + vec3(s, 0, 0),
-		base + vec3(s, 0, h),
-		base + vec3(0, 0, h),
-		elevation,
+		world_base + vec3(0, 0, 0),
+		world_base + vec3(s, 0, 0),
+		world_base + vec3(s, h, 0),
+		world_base + vec3(0, h, 0),
 		depth_side,
 		vec3(0.55, 0.7, 0.9)
 	);
 
 	emit_quad(
 		v + 8, t + 4,
-		base + vec3(0, s, 0),
-		base + vec3(0, 0, 0),
-		base + vec3(0, 0, h),
-		base + vec3(0, s, h),
-		elevation,
+		world_base + vec3(0, 0, s),
+		world_base + vec3(0, 0, 0),
+		world_base + vec3(0, h, 0),
+		world_base + vec3(0, h, s),
 		depth_side,
 		vec3(0.45, 0.6, 0.85)
 	);
 }
 
 void main() {
-	ivec2 block_base = ivec2(gl_WorkGroupID.xy) * 4;
-
-	int z_layer = (VDB_CHUNK_SIZE - 1) - int(gl_WorkGroupID.z);
+	int block_base_x = int(gl_WorkGroupID.x) * 4;
+	int block_base_y = (VDB_CHUNK_SIZE - 1) - int(gl_WorkGroupID.y);
+	int block_base_z = int(gl_WorkGroupID.z) * 4;
 
 	uint tile_counter = 0;
 
-	for (int y = 3; y >= 0; y--) {
+	for (int z = 3; z >= 0; z--) {
 		for (int x = 3; x >= 0; x--) {
 
-			ivec2 xy = block_base + ivec2(x, y);
-			ivec3 voxel_position = ivec3(xy, z_layer);
+			ivec3 voxel_position = ivec3(block_base_x + x, block_base_y, block_base_z + z);
 
 			uint voxel = get_voxel(voxel_position);
 
