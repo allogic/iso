@@ -353,7 +353,7 @@ static void renderer_create_descriptor_pool(void) {
     VkDescriptorPoolSize descriptor_pool_size[] = {
       {
         .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        .descriptorCount = 1,
+        .descriptorCount = 2,
       },
       {
         .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
@@ -423,6 +423,13 @@ static void renderer_create_descriptor_set_layout(void) {
       },
       {
         .binding = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .descriptorCount = 1,
+        .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+        .pImmutableSamplers = 0,
+      },
+      {
+        .binding = 2,
         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
         .descriptorCount = 1,
         .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
@@ -1015,6 +1022,13 @@ static void renderer_create_debug_line_pipeline(char const *vertex_shader_file_p
 }
 
 static void renderer_update_vdb_world_generator_descriptor_set(void) {
+  VkDescriptorBufferInfo time_info_descriptor_buffer_info[] = {
+    {
+      .offset = 0,
+      .buffer = g_renderer.time_info_buffer.handle,
+      .range = VK_WHOLE_SIZE,
+    },
+  };
   VkDescriptorBufferInfo vdb_cluster_info_descriptor_buffer_info[] = {
     {
       .offset = 0,
@@ -1038,6 +1052,18 @@ static void renderer_update_vdb_world_generator_descriptor_set(void) {
       .dstBinding = 0,
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+      .descriptorCount = ARRAY_COUNT(time_info_descriptor_buffer_info),
+      .pImageInfo = 0,
+      .pBufferInfo = time_info_descriptor_buffer_info,
+      .pTexelBufferView = 0,
+    },
+    {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = 0,
+      .dstSet = g_renderer.vdb_world_generator_descriptor_set,
+      .dstBinding = 1,
+      .dstArrayElement = 0,
+      .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
       .descriptorCount = ARRAY_COUNT(vdb_cluster_info_descriptor_buffer_info),
       .pImageInfo = 0,
       .pBufferInfo = vdb_cluster_info_descriptor_buffer_info,
@@ -1047,7 +1073,7 @@ static void renderer_update_vdb_world_generator_descriptor_set(void) {
       .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
       .pNext = 0,
       .dstSet = g_renderer.vdb_world_generator_descriptor_set,
-      .dstBinding = 1,
+      .dstBinding = 2,
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
       .descriptorCount = ARRAY_COUNT(vdb_chunk_image_descriptor_image_info),
@@ -1190,7 +1216,7 @@ static void renderer_update_uniform_buffer(transform_t *transform, camera_t *cam
 static void renderer_record_compute_pass(void) {
   if (g_renderer.rebuild_world) {
 
-    g_renderer.rebuild_world = 0;
+    g_renderer.rebuild_world = 1; // TODO
 
     renderer_compute_world();
   }
@@ -1258,7 +1284,7 @@ static void renderer_record_main_pass(void) {
   vkCmdSetScissor(g_window.command_buffer, 0, 1, &scissor);
 
   {
-    int32_t group_count = MAKE_GROUP_COUNT(VDB_CHUNK_SIZE, 8);
+    int32_t group_count = 1; // MAKE_GROUP_COUNT(VDB_CHUNK_SIZE, 8); // TODO
 
     vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, g_renderer.vdb_geom_renderer_pipeline);
     vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, g_renderer.vdb_geom_renderer_pipeline_layout, 0, 1, &g_renderer.vdb_geom_renderer_descriptor_set, 0, 0);

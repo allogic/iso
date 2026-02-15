@@ -9,9 +9,12 @@
 const float TILE_SIZE = 0.5;
 const float TILE_HEIGHT = 0.5;
 
-layout (local_size_x = 1) in;
+const float DEPTH_SCALE = 0.001;
+const float DEPTH_EPS = 0.00001;
+
+layout (local_size_x = 4) in;
 layout (local_size_y = 1) in;
-layout (local_size_z = 1) in;
+layout (local_size_z = 4) in;
 
 layout (triangles) out;
 layout (max_vertices = 192) out;
@@ -36,15 +39,30 @@ uint get_voxel(ivec3 voxel_position) {
 	return uint(texelFetch(vdb_chunk, voxel_position, 0).r);
 }
 
-vec2 iso_transform(vec3 p, float elevation) {
-	return vec2(p.x - p.y, (p.x + p.y) * 0.5 - p.z + elevation);
+float base_depth(vec3 p) {
+	return (p.x + p.y - p.z) * DEPTH_SCALE;
 }
 
-void emit_quad(uint v, uint t, vec3 a, vec3 b, vec3 c, vec3 d, float elevation, vec3 color) {
-	gl_MeshVerticesEXT[v + 0].gl_Position = camera_info.view_projection * vec4(iso_transform(a, elevation), 0, 1);
-	gl_MeshVerticesEXT[v + 1].gl_Position = camera_info.view_projection * vec4(iso_transform(b, elevation), 0, 1);
-	gl_MeshVerticesEXT[v + 2].gl_Position = camera_info.view_projection * vec4(iso_transform(c, elevation), 0, 1);
-	gl_MeshVerticesEXT[v + 3].gl_Position = camera_info.view_projection * vec4(iso_transform(d, elevation), 0, 1);
+vec3 iso_project(vec3 p, float elevation) {
+	float iso_x = p.x - p.y;
+	float iso_y = (p.x + p.y) * 0.5 - p.z + elevation;
+	float iso_z = (p.x + p.y - p.z) * 0.1;
+
+	return vec3(iso_x, iso_y, iso_z);
+}
+
+vec3 iso_project(vec3 p, float elevation, float depth_bias) {
+	float iso_x = p.x - p.y;
+	float iso_y = (p.x + p.y) * 0.5 - p.z + elevation;
+	float iso_z = base_depth(p) + depth_bias;
+	return vec3(iso_x, iso_y, iso_z);
+}
+
+void emit_quad(uint v, uint t, vec3 a, vec3 b, vec3 c, vec3 d, float elevation, float depth_bias, vec3 color) {
+	gl_MeshVerticesEXT[v + 0].gl_Position = camera_info.view_projection * vec4(iso_project(a, elevation, depth_bias), 1);
+	gl_MeshVerticesEXT[v + 1].gl_Position = camera_info.view_projection * vec4(iso_project(b, elevation, depth_bias), 1);
+	gl_MeshVerticesEXT[v + 2].gl_Position = camera_info.view_projection * vec4(iso_project(c, elevation, depth_bias), 1);
+	gl_MeshVerticesEXT[v + 3].gl_Position = camera_info.view_projection * vec4(iso_project(d, elevation, depth_bias), 1);
 
 	output_color[v + 0] = color;
 	output_color[v + 1] = color;
@@ -66,6 +84,9 @@ void emit_tile(uint tile, vec3 grid_position) {
 	uint v = tile * 12;
 	uint t = tile * 6;
 
+	float depth_top  = base_depth(grid_position) - DEPTH_EPS;
+	float depth_side = base_depth(grid_position) + DEPTH_EPS;
+
 	emit_quad(
 		v + 0, t + 0,
 		base + vec3(0, s, 0),
@@ -73,6 +94,7 @@ void emit_tile(uint tile, vec3 grid_position) {
 		base + vec3(s, 0, 0),
 		base + vec3(0, 0, 0),
 		elevation,
+		depth_top,
 		vec3(0.8, 0.9, 1.0)
 	);
 
@@ -83,6 +105,7 @@ void emit_tile(uint tile, vec3 grid_position) {
 		base + vec3(s, 0, h),
 		base + vec3(0, 0, h),
 		elevation,
+		depth_side,
 		vec3(0.55, 0.7, 0.9)
 	);
 
@@ -93,19 +116,33 @@ void emit_tile(uint tile, vec3 grid_position) {
 		base + vec3(0, 0, h),
 		base + vec3(0, s, h),
 		elevation,
+		depth_side,
 		vec3(0.45, 0.6, 0.85)
 	);
 }
 
 void main() {
-	emit_tile(0, vec3(1, 1, 3));
-	emit_tile(1, vec3(1, 1, 2));
-	emit_tile(2, vec3(1, 1, 1));
+	ivec2 block_base = ivec2(gl_WorkGroupID.xy) * 4;
 
-	emit_tile(3, vec3(0, 0, 0));
-	emit_tile(4, vec3(1, 0, 0));
-	emit_tile(5, vec3(0, 1, 0));
-	emit_tile(6, vec3(1, 1, 0));
+	int z_layer = (VDB_CHUNK_SIZE - 1) - int(gl_WorkGroupID.z);
 
-	SetMeshOutputsEXT(192, 96);
+	uint tile_counter = 0;
+
+	for (int y = 3; y >= 0; y--) {
+		for (int x = 3; x >= 0; x--) {
+
+			ivec2 xy = block_base + ivec2(x, y);
+			ivec3 voxel_position = ivec3(xy, z_layer);
+
+			uint voxel = get_voxel(voxel_position);
+
+			if (VDB_VOXEL_IS_SOLID(voxel)) {
+				emit_tile(tile_counter, voxel_position);
+
+				tile_counter++;
+			}
+		}
+	}
+
+	SetMeshOutputsEXT(tile_counter * 12, tile_counter * 6);
 }

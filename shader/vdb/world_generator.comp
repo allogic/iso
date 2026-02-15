@@ -18,10 +18,14 @@ layout (local_size_x = 8) in;
 layout (local_size_y = 8) in;
 layout (local_size_z = 8) in;
 
-layout(binding = 0) writeonly buffer vdb_chunk_mask_buffer_t {
+layout(binding = 0) uniform time_info_t {
+	float time;
+	float delta_time;
+} time_info;
+layout(binding = 1) writeonly buffer vdb_chunk_mask_buffer_t {
 	vdb_chunk_mask_t chunk_mask[];
 } vdb_chunk_mask_buffer;
-layout (binding = 1, r32ui) uniform uimage3D vdb_chunk;
+layout (binding = 2, r32ui) uniform uimage3D vdb_chunk;
 
 uint vdb_get_voxel(ivec3 voxel_position) {
 	return uint(imageLoad(vdb_chunk, voxel_position).r);
@@ -41,7 +45,7 @@ float vdb_default_density(vec3 sample_position, float ground_level, float cluste
 	float norm_y = sample_position.y / cluster_height;
 	float height_thresh = ground_level / cluster_height;
 
-	float blend = 1.0 - smoothstep(height_thresh - 0.4, height_thresh + 0.2, norm_y);
+	float blend = 1.0 - smoothstep(height_thresh - 0.01, height_thresh + 0.01, norm_y);
 
 	density *= blend;
 
@@ -56,8 +60,11 @@ void main() {
 	
 	vec3 sample_position = vec3((chunk_position * VDB_CHUNK_SIZE) + voxel_position);
 
-	float ground_level = float(VDB_CLUSTER_DIM_Y * VDB_CHUNK_SIZE) / 2.0;
+	sample_position.x += time_info.time * 10.0; // TODO
+	sample_position.z += time_info.time * 7.0; // TODO
+
 	float cluster_height = float(VDB_CLUSTER_DIM_Y * VDB_CHUNK_SIZE);
+	float ground_level = cluster_height / 2.0;
 
 	float density  = vdb_default_density(sample_position, ground_level, cluster_height);
 
@@ -66,6 +73,8 @@ void main() {
 	if (density > VDB_SURFACE_THRESHOLD) {
 		voxel = VDB_VOXEL_SET_SOLID(voxel);
 	}
+
+	//voxel = VDB_VOXEL_SET_SOLID(voxel); // TODO
 
 	vdb_set_voxel(voxel_position, voxel);
 }

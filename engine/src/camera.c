@@ -16,6 +16,7 @@ void camera_update(camera_t *camera, transform_t *transform) {
   camera->up = vector3_down();
   camera->view = matrix4_look_at(camera->eye, camera->center, camera->up);
   camera->projection = matrix4_persp(camera->fov, aspect_ratio, camera->near_z, camera->far_z);
+  // camera->projection = matrix4_ortho(-1.0F, 1.0F, -1.0F, 1.0F, camera->near_z, camera->far_z);
   camera->view_projection = matrix4_mul(camera->view, camera->projection);
   camera->view_projection_inv = matrix4_inverse(camera->view_projection);
 
