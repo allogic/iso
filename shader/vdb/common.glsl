@@ -1,13 +1,10 @@
 #ifndef VDB_COMMON_H
 #define VDB_COMMON_H
 
-#define VDB_LOD_COUNT (4)
-#define VDB_LOD_COUNT_PLUS_ONE (VDB_LOD_COUNT + 1)
 #define VDB_CHUNK_SIZE (32)
-#define VDB_CLUSTER_DIM_X (3)
-#define VDB_CLUSTER_DIM_Y (3)
-#define VDB_CLUSTER_DIM_Z (3)
-#define VDB_CHUNK_COUNT (27)
+#define VDB_CLUSTER_DIM_X (1)
+#define VDB_CLUSTER_DIM_Y (1)
+#define VDB_CHUNK_COUNT (1)
 
 #define VDB_SURFACE_THRESHOLD (0.5)
 #define VDB_TERRAIN_LAYER_COUNT (16)
@@ -44,13 +41,6 @@
 
 #define VDB_VOXEL_SET_SOLID(VOXEL) \
 	(VOXEL | VDB_VOXEL_IS_SOLID_BIT)
-
-#define VDB_AXIS_POS_X (0x0)
-#define VDB_AXIS_POS_Y (0x1)
-#define VDB_AXIS_POS_Z (0x2)
-#define VDB_AXIS_NEG_X (0x3)
-#define VDB_AXIS_NEG_Y (0x4)
-#define VDB_AXIS_NEG_Z (0x5)
 
 struct cellular_noise_args_t {
 	vec4 offset;
@@ -135,15 +125,7 @@ struct vdb_chunk_mask_t {
 };
 
 struct vdb_payload_t {
-	ivec3 chunk_position;
 	uint chunk_index;
-	uint any_px_faces;
-	uint any_nx_faces;
-	uint any_py_faces;
-	uint any_ny_faces;
-	uint any_pz_faces;
-	uint any_nz_faces;
-	uint axis;
 };
 
 #endif // VDB_COMMON_H

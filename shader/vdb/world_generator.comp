@@ -1,0 +1,71 @@
+#version 460 core
+
+#extension GL_ARB_shading_language_include : require
+#extension GL_EXT_nonuniform_qualifier : require
+
+#include "../math/utility.glsl"
+
+#include "../noise/cellular.glsl"
+#include "../noise/curl.glsl"
+#include "../noise/fbm.glsl"
+#include "../noise/gradient.glsl"
+#include "../noise/perlin.glsl"
+#include "../noise/simplex.glsl"
+
+#include "../vdb/common.glsl"
+
+layout (local_size_x = 8) in;
+layout (local_size_y = 8) in;
+layout (local_size_z = 8) in;
+
+layout(binding = 0) writeonly buffer vdb_chunk_mask_buffer_t {
+	vdb_chunk_mask_t chunk_mask[];
+} vdb_chunk_mask_buffer;
+layout (binding = 1, r32ui) uniform uimage3D vdb_chunk;
+
+uint vdb_get_voxel(ivec3 voxel_position) {
+	return uint(imageLoad(vdb_chunk, voxel_position).r);
+}
+
+void vdb_set_voxel(ivec3 voxel_position, uint voxel) {
+	imageStore(vdb_chunk, voxel_position, uvec4(voxel, 0, 0, 0));
+}
+
+float vdb_default_density(vec3 sample_position, float ground_level, float cluster_height) {
+	float density = 0.0;
+
+	density += noise_cellular_t1((sample_position + vec3(131.0, 11.0, 141.0)) * 0.115, 2.9, 0.3) * 2.44;
+	density += noise_curl_t1((sample_position + vec3(887.0, 358.0, 262.0)) * 0.006).x * 14.13;
+	density += noise_curl_t1((sample_position + vec3(32.0, 288.0, 204.0)) * 0.045).x * 2.04;
+
+	float norm_y = sample_position.y / cluster_height;
+	float height_thresh = ground_level / cluster_height;
+
+	float blend = 1.0 - smoothstep(height_thresh - 0.4, height_thresh + 0.2, norm_y);
+
+	density *= blend;
+
+	//density = soft_terrace(density, 5, 10.0);
+
+	return density;
+}
+
+void main() {
+	ivec3 chunk_position = ivec3(0); // vdb_world_gen_push_constant.brick_position;
+	ivec3 voxel_position = ivec3(gl_GlobalInvocationID.xyz);
+	
+	vec3 sample_position = vec3((chunk_position * VDB_CHUNK_SIZE) + voxel_position);
+
+	float ground_level = float(VDB_CLUSTER_DIM_Y * VDB_CHUNK_SIZE) / 2.0;
+	float cluster_height = float(VDB_CLUSTER_DIM_Y * VDB_CHUNK_SIZE);
+
+	float density  = vdb_default_density(sample_position, ground_level, cluster_height);
+
+	uint voxel = VDB_EMPTY_VOXEL;
+
+	if (density > VDB_SURFACE_THRESHOLD) {
+		voxel = VDB_VOXEL_SET_SOLID(voxel);
+	}
+
+	vdb_set_voxel(voxel_position, voxel);
+}

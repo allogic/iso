@@ -1,13 +1,10 @@
 #ifndef VDB_H
 #define VDB_H
 
-#define VDB_LOD_COUNT (4)
-#define VDB_LOD_COUNT_PLUS_ONE (VDB_LOD_COUNT + 1)
 #define VDB_CHUNK_SIZE (32)
-#define VDB_CLUSTER_DIM_X (3)
-#define VDB_CLUSTER_DIM_Y (3)
-#define VDB_CLUSTER_DIM_Z (3)
-#define VDB_CHUNK_COUNT (27)
+#define VDB_CLUSTER_DIM_X (1)
+#define VDB_CLUSTER_DIM_Y (1)
+#define VDB_CHUNK_COUNT (1)
 
 #define VDB_SURFACE_THRESHOLD (0.5)
 #define VDB_TERRAIN_LAYER_COUNT (16)
@@ -44,13 +41,6 @@
 
 #define VDB_VOXEL_SET_SOLID(VOXEL) \
   (VOXEL | VDB_VOXEL_IS_SOLID_BIT)
-
-#define VDB_AXIS_POS_X (0x0)
-#define VDB_AXIS_POS_Y (0x1)
-#define VDB_AXIS_POS_Z (0x2)
-#define VDB_AXIS_NEG_X (0x3)
-#define VDB_AXIS_NEG_Y (0x4)
-#define VDB_AXIS_NEG_Z (0x5)
 
 typedef struct cellular_noise_args_t {
   vector4_t offset;
@@ -119,16 +109,17 @@ typedef struct vdb_terrain_layer_t {
   int32_t reserved0;
 } vdb_terrain_layer_t;
 typedef struct vdb_cluster_info_t {
-  ivector3_t cluster_dim;
+  ivector2_t cluster_dim;
   int32_t reserved0;
+  int32_t reserved1;
 } vdb_cluster_info_t;
 typedef struct vdb_chunk_info_t {
-  ivector3_t chunk_position;
-  int32_t lod;
-  vector3_t aabb_min;
+  ivector2_t chunk_position;
+  ivector2_t chunk_size;
   int32_t visible;
-  vector3_t aabb_max;
+  int32_t reserved0;
   int32_t reserved1;
+  int32_t reserved2;
 } vdb_chunk_info_t;
 typedef struct vdb_chunk_mask_t {
   uint32_t any_px_faces;
@@ -151,14 +142,15 @@ STATIC_ASSERT(ALIGNOF(vdb_chunk_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(vdb_chunk_mask_t) == 4);
 
 typedef struct vdb_t {
-  uint32_t *rsort_key;
-  uint32_t *rsort_idx;
-  uint32_t *rsort_tmp;
   buffer_t terrain_layer_buffer;
   buffer_t cluster_info_buffer;
   buffer_t chunk_info_buffer;
   buffer_t chunk_mask_buffer;
   buffer_t chunk_index_buffer;
+  VkImage chunk_image;
+  VkImageView chunk_image_view;
+  VkDeviceMemory chunk_device_memory;
+  VkSampler chunk_sampler;
 } vdb_t;
 
 #ifdef __cplusplus
@@ -168,11 +160,10 @@ extern "C" {
 extern vdb_t g_vdb;
 
 void vdb_create(void);
-void vdb_sort(transform_t *transform);
 void vdb_destroy(void);
 
-int32_t vdb_chunk_position_to_index(ivector3_t chunk_position);
-ivector3_t vdb_chunk_index_to_position(int32_t chunk_index);
+int32_t vdb_chunk_position_to_index(ivector2_t chunk_position);
+ivector2_t vdb_chunk_index_to_position(int32_t chunk_index);
 
 #ifdef __cplusplus
 }

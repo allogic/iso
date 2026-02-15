@@ -14,6 +14,7 @@ static void window_create_instance(void);
 static void window_create_surface(void);
 static void window_create_device(void);
 static void window_create_command_pool(void);
+static void window_create_command_buffer(void);
 
 static void window_find_physical_device(void);
 static void window_find_physical_device_queue_families(void);
@@ -29,6 +30,7 @@ static void window_destroy_instance(void);
 static void window_destroy_surface(void);
 static void window_destroy_device(void);
 static void window_destroy_command_pool(void);
+static void window_destroy_command_buffer(void);
 
 window_t g_window = {0};
 
@@ -78,15 +80,14 @@ void window_create(int32_t width, int32_t height, char const *title) {
 
   window_create_device();
   window_create_command_pool();
+  window_create_command_buffer();
 
   window_update_surface_capabilities();
 
-  renderpass_create_pre_depth();
   renderpass_create_main();
 
   vdb_create();
   swapchain_create(3);
-  framebuffer_create_pre_depth();
   framebuffer_create_main();
   renderer_create();
 }
@@ -137,13 +138,11 @@ void window_run(void) {
 
       renderer_destroy();
       framebuffer_destroy_main();
-      framebuffer_destroy_pre_depth();
       swapchain_destroy();
 
       window_update_surface_capabilities();
 
       swapchain_create(3);
-      framebuffer_create_pre_depth();
       framebuffer_create_main();
       renderer_create();
     }
@@ -166,29 +165,9 @@ void window_run(void) {
       DispatchMessageA(&g_window.window_message);
     }
 
-    renderer_draw_debug_line(
-      (vector3_t){0.0F, 0.0F, 0.0F},
-      (vector3_t){1.0F, 0.0F, 0.0F},
-      (vector4_t){1.0F, 0.0F, 0.0F, 1.0F});
-
-    renderer_draw_debug_line(
-      (vector3_t){0.0F, 0.0F, 0.0F},
-      (vector3_t){0.0F, 1.0F, 0.0F},
-      (vector4_t){0.0F, 1.0F, 0.0F, 1.0F});
-
-    renderer_draw_debug_line(
-      (vector3_t){0.0F, 0.0F, 0.0F},
-      (vector3_t){0.0F, 0.0F, 1.0F},
-      (vector4_t){0.0F, 0.0F, 1.0F, 1.0F});
-
     renderer_draw_debug_box(
       (vector3_t){0.0F, 0.0F, 0.0F},
-      (vector3_t){(float)(VDB_CHUNK_SIZE), (float)(VDB_CHUNK_SIZE), (float)(VDB_CHUNK_SIZE)},
-      (vector4_t){1.0F, 1.0F, 1.0F, 1.0F});
-
-    renderer_draw_debug_box(
-      (vector3_t){0.0F, 0.0F, 0.0F},
-      (vector3_t){(float)(VDB_CHUNK_SIZE * VDB_CLUSTER_DIM_X), (float)(VDB_CHUNK_SIZE * VDB_CLUSTER_DIM_Y), (float)(VDB_CHUNK_SIZE * VDB_CLUSTER_DIM_Z)},
+      (vector3_t){1.0F, 1.0F, 1.0F},
       (vector4_t){1.0F, 1.0F, 1.0F, 1.0F});
 
     player_update(&player);
@@ -199,12 +178,6 @@ void window_run(void) {
 
     camera_update(&player.camera, &player.transform);
     camera_debug(&player.camera);
-
-    // TODO: (only do radix sort when a chunk border has been crossed!)
-    // After world position has been calculated, we are ready to do radix sort on
-    // all chunks based on distance to camera position.
-    // After that the depth pre-pass can begin!
-    vdb_sort(&player.transform);
 
     renderer_draw(&player.transform, &player.camera);
 
@@ -252,13 +225,12 @@ void window_destroy(void) {
 
   renderer_destroy();
   vdb_destroy();
-  framebuffer_destroy_pre_depth();
   framebuffer_destroy_main();
   swapchain_destroy();
 
-  renderpass_destroy_pre_depth();
   renderpass_destroy_main();
 
+  window_destroy_command_buffer();
   window_destroy_command_pool();
   window_destroy_device();
   window_destroy_surface();
@@ -681,6 +653,16 @@ static void window_create_command_pool(void) {
 
   VK_CHECK(vkCreateCommandPool(g_window.device, &command_pool_create_info, 0, &g_window.command_pool));
 }
+static void window_create_command_buffer(void) {
+  VkCommandBufferAllocateInfo command_buffer_allocate_info = {
+    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+    .commandPool = g_window.command_pool,
+    .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+    .commandBufferCount = 1,
+  };
+
+  VK_CHECK(vkAllocateCommandBuffers(g_window.device, &command_buffer_allocate_info, &g_window.command_buffer));
+}
 
 static void window_find_physical_device(void) {
   int32_t physical_device_index = 0;
@@ -705,7 +687,6 @@ static void window_find_physical_device(void) {
           g_window.physical_device_features.samplerAnisotropy) {
 
         g_window.physical_device = physical_device;
-        g_window.max_sampler_anisotropy = g_window.physical_device_properties.limits.maxSamplerAnisotropy;
 
         break;
       }
@@ -894,4 +875,7 @@ static void window_destroy_device(void) {
 }
 static void window_destroy_command_pool(void) {
   vkDestroyCommandPool(g_window.device, g_window.command_pool, 0);
+}
+static void window_destroy_command_buffer(void) {
+  vkFreeCommandBuffers(g_window.device, g_window.command_pool, 1, &g_window.command_buffer);
 }

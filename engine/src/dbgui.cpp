@@ -77,7 +77,7 @@ void dbgui_draw(void) {
 
   ImDrawData *draw_data = ImGui::GetDrawData();
 
-  ImGui_ImplVulkan_RenderDrawData(draw_data, g_renderer.command_buffer);
+  ImGui_ImplVulkan_RenderDrawData(draw_data, g_window.command_buffer);
 }
 void dbgui_message(HWND window_handle, UINT window_message, WPARAM w_param, LPARAM l_param) {
   ImGui_ImplWin32_WndProcHandler(window_handle, window_message, w_param, l_param);
@@ -123,7 +123,6 @@ static void dbgui_draw_vdb_mask_generator(void) {
               layer->noise_type = noise_type_index;
 
               g_renderer.rebuild_world = 1;
-              g_renderer.rebuild_lod = 1;
             }
 
             if (is_selected) {
@@ -194,7 +193,6 @@ static void dbgui_draw_cellular_noise(vdb_terrain_layer_t *layer) {
         args->type = type_index;
 
         g_renderer.rebuild_world = 1;
-        g_renderer.rebuild_lod = 1;
       }
 
       if (is_selected) {
@@ -223,7 +221,6 @@ static void dbgui_draw_cellular_noise(vdb_terrain_layer_t *layer) {
             args->axis = axis_index;
 
             g_renderer.rebuild_world = 1;
-            g_renderer.rebuild_lod = 1;
           }
 
           if (is_selected) {
@@ -242,27 +239,22 @@ static void dbgui_draw_cellular_noise(vdb_terrain_layer_t *layer) {
 
   if (ImGui::DragFloat4("Offset", (float *)&args->offset, 0.1F, 0.0F, 0.0F, "%.3F")) {
     g_renderer.rebuild_world = 1;
-    g_renderer.rebuild_lod = 1;
   }
 
   if (ImGui::DragFloat("U", &args->u, 0.1F, 0.0F, 0.0F, "%.3F")) {
     g_renderer.rebuild_world = 1;
-    g_renderer.rebuild_lod = 1;
   }
 
   if (ImGui::DragFloat("V", &args->v, 0.1F, 0.0F, 0.0F, "%.3F")) {
     g_renderer.rebuild_world = 1;
-    g_renderer.rebuild_lod = 1;
   }
 
   if (ImGui::DragFloat("Scale", &layer->scale, 0.001F, 0.0F, 0.0F, "%.3F")) {
     g_renderer.rebuild_world = 1;
-    g_renderer.rebuild_lod = 1;
   }
 
   if (ImGui::DragFloat("Weight", &layer->weight, 0.01F, 0.0F, 0.0F, "%.3F")) {
     g_renderer.rebuild_world = 1;
-    g_renderer.rebuild_lod = 1;
   }
 }
 static void dbgui_draw_curl_noise(vdb_terrain_layer_t *layer) {
@@ -294,7 +286,6 @@ static void dbgui_draw_curl_noise(vdb_terrain_layer_t *layer) {
         args->type = type_index;
 
         g_renderer.rebuild_world = 1;
-        g_renderer.rebuild_lod = 1;
       }
 
       if (is_selected) {
@@ -323,7 +314,6 @@ static void dbgui_draw_curl_noise(vdb_terrain_layer_t *layer) {
             args->axis = axis_index;
 
             g_renderer.rebuild_world = 1;
-            g_renderer.rebuild_lod = 1;
           }
 
           if (is_selected) {
@@ -342,16 +332,13 @@ static void dbgui_draw_curl_noise(vdb_terrain_layer_t *layer) {
 
   if (ImGui::DragFloat4("Offset", (float *)&args->offset, 0.1F, 0.0F, 0.0F, "%.3F")) {
     g_renderer.rebuild_world = 1;
-    g_renderer.rebuild_lod = 1;
   }
 
   if (ImGui::DragFloat("Scale", &layer->scale, 0.001F, 0.0F, 0.0F, "%.3F")) {
     g_renderer.rebuild_world = 1;
-    g_renderer.rebuild_lod = 1;
   }
 
   if (ImGui::DragFloat("Weight", &layer->weight, 0.01F, 0.0F, 0.0F, "%.3F")) {
     g_renderer.rebuild_world = 1;
-    g_renderer.rebuild_lod = 1;
   }
 }

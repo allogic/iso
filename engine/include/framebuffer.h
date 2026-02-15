@@ -14,13 +14,10 @@ typedef struct framebuffer_t {
 extern "C" {
 #endif // __cplusplus
 
-extern framebuffer_t g_framebuffer_pre_depth;
 extern framebuffer_t g_framebuffer_main;
 
-void framebuffer_create_pre_depth(void);
 void framebuffer_create_main(void);
 
-void framebuffer_destroy_pre_depth(void);
 void framebuffer_destroy_main(void);
 
 #ifdef __cplusplus
