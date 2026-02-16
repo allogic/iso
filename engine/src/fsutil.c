@@ -1,6 +1,6 @@
 #include <pch.h>
 
-void fsutils_load_text(uint8_t **buffer, uint64_t *buffer_size, char const *file_path) {
+void fsutil_load_text(uint8_t **buffer, uint64_t *buffer_size, char const *file_path) {
   FILE *file = 0;
 
   fopen_s(&file, file_path, "r");
@@ -20,7 +20,7 @@ void fsutils_load_text(uint8_t **buffer, uint64_t *buffer_size, char const *file
     fclose(file);
   }
 }
-void fsutils_load_binary(uint8_t **buffer, uint64_t *buffer_size, char const *file_path) {
+void fsutil_load_binary(uint8_t **buffer, uint64_t *buffer_size, char const *file_path) {
   FILE *file = 0;
 
   fopen_s(&file, file_path, "rb");
@@ -39,7 +39,7 @@ void fsutils_load_binary(uint8_t **buffer, uint64_t *buffer_size, char const *fi
   }
 }
 
-void fsutils_save_text(uint8_t *buffer, uint64_t buffer_size, char const *file_path) {
+void fsutil_save_text(uint8_t *buffer, uint64_t buffer_size, char const *file_path) {
   FILE *file = 0;
 
   fopen_s(&file, file_path, "w");
@@ -52,7 +52,7 @@ void fsutils_save_text(uint8_t *buffer, uint64_t buffer_size, char const *file_p
     fclose(file);
   }
 }
-void fsutils_save_binary(uint8_t *buffer, uint64_t buffer_size, char const *file_path) {
+void fsutil_save_binary(uint8_t *buffer, uint64_t buffer_size, char const *file_path) {
   FILE *file = 0;
 
   fopen_s(&file, file_path, "wb");

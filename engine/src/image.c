@@ -26,7 +26,7 @@ void image_create(image_t *image) {
 
   vkGetImageMemoryRequirements(g_window.device, image->image_handle, &memory_requirements);
 
-  uint32_t memory_type_index = vkutils_find_memory_type_index(memory_requirements.memoryTypeBits, image->memory_property_flags);
+  uint32_t memory_type_index = vkutil_find_memory_type_index(memory_requirements.memoryTypeBits, image->memory_property_flags);
 
   VkMemoryAllocateInfo memory_allocate_info = {
     .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
@@ -93,7 +93,7 @@ void image_create(image_t *image) {
 
     vkGetBufferMemoryRequirements(g_window.device, staging_buffer.buffer_handle, &memory_requirements);
 
-    uint32_t memory_type_index = vkutils_find_memory_type_index(memory_requirements.memoryTypeBits, staging_buffer.memory_property_flags);
+    uint32_t memory_type_index = vkutil_find_memory_type_index(memory_requirements.memoryTypeBits, staging_buffer.memory_property_flags);
 
     VkMemoryAllocateInfo memory_allocate_info = {
       .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,

@@ -12,13 +12,17 @@ const float TILE_HEIGHT = 0.5;
 const float DEPTH_SCALE = 0.001;
 const float DEPTH_EPS = 0.00001;
 
-layout (local_size_x = 4) in;
-layout (local_size_y = 1) in;
-layout (local_size_z = 4) in;
+layout (
+	local_size_x = 4,
+	local_size_y = 1,
+	local_size_z = 4
+) in;
 
-layout (triangles) out;
-layout (max_vertices = 192) out;
-layout (max_primitives = 96) out;
+layout (
+	triangles,
+	max_vertices = 192,
+	max_primitives = 96
+) out;
 
 layout (location = 0) out vec3 output_color[];
 layout (location = 1) out vec2 output_uv[];
@@ -32,12 +36,12 @@ layout (binding = 0) uniform camera_info_t {
 	mat4 view_projection_inv;
 	vec4 frustum_plane[6];
 } camera_info;
-layout (binding = 1) uniform usampler3D vdb_chunk;
+layout (binding = 1) uniform usampler3D chunk_data[];
 
-taskPayloadSharedEXT vdb_payload_t vdb_payload;
+taskPayloadSharedEXT payload_t payload;
 
 uint get_voxel(ivec3 voxel_position) {
-	return uint(texelFetch(vdb_chunk, voxel_position, 0).r);
+	return uint(texelFetch(chunk_data[0], voxel_position, 0).r);
 }
 
 float base_depth(vec3 p) {
@@ -121,7 +125,7 @@ void emit_tile(uint tile, vec3 voxel_position) {
 
 void main() {
 	int block_base_x = int(gl_WorkGroupID.x) * 4;
-	int block_base_y = (VDB_CHUNK_SIZE - 1) - int(gl_WorkGroupID.y);
+	int block_base_y = (CHUNK_SIZE - 1) - int(gl_WorkGroupID.y);
 	int block_base_z = int(gl_WorkGroupID.z) * 4;
 
 	uint tile_counter = 0;
@@ -133,7 +137,8 @@ void main() {
 
 			uint voxel = get_voxel(voxel_position);
 
-			if (VDB_VOXEL_IS_SOLID(voxel)) {
+			if (VOXEL_IS_SOLID(voxel)) {
+
 				emit_tile(tile_counter, voxel_position);
 
 				tile_counter++;

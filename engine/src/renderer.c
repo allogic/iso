@@ -5,29 +5,6 @@
 #define CLUSTER_DIM_Y (1)
 #define CHUNK_COUNT (1)
 
-#define SURFACE_THRESHOLD (0.5)
-#define TERRAIN_LAYER_COUNT (16)
-
-#define NOISE_TYPE_CELLULAR (0x0)
-#define NOISE_TYPE_CURL (0x1)
-
-#define CELLULAR_TYPE_0 (0x0)
-#define CELLULAR_TYPE_1 (0x1)
-
-#define CELLULAR_AXIS_XY (0x0)
-#define CELLULAR_AXIS_XZ (0x1)
-#define CELLULAR_AXIS_YX (0x2)
-#define CELLULAR_AXIS_YZ (0x3)
-
-#define CURL_TYPE_0 (0x0)
-#define CURL_TYPE_1 (0x1)
-#define CURL_TYPE_2 (0x2)
-
-#define CURL_AXIS_XY (0x0)
-#define CURL_AXIS_XZ (0x1)
-#define CURL_AXIS_YX (0x2)
-#define CURL_AXIS_YZ (0x3)
-
 #define DEBUG_LINE_VERTEX_COUNT (0xFFFFF)
 #define DEBUG_LINE_INDEX_COUNT (0xFFFFF)
 
@@ -41,9 +18,10 @@ static void renderer_create_cluster_info_buffer(void);
 static void renderer_create_chunk_info_buffer(void);
 
 static void renderer_create_chunk_data_image(void);
+static void renderer_create_tile_atlas_image(void);
 
 static void renderer_update_vdb_world_generator_descriptor_set(void);
-static void renderer_update_vdb_geom_renderer_descriptor_set(void);
+static void renderer_update_vdb_iso_renderer_descriptor_set(void);
 static void renderer_update_debug_line_descriptor_set(void);
 
 static void renderer_update_uniform_buffer(transform_t *transform, camera_t *camera);
@@ -124,20 +102,24 @@ static VkVertexInputAttributeDescription const s_debug_line_vertex_input_attribu
 static VkDescriptorPoolSize const s_vdb_world_generator_descriptor_pool_size[] = {
   {
     .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    .descriptorCount = 2,
+    .descriptorCount = 1,
   },
   {
     .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-    .descriptorCount = 1,
+    .descriptorCount = CHUNK_COUNT,
   },
 };
-static VkDescriptorPoolSize const s_vdb_geom_renderer_descriptor_pool_size[] = {
+static VkDescriptorPoolSize const s_vdb_iso_renderer_descriptor_pool_size[] = {
   {
     .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
     .descriptorCount = 1,
   },
   {
     .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+    .descriptorCount = CHUNK_COUNT,
+  },
+  {
+    .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
     .descriptorCount = 1,
   },
 };
@@ -158,20 +140,13 @@ static VkDescriptorSetLayoutBinding const s_vdb_world_generator_descriptor_set_l
   },
   {
     .binding = 1,
-    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    .descriptorCount = 1,
-    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-    .pImmutableSamplers = 0,
-  },
-  {
-    .binding = 2,
     .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-    .descriptorCount = 1,
+    .descriptorCount = CHUNK_COUNT,
     .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
     .pImmutableSamplers = 0,
   },
 };
-static VkDescriptorSetLayoutBinding const s_vdb_geom_renderer_descriptor_set_layout_binding[] = {
+static VkDescriptorSetLayoutBinding const s_vdb_iso_renderer_descriptor_set_layout_binding[] = {
   {
     .binding = 0,
     .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -182,8 +157,15 @@ static VkDescriptorSetLayoutBinding const s_vdb_geom_renderer_descriptor_set_lay
   {
     .binding = 1,
     .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-    .descriptorCount = 1,
+    .descriptorCount = CHUNK_COUNT,
     .stageFlags = VK_SHADER_STAGE_MESH_BIT_EXT,
+    .pImmutableSamplers = 0,
+  },
+  {
+    .binding = 2,
+    .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+    .descriptorCount = 1,
+    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
     .pImmutableSamplers = 0,
   },
 };
@@ -205,15 +187,15 @@ static pipeline_t s_vdb_world_generator_pipeline = {
   .descriptor_set_layout_binding = s_vdb_world_generator_descriptor_set_layout_binding,
   .descriptor_set_layout_binding_count = ARRAY_COUNT(s_vdb_world_generator_descriptor_set_layout_binding),
 };
-static pipeline_t s_vdb_geom_renderer_pipeline = {
+static pipeline_t s_vdb_iso_renderer_pipeline = {
   .pipeline_type = PIPELINE_TYPE_TMF,
-  .task_shader = ROOT_DIR "/shader/vdb/geom_renderer.task.spv",
-  .mesh_shader = ROOT_DIR "/shader/vdb/geom_renderer.mesh.spv",
-  .fragment_shader = ROOT_DIR "/shader/vdb/geom_renderer.frag.spv",
-  .descriptor_pool_size = s_vdb_geom_renderer_descriptor_pool_size,
-  .descriptor_pool_size_count = ARRAY_COUNT(s_vdb_geom_renderer_descriptor_pool_size),
-  .descriptor_set_layout_binding = s_vdb_geom_renderer_descriptor_set_layout_binding,
-  .descriptor_set_layout_binding_count = ARRAY_COUNT(s_vdb_geom_renderer_descriptor_set_layout_binding),
+  .task_shader = ROOT_DIR "/shader/vdb/iso_renderer.task.spv",
+  .mesh_shader = ROOT_DIR "/shader/vdb/iso_renderer.mesh.spv",
+  .fragment_shader = ROOT_DIR "/shader/vdb/iso_renderer.frag.spv",
+  .descriptor_pool_size = s_vdb_iso_renderer_descriptor_pool_size,
+  .descriptor_pool_size_count = ARRAY_COUNT(s_vdb_iso_renderer_descriptor_pool_size),
+  .descriptor_set_layout_binding = s_vdb_iso_renderer_descriptor_set_layout_binding,
+  .descriptor_set_layout_binding_count = ARRAY_COUNT(s_vdb_iso_renderer_descriptor_set_layout_binding),
   .render_pass = &g_renderpass_main,
 };
 static pipeline_t s_debug_line_renderer_pipeline = {
@@ -279,17 +261,18 @@ static buffer_t s_chunk_info_buffer = {
   .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 };
 
-static image_t s_chunk_data_image = {
-  .width = CHUNK_SIZE,
-  .height = CHUNK_SIZE,
-  .depth = CHUNK_SIZE,
-  .channel = 1,
-  .element_size = sizeof(uint32_t),
-  .format = VK_FORMAT_R32_UINT,
+static image_t *s_chunk_data_image = 0;
+static image_t s_tile_atlas_image = {
+  .width = 512,
+  .height = 512,
+  .depth = 1,
+  .channel = 4,
+  .element_size = sizeof(uint8_t),
+  .format = VK_FORMAT_R8G8B8A8_UINT,
   .filter = VK_FILTER_NEAREST,
-  .image_usage_flags = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-  .image_type = VK_IMAGE_TYPE_3D,
-  .image_view_type = VK_IMAGE_VIEW_TYPE_3D,
+  .image_usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT,
+  .image_type = VK_IMAGE_TYPE_2D,
+  .image_view_type = VK_IMAGE_VIEW_TYPE_2D,
   .image_aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
   .image_tiling = VK_IMAGE_TILING_OPTIMAL,
 };
@@ -300,7 +283,8 @@ static VkDescriptorBufferInfo s_camera_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_cluster_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_chunk_info_descriptor_buffer_info = {0};
 
-static VkDescriptorImageInfo s_chunk_data_descriptor_image_info = {0};
+static VkDescriptorImageInfo *s_chunk_data_descriptor_image_info = 0;
+static VkDescriptorImageInfo s_tile_atlas_descriptor_image_info = {0};
 
 void renderer_create(void) {
   g_renderer.is_debug_enabled = 1;
@@ -314,13 +298,14 @@ void renderer_create(void) {
   renderer_create_chunk_info_buffer();
 
   renderer_create_chunk_data_image();
+  renderer_create_tile_atlas_image();
 
   pipeline_create(&s_vdb_world_generator_pipeline);
-  pipeline_create(&s_vdb_geom_renderer_pipeline);
+  pipeline_create(&s_vdb_iso_renderer_pipeline);
   pipeline_create(&s_debug_line_renderer_pipeline);
 
   renderer_update_vdb_world_generator_descriptor_set();
-  renderer_update_vdb_geom_renderer_descriptor_set();
+  renderer_update_vdb_iso_renderer_descriptor_set();
   renderer_update_debug_line_descriptor_set();
 
   dbgui_create();
@@ -463,7 +448,7 @@ void renderer_destroy(void) {
   dbgui_destroy();
 
   pipeline_destroy(&s_vdb_world_generator_pipeline);
-  pipeline_destroy(&s_vdb_geom_renderer_pipeline);
+  pipeline_destroy(&s_vdb_iso_renderer_pipeline);
   pipeline_destroy(&s_debug_line_renderer_pipeline);
 
   renderer_destroy_sync_object();
@@ -641,21 +626,60 @@ static void renderer_create_chunk_info_buffer(void) {
 
   buffer_create(&s_chunk_info_buffer);
 
-  s_chunk_info_descriptor_buffer_info.offset = 0;
-  s_chunk_info_descriptor_buffer_info.buffer = s_chunk_info_buffer.buffer_handle;
-  s_chunk_info_descriptor_buffer_info.range = VK_WHOLE_SIZE;
-
   s_chunk_info_buffer.host_data = 0;
 
   HEAP_FREE(chunk_info);
+
+  s_chunk_info_descriptor_buffer_info.offset = 0;
+  s_chunk_info_descriptor_buffer_info.buffer = s_chunk_info_buffer.buffer_handle;
+  s_chunk_info_descriptor_buffer_info.range = VK_WHOLE_SIZE;
 }
 
 static void renderer_create_chunk_data_image(void) {
-  image_create(&s_chunk_data_image);
+  s_chunk_data_image = (image_t *)HEAP_ALLOC(sizeof(image_t) * CHUNK_COUNT, 1, 0);
+  s_chunk_data_descriptor_image_info = (VkDescriptorImageInfo *)HEAP_ALLOC(sizeof(VkDescriptorImageInfo) * CHUNK_COUNT, 1, 0);
 
-  s_chunk_data_descriptor_image_info.sampler = s_chunk_data_image.sampler;
-  s_chunk_data_descriptor_image_info.imageView = s_chunk_data_image.image_view;
-  s_chunk_data_descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+  int32_t chunk_index = 0;
+  int32_t chunk_count = CHUNK_COUNT;
+
+  while (chunk_index < chunk_count) {
+
+    s_chunk_data_image[chunk_index].width = CHUNK_SIZE,
+    s_chunk_data_image[chunk_index].height = CHUNK_SIZE,
+    s_chunk_data_image[chunk_index].depth = CHUNK_SIZE,
+    s_chunk_data_image[chunk_index].channel = 1,
+    s_chunk_data_image[chunk_index].element_size = sizeof(uint32_t),
+    s_chunk_data_image[chunk_index].format = VK_FORMAT_R32_UINT,
+    s_chunk_data_image[chunk_index].filter = VK_FILTER_NEAREST,
+    s_chunk_data_image[chunk_index].image_usage_flags = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+    s_chunk_data_image[chunk_index].image_type = VK_IMAGE_TYPE_3D,
+    s_chunk_data_image[chunk_index].image_view_type = VK_IMAGE_VIEW_TYPE_3D,
+    s_chunk_data_image[chunk_index].image_aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
+    s_chunk_data_image[chunk_index].image_tiling = VK_IMAGE_TILING_OPTIMAL,
+
+    image_create(&s_chunk_data_image[chunk_index]);
+
+    s_chunk_data_descriptor_image_info[chunk_index].sampler = s_chunk_data_image[chunk_index].sampler;
+    s_chunk_data_descriptor_image_info[chunk_index].imageView = s_chunk_data_image[chunk_index].image_view;
+    s_chunk_data_descriptor_image_info[chunk_index].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+    chunk_index++;
+  }
+}
+static void renderer_create_tile_atlas_image(void) {
+  uint8_t *image = imgutil_load_image_from_file(0, 0, 0, ROOT_DIR "/asset/terrain.png");
+
+  s_tile_atlas_image.host_data = image;
+
+  image_create(&s_tile_atlas_image);
+
+  s_tile_atlas_image.host_data = 0;
+
+  imgutil_free_image(image);
+
+  s_tile_atlas_descriptor_image_info.sampler = s_tile_atlas_image.sampler;
+  s_tile_atlas_descriptor_image_info.imageView = s_tile_atlas_image.image_view;
+  s_tile_atlas_descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 }
 
 static void renderer_update_vdb_world_generator_descriptor_set(void) {
@@ -669,7 +693,7 @@ static void renderer_update_vdb_world_generator_descriptor_set(void) {
       .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
       .descriptorCount = 1,
       .pImageInfo = 0,
-      .pBufferInfo = &s_time_info_descriptor_buffer_info,
+      .pBufferInfo = &s_cluster_info_descriptor_buffer_info,
       .pTexelBufferView = 0,
     },
     {
@@ -678,21 +702,9 @@ static void renderer_update_vdb_world_generator_descriptor_set(void) {
       .dstSet = s_vdb_world_generator_pipeline.descriptor_set,
       .dstBinding = 1,
       .dstArrayElement = 0,
-      .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-      .descriptorCount = 1,
-      .pImageInfo = 0,
-      .pBufferInfo = &s_cluster_info_descriptor_buffer_info,
-      .pTexelBufferView = 0,
-    },
-    {
-      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-      .pNext = 0,
-      .dstSet = s_vdb_world_generator_pipeline.descriptor_set,
-      .dstBinding = 2,
-      .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-      .descriptorCount = 1,
-      .pImageInfo = &s_chunk_data_descriptor_image_info,
+      .descriptorCount = CHUNK_COUNT,
+      .pImageInfo = s_chunk_data_descriptor_image_info,
       .pBufferInfo = 0,
       .pTexelBufferView = 0,
     },
@@ -700,12 +712,12 @@ static void renderer_update_vdb_world_generator_descriptor_set(void) {
 
   vkUpdateDescriptorSets(g_window.device, ARRAY_COUNT(write_descriptor_set), write_descriptor_set, 0, 0);
 }
-static void renderer_update_vdb_geom_renderer_descriptor_set(void) {
+static void renderer_update_vdb_iso_renderer_descriptor_set(void) {
   VkWriteDescriptorSet write_descriptor_set[] = {
     {
       .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
       .pNext = 0,
-      .dstSet = s_vdb_geom_renderer_pipeline.descriptor_set,
+      .dstSet = s_vdb_iso_renderer_pipeline.descriptor_set,
       .dstBinding = 0,
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -717,12 +729,24 @@ static void renderer_update_vdb_geom_renderer_descriptor_set(void) {
     {
       .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
       .pNext = 0,
-      .dstSet = s_vdb_geom_renderer_pipeline.descriptor_set,
+      .dstSet = s_vdb_iso_renderer_pipeline.descriptor_set,
       .dstBinding = 1,
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+      .descriptorCount = CHUNK_COUNT,
+      .pImageInfo = s_chunk_data_descriptor_image_info,
+      .pBufferInfo = 0,
+      .pTexelBufferView = 0,
+    },
+    {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = 0,
+      .dstSet = s_vdb_iso_renderer_pipeline.descriptor_set,
+      .dstBinding = 2,
+      .dstArrayElement = 0,
+      .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
       .descriptorCount = 1,
-      .pImageInfo = &s_chunk_data_descriptor_image_info,
+      .pImageInfo = &s_tile_atlas_descriptor_image_info,
       .pBufferInfo = 0,
       .pTexelBufferView = 0,
     },
@@ -882,8 +906,8 @@ static void renderer_record_main_pass(void) {
   {
     int32_t group_count = 1;
 
-    vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_vdb_geom_renderer_pipeline.pipeline_handle);
-    vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_vdb_geom_renderer_pipeline.pipeline_layout, 0, 1, &s_vdb_geom_renderer_pipeline.descriptor_set, 0, 0);
+    vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_vdb_iso_renderer_pipeline.pipeline_handle);
+    vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_vdb_iso_renderer_pipeline.pipeline_layout, 0, 1, &s_vdb_iso_renderer_pipeline.descriptor_set, 0, 0);
     vkCmdDrawMeshTasks(g_window.command_buffer, group_count, group_count, group_count);
   }
 
@@ -935,5 +959,18 @@ static void renderer_destroy_buffer(void) {
   buffer_destroy(&s_chunk_info_buffer);
 }
 static void renderer_destroy_image(void) {
-  image_destroy(&s_chunk_data_image);
+  int32_t chunk_index = 0;
+  int32_t chunk_count = CHUNK_COUNT;
+
+  while (chunk_index < chunk_count) {
+
+    image_destroy(&s_chunk_data_image[chunk_index]);
+
+    chunk_index++;
+  }
+
+  HEAP_FREE(s_chunk_data_image);
+  HEAP_FREE(s_chunk_data_descriptor_image_info);
+
+  image_destroy(&s_tile_atlas_image);
 }

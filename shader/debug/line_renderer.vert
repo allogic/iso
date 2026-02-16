@@ -10,7 +10,7 @@ layout (location = 0) out vec4 output_color;
 
 layout (binding = 0) uniform camera_info_t {
 	vec3 position;
-	float max_ray_distance;
+	int reserved0;
 	mat4 view;
 	mat4 projection;
 	mat4 view_projection;

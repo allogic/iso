@@ -93,7 +93,7 @@ static void pipeline_create_vf(pipeline_t *pipeline) {
     uint8_t *shader_bytes = 0;
     uint64_t shader_size = 0;
 
-    fsutils_load_binary(&shader_bytes, &shader_size, pipeline->vertex_shader);
+    fsutil_load_binary(&shader_bytes, &shader_size, pipeline->vertex_shader);
 
     VkShaderModuleCreateInfo shader_module_create_info = {
       .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -110,7 +110,7 @@ static void pipeline_create_vf(pipeline_t *pipeline) {
     uint8_t *shader_bytes = 0;
     uint64_t shader_size = 0;
 
-    fsutils_load_binary(&shader_bytes, &shader_size, pipeline->fragment_shader);
+    fsutil_load_binary(&shader_bytes, &shader_size, pipeline->fragment_shader);
 
     VkShaderModuleCreateInfo shader_module_create_info = {
       .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -279,7 +279,7 @@ static void pipeline_create_tmf(pipeline_t *pipeline) {
     uint8_t *shader_bytes = 0;
     uint64_t shader_size = 0;
 
-    fsutils_load_binary(&shader_bytes, &shader_size, pipeline->task_shader);
+    fsutil_load_binary(&shader_bytes, &shader_size, pipeline->task_shader);
 
     VkShaderModuleCreateInfo shader_module_create_info = {
       .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -296,7 +296,7 @@ static void pipeline_create_tmf(pipeline_t *pipeline) {
     uint8_t *shader_bytes = 0;
     uint64_t shader_size = 0;
 
-    fsutils_load_binary(&shader_bytes, &shader_size, pipeline->mesh_shader);
+    fsutil_load_binary(&shader_bytes, &shader_size, pipeline->mesh_shader);
 
     VkShaderModuleCreateInfo shader_module_create_info = {
       .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -313,7 +313,7 @@ static void pipeline_create_tmf(pipeline_t *pipeline) {
     uint8_t *shader_bytes = 0;
     uint64_t shader_size = 0;
 
-    fsutils_load_binary(&shader_bytes, &shader_size, pipeline->fragment_shader);
+    fsutil_load_binary(&shader_bytes, &shader_size, pipeline->fragment_shader);
 
     VkShaderModuleCreateInfo shader_module_create_info = {
       .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -473,7 +473,7 @@ static void pipeline_create_c(pipeline_t *pipeline) {
     uint8_t *shader_bytes = 0;
     uint64_t shader_size = 0;
 
-    fsutils_load_binary(&shader_bytes, &shader_size, pipeline->compute_shader);
+    fsutil_load_binary(&shader_bytes, &shader_size, pipeline->compute_shader);
 
     VkShaderModuleCreateInfo shader_module_create_info = {
       .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,

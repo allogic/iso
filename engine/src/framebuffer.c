@@ -106,7 +106,7 @@ static void framebufffer_create_main_depth_images(void) {
 
     vkGetImageMemoryRequirements(g_window.device, g_framebuffer_main.depth_image[image_index], &memory_requirements);
 
-    uint32_t memory_type_index = vkutils_find_memory_type_index(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    uint32_t memory_type_index = vkutil_find_memory_type_index(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     VkMemoryAllocateInfo memory_allocate_info = {
       .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
