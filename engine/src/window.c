@@ -86,7 +86,6 @@ void window_create(int32_t width, int32_t height, char const *title) {
 
   renderpass_create_main();
 
-  vdb_create();
   swapchain_create(3);
   framebuffer_create_main();
   renderer_create();
@@ -96,6 +95,8 @@ void window_run(void) {
   QueryPerformanceCounter(&g_window.time_prev);
 
   player_t player = player_create();
+
+  transform_set_position_xyz(&player.transform, 0.0F, 0.0F, -50.0F);
 
   while (g_window.is_window_running) {
 
@@ -219,7 +220,6 @@ void window_destroy(void) {
   VK_CHECK(vkQueueWaitIdle(g_window.present_queue));
 
   renderer_destroy();
-  vdb_destroy();
   framebuffer_destroy_main();
   swapchain_destroy();
 

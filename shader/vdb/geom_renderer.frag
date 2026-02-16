@@ -4,9 +4,10 @@
 #extension GL_EXT_nonuniform_qualifier : require
 
 layout (location = 0) in vec3 input_color;
+layout (location = 1) in vec2 input_uv;
 
 layout (location = 0) out vec4 output_color;
 
 void main() {
-	output_color = vec4(input_color, 1.0);
+	output_color = vec4(input_uv, 0, 1);
 }

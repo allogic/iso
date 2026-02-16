@@ -10,8 +10,8 @@ extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND window_handle, UINT window_me
 static void dbgui_draw_vdb_mask_generator(void);
 static void dbgui_draw_vdb_geom_renderer(void);
 
-static void dbgui_draw_cellular_noise(vdb_terrain_layer_t *layer);
-static void dbgui_draw_curl_noise(vdb_terrain_layer_t *layer);
+// static void dbgui_draw_cellular_noise(terrain_layer_t *layer);
+// static void dbgui_draw_curl_noise(terrain_layer_t *layer);
 
 static VkDescriptorPool s_dbgui_descriptor_pool = 0;
 
@@ -94,68 +94,68 @@ void dbgui_destroy(void) {
 static void dbgui_draw_vdb_mask_generator(void) {
   ImGui::Begin("Terrain Layer");
 
-  int32_t layer_index = 0;
-  int32_t layer_count = VDB_TERRAIN_LAYER_COUNT;
-
-  while (layer_index < layer_count) {
-
-    vdb_terrain_layer_t *layer = &((vdb_terrain_layer_t *)g_vdb.terrain_layer_buffer.mapped_memory)[layer_index];
-
-    if (layer) {
-
-      if (ImGui::TreeNodeEx(layer, ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_FramePadding, "Layer %d", layer_index)) {
-
-        static char const *noise_type[] = {
-          "Cellular",
-          "Curl",
-        };
-
-        if (ImGui::BeginCombo("Noise Type", noise_type[layer->noise_type])) {
-
-          int32_t noise_type_index = 0;
-          int32_t noise_type_count = ARRAY_COUNT(noise_type);
-
-          while (noise_type_index < noise_type_count) {
-
-            bool is_selected = (layer->noise_type == noise_type_index);
-
-            if (ImGui::Selectable(noise_type[noise_type_index], is_selected)) {
-              layer->noise_type = noise_type_index;
-
-              g_renderer.rebuild_world = 1;
-            }
-
-            if (is_selected) {
-              ImGui::SetItemDefaultFocus();
-            }
-
-            noise_type_index++;
-          }
-
-          ImGui::EndCombo();
-        }
-
-        switch (layer->noise_type) {
-          case VDB_NOISE_TYPE_CELLULAR: {
-
-            dbgui_draw_cellular_noise(layer);
-
-            break;
-          }
-          case VDB_NOISE_TYPE_CURL: {
-
-            dbgui_draw_curl_noise(layer);
-
-            break;
-          }
-        }
-
-        ImGui::TreePop();
-      }
-    }
-
-    layer_index++;
-  }
+  // int32_t layer_index = 0;
+  // int32_t layer_count = TERRAIN_LAYER_COUNT;
+  //
+  // while (layer_index < layer_count) {
+  //
+  //   terrain_layer_t *layer = &((terrain_layer_t *)g_vdb.terrain_layer_buffer.mapped_memory)[layer_index];
+  //
+  //   if (layer) {
+  //
+  //     if (ImGui::TreeNodeEx(layer, ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_FramePadding, "Layer %d", layer_index)) {
+  //
+  //       static char const *noise_type[] = {
+  //         "Cellular",
+  //         "Curl",
+  //       };
+  //
+  //       if (ImGui::BeginCombo("Noise Type", noise_type[layer->noise_type])) {
+  //
+  //         int32_t noise_type_index = 0;
+  //         int32_t noise_type_count = ARRAY_COUNT(noise_type);
+  //
+  //         while (noise_type_index < noise_type_count) {
+  //
+  //           bool is_selected = (layer->noise_type == noise_type_index);
+  //
+  //           if (ImGui::Selectable(noise_type[noise_type_index], is_selected)) {
+  //             layer->noise_type = noise_type_index;
+  //
+  //             g_renderer.rebuild_world = 1;
+  //           }
+  //
+  //           if (is_selected) {
+  //             ImGui::SetItemDefaultFocus();
+  //           }
+  //
+  //           noise_type_index++;
+  //         }
+  //
+  //         ImGui::EndCombo();
+  //       }
+  //
+  //       switch (layer->noise_type) {
+  //         case VDB_NOISE_TYPE_CELLULAR: {
+  //
+  //           dbgui_draw_cellular_noise(layer);
+  //
+  //           break;
+  //         }
+  //         case VDB_NOISE_TYPE_CURL: {
+  //
+  //           dbgui_draw_curl_noise(layer);
+  //
+  //           break;
+  //         }
+  //       }
+  //
+  //       ImGui::TreePop();
+  //     }
+  //   }
+  //
+  //   layer_index++;
+  // }
 
   ImGui::End();
 }
@@ -165,7 +165,8 @@ static void dbgui_draw_vdb_geom_renderer(void) {
   ImGui::End();
 }
 
-static void dbgui_draw_cellular_noise(vdb_terrain_layer_t *layer) {
+/*
+static void dbgui_draw_cellular_noise(terrain_layer_t *layer) {
   cellular_noise_args_t *args = &layer->cellular_noise_args;
 
   static char const *types[] = {
@@ -206,7 +207,7 @@ static void dbgui_draw_cellular_noise(vdb_terrain_layer_t *layer) {
   }
 
   switch (args->type) {
-    case VDB_CELLULAR_TYPE_0: {
+    case CELLULAR_TYPE_0: {
 
       if (ImGui::BeginCombo("Axis", axis[args->axis])) {
 
@@ -257,7 +258,7 @@ static void dbgui_draw_cellular_noise(vdb_terrain_layer_t *layer) {
     g_renderer.rebuild_world = 1;
   }
 }
-static void dbgui_draw_curl_noise(vdb_terrain_layer_t *layer) {
+static void dbgui_draw_curl_noise(terrain_layer_t *layer) {
   curl_noise_args_t *args = &layer->curl_noise_args;
 
   static char const *types[] = {
@@ -299,7 +300,7 @@ static void dbgui_draw_curl_noise(vdb_terrain_layer_t *layer) {
   }
 
   switch (args->type) {
-    case VDB_CELLULAR_TYPE_0: {
+    case CELLULAR_TYPE_0: {
 
       if (ImGui::BeginCombo("Axis", axis[args->axis])) {
 
@@ -342,3 +343,4 @@ static void dbgui_draw_curl_noise(vdb_terrain_layer_t *layer) {
     g_renderer.rebuild_world = 1;
   }
 }
+*/

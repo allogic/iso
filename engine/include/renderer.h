@@ -1,8 +1,59 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
-#define DEBUG_LINE_VERTEX_COUNT (0xFFFFF)
-#define DEBUG_LINE_INDEX_COUNT (0xFFFFF)
+typedef struct cellular_noise_args_t {
+  vector4_t offset;
+  int32_t type;
+  float u;
+  float v;
+  int32_t axis;
+} cellular_noise_args_t;
+typedef struct curl_noise_args_t {
+  vector4_t offset;
+  int32_t type;
+  int32_t axis;
+  int32_t reserved0;
+  int32_t reserved1;
+} curl_noise_args_t;
+typedef struct fbm_noise_args_t {
+  vector4_t offset;
+  int32_t type;
+  float scale;
+  float tile_length;
+  float amplitude;
+  float lacunarity;
+  int32_t octaves;
+  int32_t reserved0;
+  int32_t reserved1;
+} fbm_noise_args_t;
+typedef struct gradient_noise_args_t {
+  vector4_t offset;
+  int32_t type;
+  float tile_length;
+  int32_t reserved0;
+  int32_t reserved1;
+} gradient_noise_args_t;
+typedef struct perlin_noise_args_t {
+  vector4_t offset;
+  int32_t type;
+  int32_t reserved0;
+  int32_t reserved1;
+  int32_t reserved2;
+} perlin_noise_args_t;
+typedef struct simplex_noise_args_t {
+  vector4_t offset;
+  int32_t type;
+  int32_t reserved0;
+  int32_t reserved1;
+  int32_t reserved2;
+} simplex_noise_args_t;
+
+STATIC_ASSERT(ALIGNOF(cellular_noise_args_t) == 4);
+STATIC_ASSERT(ALIGNOF(curl_noise_args_t) == 4);
+STATIC_ASSERT(ALIGNOF(fbm_noise_args_t) == 4);
+STATIC_ASSERT(ALIGNOF(gradient_noise_args_t) == 4);
+STATIC_ASSERT(ALIGNOF(perlin_noise_args_t) == 4);
+STATIC_ASSERT(ALIGNOF(simplex_noise_args_t) == 4);
 
 typedef struct time_info_t {
   float time;
@@ -20,10 +71,38 @@ typedef struct camera_info_t {
   matrix4_t view_projection_inv;
   vector4_t frustum_plane[6];
 } camera_info_t;
+typedef struct cluster_info_t {
+  ivector2_t dimension;
+  int32_t reserved0;
+  int32_t reserved1;
+} cluster_info_t;
+typedef struct chunk_info_t {
+  ivector2_t chunk_position;
+  ivector2_t chunk_size;
+  int32_t visible;
+  int32_t reserved0;
+  int32_t reserved1;
+  int32_t reserved2;
+} chunk_info_t;
+typedef struct terrain_layer_t {
+  cellular_noise_args_t cellular_noise_args;
+  curl_noise_args_t curl_noise_args;
+  fbm_noise_args_t fbm_noise_args;
+  gradient_noise_args_t gradient_noise_args;
+  perlin_noise_args_t perlin_noise_args;
+  simplex_noise_args_t simplex_noise_args;
+  int32_t noise_type;
+  float scale;
+  float weight;
+  int32_t reserved0;
+} terrain_layer_t;
 
 STATIC_ASSERT(ALIGNOF(time_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(screen_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(camera_info_t) == 4);
+STATIC_ASSERT(ALIGNOF(cluster_info_t) == 4);
+STATIC_ASSERT(ALIGNOF(chunk_info_t) == 4);
+STATIC_ASSERT(ALIGNOF(terrain_layer_t) == 4);
 
 typedef struct full_screen_vertex_t {
   vector3_t position;
@@ -45,34 +124,6 @@ typedef struct renderer_t {
   int8_t is_dirty;
   int8_t is_debug_enabled;
   int8_t rebuild_world;
-  int32_t image_index;
-  int32_t debug_line_vertex_offset;
-  int32_t debug_line_index_offset;
-  VkSemaphore render_finished_semaphore[SWAPCHAIN_MAX_IMAGE_COUNT];
-  VkSemaphore image_available_semaphore;
-  VkFence frame_fence;
-  VkDescriptorPool vdb_world_generator_descriptor_pool;
-  VkDescriptorPool vdb_geom_renderer_descriptor_pool;
-  VkDescriptorPool debug_line_descriptor_pool;
-  VkDescriptorSetLayout vdb_world_generator_descriptor_set_layout;
-  VkDescriptorSetLayout vdb_geom_renderer_descriptor_set_layout;
-  VkDescriptorSetLayout debug_line_descriptor_set_layout;
-  VkDescriptorSet vdb_world_generator_descriptor_set;
-  VkDescriptorSet vdb_geom_renderer_descriptor_set;
-  VkDescriptorSet debug_line_descriptor_set;
-  VkPipelineLayout vdb_world_generator_pipeline_layout;
-  VkPipelineLayout vdb_geom_renderer_pipeline_layout;
-  VkPipelineLayout debug_line_pipeline_layout;
-  VkPipeline vdb_world_generator_pipeline;
-  VkPipeline vdb_geom_renderer_pipeline;
-  VkPipeline debug_line_pipeline;
-  buffer_t debug_line_vertex_buffer;
-  buffer_t debug_line_index_buffer;
-  buffer_t time_info_buffer;
-  buffer_t screen_info_buffer;
-  buffer_t camera_info_buffer;
-  buffer_t full_screen_vertex_buffer;
-  buffer_t full_screen_index_buffer;
 } renderer_t;
 
 #ifdef __cplusplus

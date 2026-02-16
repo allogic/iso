@@ -39,12 +39,13 @@
 #include <transform.h>
 #include <camera.h>
 
+#include <pipeline.h>
 #include <buffer.h>
+#include <image.h>
 #include <dbgui.h>
 #include <fsutils.h>
 #include <swapchain.h>
 #include <framebuffer.h>
-#include <vdb.h>
 #include <player.h>
 #include <renderer.h>
 #include <renderpass.h>
