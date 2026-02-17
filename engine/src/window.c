@@ -96,8 +96,8 @@ void window_run(void) {
 
   g_player_0 = player_create();
 
-  transform_set_position_xyz(&g_player_0.transform, -20.0F, 50.0F, -20.0F);
-  transform_set_euler_angles_pyr(&g_player_0.transform, deg_to_rad(45.0F), deg_to_rad(45.0F), deg_to_rad(0.0F));
+  // transform_set_position_xyz(&g_player_0.transform, -20.0F, 50.0F, -20.0F);
+  // transform_set_euler_angles_pyr(&g_player_0.transform, deg_to_rad(45.0F), deg_to_rad(45.0F), deg_to_rad(0.0F));
 
   while (g_window.is_window_running) {
 

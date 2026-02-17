@@ -62,7 +62,7 @@ void main() {
 
 	uint voxel = EMPTY_VOXEL;
 
-	if (density > SURFACE_THRESHOLD) {
+	if (density <= SURFACE_THRESHOLD) {
 		voxel = VOXEL_SET_SOLID(voxel);
 	}
 

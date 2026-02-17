@@ -33,5 +33,5 @@ void main() {
 
 	payload.chunk_index = chunk_index;
 
-	EmitMeshTasksEXT(4, 32, 4);
+	EmitMeshTasksEXT(8, 32, 8);
 }

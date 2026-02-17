@@ -4,53 +4,29 @@
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_mesh_shader : require
 
-#include "../math/constant.glsl"
 #include "../vdb/common.glsl"
 
-const float TILE_SIZE = 1.0;
-const float TILE_HEIGHT = 0.5;
+const float GLOBAL_TILE_SIZE = 0.5;
+const float GLOBAL_TILE_HEIGHT = 0.5;
 
-const vec4 q_fake_iso = vec4(
-	0.239117607,
-	0.369643837,
-	-0.0990457684,
-	0.892399073
-);
-const vec4 q_true_iso = vec4(
-	0.279848129,
-	0.364705235,
-	-0.115916900,
-	0.880476236
-);
-
-const vec3 vertex_fake[] = vec3[](
-	vec3(-1.06066012, -0.866025448, 0.353553444),
-	vec3(0.353553295, -0.866025448, -1.06066012),
-	vec3(-0.353553295, 0.866025448, 1.06066012),
-	vec3(1.06066012, 0.866025448, -0.353553444)
-);
-const vec3 vertex_true[] = vec3[](
-	vec3(-1.11535501, -0.816496611, 0.298858583),
-	vec3(0.298858404, -0.816496611, -1.11535501),
-	vec3(-0.298858404, 0.816496611, 1.11535501),
-	vec3(1.11535501, 0.816496611, -0.298858583)
-);
+const float DEPTH_SCALE = 0.001;
+const float DEPTH_EPS = 0.00001;
 
 layout (
-	local_size_x = 8,
+	local_size_x = 4,
 	local_size_y = 1,
-	local_size_z = 8
+	local_size_z = 4
 ) in;
 
 layout (
 	triangles,
-	max_vertices = 256,
-	max_primitives = 128
+	max_vertices = 192,
+	max_primitives = 96
 ) out;
 
 layout (location = 0) out vec3 output_color[];
 layout (location = 1) out vec2 output_uv[];
-layout (location = 2) out uint output_tile_index[];
+layout (location = 2) out uint output_atlas_id[];
 
 layout (binding = 0) uniform camera_info_t {
 	vec3 position;
@@ -61,7 +37,10 @@ layout (binding = 0) uniform camera_info_t {
 	mat4 view_projection_inv;
 	vec4 frustum_plane[6];
 } camera_info;
-layout (binding = 1) uniform usampler3D chunk_data[];
+layout (binding = 1) readonly buffer tile_lut_buffer_t {
+	tile_lut_t tile_lut[];
+} tile_lut_buffer;
+layout (binding = 2) uniform usampler3D chunk_data[];
 
 layout (push_constant) uniform push_constant_t {
 	vec4 vertex_offset_0;
@@ -81,136 +60,189 @@ uint get_voxel(ivec3 voxel_position) {
 	return uint(texelFetch(chunk_data[0], voxel_position, 0).r);
 }
 
-vec4 quaternion_angle_axis(float a, vec3 b) {
-	vec3 n = normalize(b);
-
-	float a_half = a * 0.5;
-	float s = sin(a_half);
-
-	vec4 q = {
-		n.x * s,
-		n.y * s,
-		n.z * s,
-		cos(a_half),
-	};
-
-	return q;
-}
-vec4 quaternion_from_euler_angles(float p, float y, float r) {
-	p *= DEG_TO_RAD;
-	y *= DEG_TO_RAD;
-	r *= DEG_TO_RAD;
-
-	float sp = sin(p * 0.5);
-	float sy = sin(y * 0.5);
-	float sr = sin(r * 0.5);
-
-	float cp = cos(p * 0.5);
-	float cy = cos(y * 0.5);
-	float cr = cos(r * 0.5);
-
-	vec4 q = {
-		sr * cp * cy - cr * sp * sy,
-		cr * sp * cy + sr * cp * sy,
-		cr * cp * sy - sr * sp * cy,
-		cr * cp * cy + sr * sp * sy
-	};
-
-	return q;
-}
-vec4 quaternion_mul(vec4 a, vec4 b) {
-	vec4 q = {
-		(a.w * b.x) + (a.x * b.w) + (a.y * b.z) - (a.z * b.y),
-		(a.w * b.y) - (a.x * b.z) + (a.y * b.w) + (a.z * b.x),
-		(a.w * b.z) + (a.x * b.y) - (a.y * b.x) + (a.z * b.w),
-		(a.w * b.w) - (a.x * b.x) - (a.y * b.y) - (a.z * b.z),
-	};
-
-	return q;
+float iso_depth(vec3 p) {
+	return (p.x + p.z + p.y) * DEPTH_SCALE;
 }
 
-vec3 vector3_rotate(vec3 a, vec4 b) {
-	float xx = b.x * b.x;
-	float yy = b.y * b.y;
-	float zz = b.z * b.z;
+vec3 iso_project(vec3 p, float depth_bias) {
+	float iso_x = p.x - p.z;
+	float iso_y = (p.x + p.z) * 0.5 - p.y;
+	float iso_z = iso_depth(p) + depth_bias;
 
-	float xy = b.x * b.y;
-	float xz = b.x * b.z;
-	float yz = b.y * b.z;
+	return vec3(iso_x, iso_y, iso_z);
+}
 
-	float wx = b.w * b.x;
-	float wy = b.w * b.y;
-	float wz = b.w * b.z;
+vec2 uv_top(vec3 p, vec3 base, float sx, float sz) {
+	vec2 local = (p.xz - base.xz);
 
-	vec3 v = {
-		(1.0 - 2.0 * (yy + zz)) * a.x + 2.0 * (xy - wz) * a.y + 2.0 * (xz + wy) * a.z,
-		2.0 * (xy + wz) * a.x + (1.0 - 2.0 * (xx + zz)) * a.y + 2.0 * (yz - wx) * a.z,
-		2.0 * (xz - wy) * a.x + 2.0 * (yz + wx) * a.y + (1.0 - 2.0 * (xx + yy)) * a.z
-	};
+	return vec2(local.x / sx, local.y / sz);
+}
 
-	return v;
+vec2 uv_side_x(vec3 p, vec3 base, float sx, float sy) {
+	vec2 local = vec2(p.x - base.x, p.y - base.y);
+
+	return vec2(local.x / sx, local.y / sy);
+}
+
+vec2 uv_side_z(vec3 p, vec3 base, float sz, float sy) {
+	vec2 local = vec2(p.z - base.z, p.y - base.y);
+
+	return vec2(local.x / sz, local.y / sy);
+}
+
+void emit_quad(uint v, uint t, vec3 a, vec3 b, vec3 c, vec3 d, vec2 uva, vec2 uvb, vec2 uvc, vec2 uvd, float depth_bias, vec3 color, uint atlas_id) {
+	gl_MeshVerticesEXT[v + 0].gl_Position = camera_info.view_projection * vec4(iso_project(a, depth_bias), 1);
+	gl_MeshVerticesEXT[v + 1].gl_Position = camera_info.view_projection * vec4(iso_project(b, depth_bias), 1);
+	gl_MeshVerticesEXT[v + 2].gl_Position = camera_info.view_projection * vec4(iso_project(c, depth_bias), 1);
+	gl_MeshVerticesEXT[v + 3].gl_Position = camera_info.view_projection * vec4(iso_project(d, depth_bias), 1);
+
+	output_color[v + 0] = color;
+	output_color[v + 1] = color;
+	output_color[v + 2] = color;
+	output_color[v + 3] = color;
+
+	output_uv[v + 0] = uva;
+	output_uv[v + 1] = uvb;
+	output_uv[v + 2] = uvc;
+	output_uv[v + 3] = uvd;
+
+	output_atlas_id[v + 0] = atlas_id;
+	output_atlas_id[v + 1] = atlas_id;
+	output_atlas_id[v + 2] = atlas_id;
+	output_atlas_id[v + 3] = atlas_id;
+
+	gl_PrimitiveTriangleIndicesEXT[t + 0] = uvec3(v + 0, v + 1, v + 2);
+	gl_PrimitiveTriangleIndicesEXT[t + 1] = uvec3(v + 2, v + 3, v + 0);
+}
+
+void emit_tile(uint tile_counter, vec3 voxel_position, uint tile_id) {
+	tile_lut_t tile_lut = tile_lut_buffer.tile_lut[tile_id];
+
+	float sx = tile_lut.size_x * GLOBAL_TILE_SIZE;
+	float sy = tile_lut.size_y * GLOBAL_TILE_HEIGHT;
+	float sz = tile_lut.size_z * GLOBAL_TILE_SIZE;
+
+	vec3 base = vec3(
+		voxel_position.x * sx,
+		voxel_position.y * sy,
+		voxel_position.z * sz
+	);
+
+	float depth_top  = iso_depth(voxel_position) - DEPTH_EPS;
+	float depth_side = iso_depth(voxel_position) + DEPTH_EPS;
+
+	uint v = tile_counter * 12;
+	uint t = tile_counter * 6;
+
+	vec3 ta = base + vec3(0, 0, sz);
+	vec3 tb = base + vec3(sx, 0, sz);
+	vec3 tc = base + vec3(sx, 0, 0);
+	vec3 td = base + vec3(0, 0, 0);
+
+	vec3 xa = base + vec3(0, 0, 0);
+	vec3 xb = base + vec3(sx, 0, 0);
+	vec3 xc = base + vec3(sx, sy, 0);
+	vec3 xd = base + vec3(0, sy, 0);
+
+	vec3 za = base + vec3(0, 0, sz);
+	vec3 zb = base + vec3(0, 0, 0);
+	vec3 zc = base + vec3(0, sy, 0);
+	vec3 zd = base + vec3(0, sy, sz);
+
+	emit_quad(
+		v + 0, t + 0,
+		ta, tb, tc, td,
+		uv_top(ta, base, sx, sz),
+		uv_top(tb, base, sx, sz),
+		uv_top(tc, base, sx, sz),
+		uv_top(td, base, sx, sz),
+		depth_top,
+		vec3(0.8, 0.9, 1.0),
+		0
+	);
+
+	emit_quad(
+		v + 4, t + 2,
+		xa, xb, xc, xd,
+		uv_side_x(xa, base, sx, sy),
+		uv_side_x(xb, base, sx, sy),
+		uv_side_x(xc, base, sx, sy),
+		uv_side_x(xd, base, sx, sy),
+		depth_side,
+		vec3(0.55, 0.7, 0.9),
+		1
+	);
+
+	emit_quad(
+		v + 8, t + 4,
+		za, zb, zc, zd,
+		uv_side_z(za, base, sz, sy),
+		uv_side_z(zb, base, sz, sy),
+		uv_side_z(zc, base, sz, sy),
+		uv_side_z(zd, base, sz, sy),
+		depth_side,
+		vec3(0.45, 0.6, 0.85),
+		2
+	);
+
+	//emit_quad(
+	//	v + 0, t + 0,
+	//	world_base + vec3(0, 0, sz),
+	//	world_base + vec3(sx, 0, sz),
+	//	world_base + vec3(sx, 0, 0),
+	//	world_base + vec3(0, 0, 0),
+	//	depth_top,
+	//	vec3(0.8, 0.9, 1.0),
+	//	tile_lut.atlas_id
+	//);
+
+	//emit_quad(
+	//	v + 4, t + 2,
+	//	world_base + vec3(0, 0, 0),
+	//	world_base + vec3(sx, 0, 0),
+	//	world_base + vec3(sx, sy, 0),
+	//	world_base + vec3(0, sy, 0),
+	//	depth_side,
+	//	vec3(0.55, 0.7, 0.9),
+	//	tile_lut.atlas_id
+	//);
+
+	//emit_quad(
+	//	v + 8, t + 4,
+	//	world_base + vec3(0, 0, sz),
+	//	world_base + vec3(0, 0, 0),
+	//	world_base + vec3(0, sy, 0),
+	//	world_base + vec3(0, sy, sz),
+	//	depth_side,
+	//	vec3(0.45, 0.6, 0.85),
+	//	tile_lut.atlas_id
+	//);
 }
 
 void main() {
-	int block_base_x = int(gl_WorkGroupID.x) * 8;
-	int block_base_y = int(gl_WorkGroupID.y);
-	int block_base_z = int(gl_WorkGroupID.z) * 8;
+	int block_base_x = int(gl_WorkGroupID.x) * 4;
+	int block_base_y = (CHUNK_SIZE - 1) - int(gl_WorkGroupID.y);
+	int block_base_z = int(gl_WorkGroupID.z) * 4;
 
 	uint tile_counter = 0;
 
-	vec4 qp = quaternion_angle_axis(pc.rotation.x * DEG_TO_RAD, vec3(1, 0, 0));
-	vec4 qy = quaternion_angle_axis(pc.rotation.y * DEG_TO_RAD, vec3(0, 1, 0));
-	vec4 qr = quaternion_angle_axis(pc.rotation.z * DEG_TO_RAD, vec3(0, 0, 1));
+	for (int z = 3; z >= 0; z--) {
+		for (int x = 3; x >= 0; x--) {
 
-	vec4 q = quaternion_mul(qy, quaternion_mul(qp, qr));
-
-	for (int z = 0; z < 8; z++) {
-		for (int x = 0; x < 8; x++) {
-	
 			ivec3 voxel_position = ivec3(block_base_x + x, block_base_y, block_base_z + z);
-	
+
 			uint voxel = get_voxel(voxel_position);
-	
+
 			if (VOXEL_IS_SOLID(voxel)) {
 
-				float quad_width = cos(radians(45.0)) * 2 + pc.tile_size;
-				float quad_height = 1.5 * 2 + pc.tile_height;
+				uint tile_id = VOXEL_GET_TILE_ID(voxel);
 
-				vec4 a = vec4(voxel_position + vector3_rotate(vec3(-quad_width, -quad_height, 0), q), 1);
-				vec4 b = vec4(voxel_position + vector3_rotate(vec3(quad_width, -quad_height, 0), q), 1);
-				vec4 c = vec4(voxel_position + vector3_rotate(vec3(-quad_width, quad_height, 0), q), 1);
-				vec4 d = vec4(voxel_position + vector3_rotate(vec3(quad_width, quad_height, 0), q), 1);
+				emit_tile(tile_counter, voxel_position, tile_id);
 
-				uint v = tile_counter * 4;
-				uint t = tile_counter * 2;
-
-				gl_MeshVerticesEXT[v + 0].gl_Position = camera_info.view_projection * a;
-				gl_MeshVerticesEXT[v + 1].gl_Position = camera_info.view_projection * b;
-				gl_MeshVerticesEXT[v + 2].gl_Position = camera_info.view_projection * c;
-				gl_MeshVerticesEXT[v + 3].gl_Position = camera_info.view_projection * d;
-
-				output_color[v + 0] = vec3(1, 1, 1);
-				output_color[v + 1] = vec3(1, 1, 1);
-				output_color[v + 2] = vec3(1, 1, 1);
-				output_color[v + 3] = vec3(1, 1, 1);
-
-				output_uv[v + 0] = vec2(0, 0);
-				output_uv[v + 1] = vec2(1, 0);
-				output_uv[v + 2] = vec2(0, 1);
-				output_uv[v + 3] = vec2(1, 1);
-
-				output_tile_index[v + 0] = 1;
-				output_tile_index[v + 1] = 1;
-				output_tile_index[v + 2] = 1;
-				output_tile_index[v + 3] = 1;
-
-				gl_PrimitiveTriangleIndicesEXT[t + 0] = uvec3(v + 0, v + 2, v + 1);
-				gl_PrimitiveTriangleIndicesEXT[t + 1] = uvec3(v + 2, v + 3, v + 1);
-	
 				tile_counter++;
 			}
 		}
 	}
 
-	SetMeshOutputsEXT(tile_counter * 4, tile_counter * 2);
+	SetMeshOutputsEXT(tile_counter * 12, tile_counter * 6);
 }

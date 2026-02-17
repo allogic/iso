@@ -16,6 +16,7 @@ static void renderer_create_debug_line_buffer(void);
 static void renderer_create_full_screen_buffer(void);
 static void renderer_create_cluster_info_buffer(void);
 static void renderer_create_chunk_info_buffer(void);
+static void renderer_create_tile_lut_buffer(void);
 
 static void renderer_create_chunk_data_image(void);
 static void renderer_create_tile_atlas_image(void);
@@ -118,6 +119,10 @@ static VkDescriptorPoolSize const s_vdb_iso_renderer_descriptor_pool_size[] = {
     .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
     .descriptorCount = 1 + CHUNK_COUNT,
   },
+  {
+    .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    .descriptorCount = 1,
+  },
 };
 static VkDescriptorPoolSize const s_vdb_debug_line_renderer_descriptor_pool_size[] = {
   {
@@ -152,13 +157,20 @@ static VkDescriptorSetLayoutBinding const s_vdb_iso_renderer_descriptor_set_layo
   },
   {
     .binding = 1,
+    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    .descriptorCount = 1,
+    .stageFlags = VK_SHADER_STAGE_MESH_BIT_EXT,
+    .pImmutableSamplers = 0,
+  },
+  {
+    .binding = 2,
     .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
     .descriptorCount = CHUNK_COUNT,
     .stageFlags = VK_SHADER_STAGE_MESH_BIT_EXT,
     .pImmutableSamplers = 0,
   },
   {
-    .binding = 2,
+    .binding = 3,
     .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
     .descriptorCount = 1,
     .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -266,6 +278,12 @@ static buffer_t s_chunk_info_buffer = {
   .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
   .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 };
+static buffer_t s_tile_lut_buffer = {
+  .host_data = (void *)g_tile_lut,
+  .size = sizeof(g_tile_lut),
+  .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+  .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+};
 
 static image_t *s_chunk_data_image = 0;
 static image_t s_tile_atlas_image = {
@@ -288,6 +306,7 @@ static VkDescriptorBufferInfo s_screen_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_camera_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_cluster_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_chunk_info_descriptor_buffer_info = {0};
+static VkDescriptorBufferInfo s_tile_lut_descriptor_buffer_info = {0};
 
 static VkDescriptorImageInfo *s_chunk_data_descriptor_image_info = 0;
 static VkDescriptorImageInfo s_tile_atlas_descriptor_image_info = {0};
@@ -309,6 +328,7 @@ void renderer_create(void) {
   renderer_create_full_screen_buffer();
   renderer_create_cluster_info_buffer();
   renderer_create_chunk_info_buffer();
+  renderer_create_tile_lut_buffer();
 
   renderer_create_chunk_data_image();
   renderer_create_tile_atlas_image();
@@ -647,6 +667,13 @@ static void renderer_create_chunk_info_buffer(void) {
   s_chunk_info_descriptor_buffer_info.buffer = s_chunk_info_buffer.buffer_handle;
   s_chunk_info_descriptor_buffer_info.range = VK_WHOLE_SIZE;
 }
+static void renderer_create_tile_lut_buffer(void) {
+  buffer_create(&s_tile_lut_buffer);
+
+  s_tile_lut_descriptor_buffer_info.offset = 0;
+  s_tile_lut_descriptor_buffer_info.buffer = s_tile_lut_buffer.buffer_handle;
+  s_tile_lut_descriptor_buffer_info.range = VK_WHOLE_SIZE;
+}
 
 static void renderer_create_chunk_data_image(void) {
   s_chunk_data_image = (image_t *)HEAP_ALLOC(sizeof(image_t) * CHUNK_COUNT, 1, 0);
@@ -745,6 +772,18 @@ static void renderer_update_vdb_iso_renderer_descriptor_set(void) {
       .dstSet = s_vdb_iso_renderer_pipeline.descriptor_set,
       .dstBinding = 1,
       .dstArrayElement = 0,
+      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+      .descriptorCount = 1,
+      .pImageInfo = 0,
+      .pBufferInfo = &s_tile_lut_descriptor_buffer_info,
+      .pTexelBufferView = 0,
+    },
+    {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = 0,
+      .dstSet = s_vdb_iso_renderer_pipeline.descriptor_set,
+      .dstBinding = 2,
+      .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
       .descriptorCount = CHUNK_COUNT,
       .pImageInfo = s_chunk_data_descriptor_image_info,
@@ -755,7 +794,7 @@ static void renderer_update_vdb_iso_renderer_descriptor_set(void) {
       .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
       .pNext = 0,
       .dstSet = s_vdb_iso_renderer_pipeline.descriptor_set,
-      .dstBinding = 2,
+      .dstBinding = 3,
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
       .descriptorCount = 1,
@@ -983,6 +1022,7 @@ static void renderer_destroy_buffer(void) {
   buffer_destroy(&s_camera_info_buffer);
   buffer_destroy(&s_cluster_info_buffer);
   buffer_destroy(&s_chunk_info_buffer);
+  buffer_destroy(&s_tile_lut_buffer);
 }
 static void renderer_destroy_image(void) {
   int32_t chunk_index = 0;

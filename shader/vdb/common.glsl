@@ -13,12 +13,18 @@
 #define VOXEL_IS_SOLID(VOXEL) \
 	((VOXEL & VOXEL_IS_SOLID_BIT) == VOXEL_IS_SOLID_BIT)
 
-#define VOXEL_GET_MATERIAL(VOXEL) \
+#define VOXEL_GET_TILE_ID(VOXEL) \
 	((VOXEL >> 8) & 0xFF)
 
 #define VOXEL_SET_SOLID(VOXEL) \
 	(VOXEL | VOXEL_IS_SOLID_BIT)
 
+struct tile_lut_t {
+	float size_x;
+	float size_y;
+	float size_z;
+	uint atlas_id;
+};
 struct payload_t {
 	uint chunk_index;
 };

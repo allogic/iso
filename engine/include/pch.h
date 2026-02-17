@@ -43,6 +43,7 @@
 #include <imgutil.h>
 #include <vkutil.h>
 
+#include <tilelut.h>
 #include <pipeline.h>
 #include <buffer.h>
 #include <image.h>
