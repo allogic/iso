@@ -1,11 +1,14 @@
 #include <pch.h>
 
-camera_t camera_create(float fov, float near_z, float far_z) {
+camera_t camera_create(float fov_deg, float zoom, float ortho_near_z, float ortho_far_z, float persp_near_z, float persp_far_z) {
   return (camera_t){
     .is_debug_enabled = 1,
-    .fov = deg_to_rad(fov),
-    .near_z = near_z,
-    .far_z = far_z,
+    .fov_deg = fov_deg,
+    .zoom = zoom,
+    .persp_near_z = persp_near_z,
+    .persp_far_z = persp_far_z,
+    .ortho_near_z = ortho_near_z,
+    .ortho_far_z = ortho_far_z,
   };
 }
 void camera_update(camera_t *camera, transform_t *transform) {
@@ -15,8 +18,19 @@ void camera_update(camera_t *camera, transform_t *transform) {
   camera->center = vector3_add(transform->world_position, transform_local_front(transform));
   camera->up = vector3_down();
   camera->view = matrix4_look_at(camera->eye, camera->center, camera->up);
-  camera->projection = matrix4_persp(camera->fov, aspect_ratio, camera->near_z, camera->far_z);
-  // camera->projection = matrix4_ortho(-10.0F, 10.0F, -10.0F, 10.0F, -1000.0F, 1000.0F);
+
+  if (camera->is_orthographic) {
+
+    float half_width = camera->zoom * aspect_ratio;
+    float half_height = camera->zoom;
+
+    camera->projection = matrix4_ortho(-half_width, half_width, -half_height, half_height, camera->ortho_near_z, camera->ortho_far_z);
+
+  } else {
+
+    camera->projection = matrix4_persp(deg_to_rad(camera->fov_deg), aspect_ratio, camera->persp_near_z, camera->persp_far_z);
+  }
+
   camera->view_projection = matrix4_mul(camera->view, camera->projection);
   camera->view_projection_inv = matrix4_inverse(camera->view_projection);
 

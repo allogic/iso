@@ -24,9 +24,13 @@ typedef enum frustum_corner_t {
 
 typedef struct camera_t {
   int8_t is_debug_enabled;
-  float fov;
-  float near_z;
-  float far_z;
+  int8_t is_orthographic;
+  float fov_deg;
+  float zoom;
+  float persp_near_z;
+  float persp_far_z;
+  float ortho_near_z;
+  float ortho_far_z;
   vector3_t eye;
   vector3_t center;
   vector3_t up;
@@ -42,7 +46,7 @@ typedef struct camera_t {
 extern "C" {
 #endif // __cplusplus
 
-camera_t camera_create(float fov, float near_z, float far_z);
+camera_t camera_create(float fov, float zoom, float ortho_near_z, float ortho_far_z, float persp_near_z, float persp_far_z);
 void camera_update(camera_t *camera, transform_t *transform);
 void camera_debug(camera_t *camera);
 

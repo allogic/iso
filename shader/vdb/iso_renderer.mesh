@@ -71,19 +71,14 @@ layout (push_constant) uniform push_constant_t {
 	vec4 rotation;
 	float tile_size;
 	float tile_height;
-	float depth_scale;
-	float depth_eps;
+	float inner_scale;
+	float outer_scale;
 } pc;
 
 taskPayloadSharedEXT payload_t payload;
 
 uint get_voxel(ivec3 voxel_position) {
 	return uint(texelFetch(chunk_data[0], voxel_position, 0).r);
-}
-
-vec3 rotate_quat(vec4 q, vec3 v) {
-	vec3 t = 2.0 * cross(q.xyz, v + cross(q.xyz, v) * q.w);
-	return v + t;
 }
 
 vec4 quaternion_angle_axis(float a, vec3 b) {
@@ -163,11 +158,11 @@ void main() {
 
 	uint tile_counter = 0;
 
-	//vec4 qp = quaternion_angle_axis(pc.rotation.x * DEG_TO_RAD, vec3(1, 0, 0));
-	//vec4 qy = quaternion_angle_axis(pc.rotation.y * DEG_TO_RAD, vec3(0, 1, 0));
-	//vec4 qr = quaternion_angle_axis(pc.rotation.z * DEG_TO_RAD, vec3(0, 0, 1));
+	vec4 qp = quaternion_angle_axis(pc.rotation.x * DEG_TO_RAD, vec3(1, 0, 0));
+	vec4 qy = quaternion_angle_axis(pc.rotation.y * DEG_TO_RAD, vec3(0, 1, 0));
+	vec4 qr = quaternion_angle_axis(pc.rotation.z * DEG_TO_RAD, vec3(0, 0, 1));
 
-	//vec4 q = quaternion_mul(qy, quaternion_mul(qp, qr));
+	vec4 q = quaternion_mul(qy, quaternion_mul(qp, qr));
 
 	for (int z = 0; z < 8; z++) {
 		for (int x = 0; x < 8; x++) {
@@ -178,10 +173,13 @@ void main() {
 	
 			if (VOXEL_IS_SOLID(voxel)) {
 
-				vec4 a = vec4(voxel_position + vertex_fake[0], 1); // vector3_rotate(vec3(-1, -1, 0), q);
-				vec4 b = vec4(voxel_position + vertex_fake[1], 1); // vector3_rotate(vec3(1, -1, 0), q);
-				vec4 c = vec4(voxel_position + vertex_fake[2], 1); // vector3_rotate(vec3(-1, 1, 0), q);
-				vec4 d = vec4(voxel_position + vertex_fake[3], 1); // vector3_rotate(vec3(1, 1, 0), q);
+				float quad_width = cos(radians(45.0)) * 2 + pc.tile_size;
+				float quad_height = 1.5 * 2 + pc.tile_height;
+
+				vec4 a = vec4(voxel_position + vector3_rotate(vec3(-quad_width, -quad_height, 0), q), 1);
+				vec4 b = vec4(voxel_position + vector3_rotate(vec3(quad_width, -quad_height, 0), q), 1);
+				vec4 c = vec4(voxel_position + vector3_rotate(vec3(-quad_width, quad_height, 0), q), 1);
+				vec4 d = vec4(voxel_position + vector3_rotate(vec3(quad_width, quad_height, 0), q), 1);
 
 				uint v = tile_counter * 4;
 				uint t = tile_counter * 2;
@@ -196,15 +194,15 @@ void main() {
 				output_color[v + 2] = vec3(1, 1, 1);
 				output_color[v + 3] = vec3(1, 1, 1);
 
-				output_uv[v + 0] = vec2(0.0, 1.0);
-				output_uv[v + 1] = vec2(1.0, 1.0);
-				output_uv[v + 2] = vec2(0.0, 0.0);
-				output_uv[v + 3] = vec2(1.0, 0.0);
+				output_uv[v + 0] = vec2(0, 0);
+				output_uv[v + 1] = vec2(1, 0);
+				output_uv[v + 2] = vec2(0, 1);
+				output_uv[v + 3] = vec2(1, 1);
 
-				output_tile_index[v + 0] = 0;
-				output_tile_index[v + 1] = 0;
-				output_tile_index[v + 2] = 0;
-				output_tile_index[v + 3] = 0;
+				output_tile_index[v + 0] = 1;
+				output_tile_index[v + 1] = 1;
+				output_tile_index[v + 2] = 1;
+				output_tile_index[v + 3] = 1;
 
 				gl_PrimitiveTriangleIndicesEXT[t + 0] = uvec3(v + 0, v + 2, v + 1);
 				gl_PrimitiveTriangleIndicesEXT[t + 1] = uvec3(v + 2, v + 3, v + 1);

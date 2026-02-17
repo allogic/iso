@@ -177,7 +177,7 @@ static VkDescriptorSetLayoutBinding const s_debug_line_renderer_descriptor_set_l
 
 static VkPushConstantRange const s_vdb_iso_renderer_push_constant_range[] = {
   {
-    .stageFlags = VK_SHADER_STAGE_MESH_BIT_EXT,
+    .stageFlags = VK_SHADER_STAGE_MESH_BIT_EXT | VK_SHADER_STAGE_FRAGMENT_BIT,
     .offset = 0,
     .size = sizeof(iso_renderer_push_constant_t),
   },
@@ -295,10 +295,13 @@ static VkDescriptorImageInfo s_tile_atlas_descriptor_image_info = {0};
 void renderer_create(void) {
   g_renderer.is_debug_enabled = 1;
   g_renderer.rebuild_world = 1;
-  g_renderer.tile_size = 1.0F;
-  g_renderer.tile_height = 1.0F;
-  g_renderer.depth_scale = 0.001F;
-  g_renderer.depth_eps = 0.00001F;
+  g_renderer.tile_size = 0.0F;
+  g_renderer.tile_height = 0.0F;
+  g_renderer.inner_scale = 64.0F;
+  g_renderer.outer_scale = 64.0F;
+  g_renderer.rotation.x = 0.0F;
+  g_renderer.rotation.y = 45.0F;
+  g_renderer.rotation.z = 180.0F;
 
   renderer_create_sync_object();
   renderer_create_global_buffer();
@@ -846,7 +849,7 @@ static void renderer_compute_world(void) {
 static void renderer_record_compute_pass(void) {
   if (g_renderer.rebuild_world) {
 
-    g_renderer.rebuild_world = 1; // TODO
+    g_renderer.rebuild_world = 0;
 
     renderer_compute_world();
   }
@@ -924,13 +927,13 @@ static void renderer_record_main_pass(void) {
       .rotation = g_renderer.rotation,
       .tile_size = g_renderer.tile_size,
       .tile_height = g_renderer.tile_height,
-      .depth_scale = g_renderer.depth_scale,
-      .depth_eps = g_renderer.depth_eps,
+      .inner_scale = g_renderer.inner_scale,
+      .outer_scale = g_renderer.outer_scale,
     };
 
     vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_vdb_iso_renderer_pipeline.pipeline_handle);
     vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_vdb_iso_renderer_pipeline.pipeline_layout, 0, 1, &s_vdb_iso_renderer_pipeline.descriptor_set, 0, 0);
-    vkCmdPushConstants(g_window.command_buffer, s_vdb_iso_renderer_pipeline.pipeline_layout, VK_SHADER_STAGE_MESH_BIT_EXT, 0, sizeof(iso_renderer_push_constant_t), &iso_renderer_push_constant);
+    vkCmdPushConstants(g_window.command_buffer, s_vdb_iso_renderer_pipeline.pipeline_layout, VK_SHADER_STAGE_MESH_BIT_EXT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(iso_renderer_push_constant_t), &iso_renderer_push_constant);
     vkCmdDrawMeshTasks(g_window.command_buffer, group_count, group_count, group_count);
   }
 

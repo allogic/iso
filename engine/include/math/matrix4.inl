@@ -254,11 +254,11 @@ __forceinline matrix4_t matrix4_ortho(float left, float right, float bottom, flo
     0.0F,
     0.0F,
     0.0F,
-    -2.0F / (far_z - near_z),
+    -2.0F / (near_z - far_z),
     0.0F,
     -(right + left) / (right - left),
     -(top + bottom) / (top - bottom),
-    -(far_z + near_z) / (far_z - near_z),
+    -(near_z + far_z) / (near_z - far_z),
     1.0F,
   };
 

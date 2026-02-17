@@ -6,10 +6,12 @@ static void player_handle_rotation(player_t *player);
 static void player_handle_linear_velocity(player_t *player);
 static void player_handle_angular_velocity(player_t *player);
 
+player_t g_player_0 = {0};
+
 player_t player_create(void) {
   return (player_t){
     .transform = transform_create(0),
-    .camera = camera_create(45.0F, 1.0F, 1000.0F),
+    .camera = camera_create(45.0F, 30.0F, -1000.0F, 1000.0F, 0.01F, 1000.0F),
     .mouse_begin = vector3_zero(),
     .mouse_end = vector3_zero(),
     .mouse_delta = vector3_zero(),

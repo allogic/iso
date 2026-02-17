@@ -20,6 +20,8 @@ typedef struct player_t {
 extern "C" {
 #endif // __cplusplus
 
+extern player_t g_player_0;
+
 player_t player_create(void);
 void player_update(player_t *player);
 

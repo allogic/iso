@@ -79,116 +79,84 @@ __forceinline quaternion_t quaternion_conjugate(quaternion_t a) {
   return q;
 }
 __forceinline vector3_t quaternion_right(quaternion_t a) {
-  vector3_t q = {
+  vector3_t v = {
     1.0F - 2.0F * ((a.y * a.y) + (a.z * a.z)),
     2.0F * ((a.x * a.y) + (a.w * a.z)),
     2.0F * ((a.x * a.z) - (a.w * a.y)),
   };
 
-  return q;
+  return v;
 }
 __forceinline vector3_t quaternion_up(quaternion_t a) {
-  vector3_t q = {
+  vector3_t v = {
     2.0F * ((a.x * a.y) - (a.w * a.z)),
     1.0F - 2.0F * ((a.x * a.x) + (a.z * a.z)),
     2.0F * ((a.y * a.z) + (a.w * a.x)),
   };
 
-  return q;
+  return v;
 }
 __forceinline vector3_t quaternion_front(quaternion_t a) {
-  vector3_t q = {
+  vector3_t v = {
     2.0F * ((a.x * a.z) + (a.w * a.y)),
     2.0F * ((a.y * a.z) - (a.w * a.x)),
     1.0F - 2.0F * ((a.x * a.x) + (a.y * a.y)),
   };
 
-  return q;
+  return v;
 }
 __forceinline vector3_t quaternion_left(quaternion_t a) {
-  vector3_t q = {
+  vector3_t v = {
     -(1.0F - 2.0F * ((a.y * a.y) + (a.z * a.z))),
     -(2.0F * ((a.x * a.y) + (a.w * a.z))),
     -(2.0F * ((a.x * a.z) - (a.w * a.y))),
   };
 
-  return q;
+  return v;
 }
 __forceinline vector3_t quaternion_down(quaternion_t a) {
-  vector3_t q = {
+  vector3_t v = {
     -(2.0F * ((a.x * a.y) - (a.w * a.z))),
     -(1.0F - 2.0F * ((a.x * a.x) + (a.z * a.z))),
     -(2.0F * ((a.y * a.z) + (a.w * a.x))),
   };
 
-  return q;
+  return v;
 }
 __forceinline vector3_t quaternion_back(quaternion_t a) {
-  vector3_t q = {
+  vector3_t v = {
     -(2.0F * ((a.x * a.z) + (a.w * a.y))),
     -(2.0F * ((a.y * a.z) - (a.w * a.x))),
     -(1.0F - 2.0F * ((a.x * a.x) + (a.y * a.y))),
   };
 
-  return q;
+  return v;
 }
 __forceinline vector3_t quaternion_to_euler_angles(quaternion_t a) {
-  float pitch = 0.0F;
-  float yaw = 0.0F;
-  float roll = 0.0F;
+  float sinp = 2.0F * (a.w * a.x - a.y * a.z);
 
-  float test = (a.w * a.x) - (a.y * a.z);
+  sinp = fmaxf(-1.0F, fminf(1.0F, sinp));
 
-  if (test > (0.5F - EPSILON_6)) {
-    pitch = PI_HALF;
-    yaw = 2.0F * atan2f(a.z, a.w);
-    roll = 0.0F;
-  } else if (test < -(0.5F - EPSILON_6)) {
-    pitch = -PI_HALF;
-    yaw = -2.0F * atan2f(a.z, a.w);
-    roll = 0.0F;
-  } else {
-    pitch = asinf(2.0F * test);
-    yaw = atan2f(2.0F * ((a.w * a.y) - (a.x * a.z)), 1.0F - 2.0F * ((a.x * a.x) + (a.y * a.y)));
-    roll = atan2f(2.0F * ((a.w * a.z) - (a.x * a.y)), 1.0F - 2.0F * ((a.y * a.y) + (a.z * a.z)));
-  }
-
-  vector3_t q = {
-    pitch,
-    yaw,
-    roll,
+  vector3_t v = {
+    asinf(sinp),
+    atan2f(2.0F * (a.w * a.y + a.x * a.z), 1.0F - 2.0F * (a.x * a.x + a.y * a.y)),
+    atan2f(2.0F * (a.w * a.z + a.x * a.y), 1.0F - 2.0F * (a.x * a.x + a.z * a.z)),
   };
 
-  return q;
+  return v;
 }
 __forceinline vector3_t quaternion_to_euler_angles_xyzw(float x, float y, float z, float w) {
-  float pitch = 0.0F;
-  float yaw = 0.0F;
-  float roll = 0.0F;
+  float sinp = 2.0F * (w * x - y * z);
 
-  float test = (w * x) - (y * z);
+  sinp = fmaxf(-1.0F, fminf(1.0F, sinp));
 
-  if (test > (0.5F - EPSILON_6)) {
-    pitch = PI_HALF;
-    yaw = 2.0F * atan2f(z, w);
-    roll = 0.0F;
-  } else if (test < -(0.5F - EPSILON_6)) {
-    pitch = -PI_HALF;
-    yaw = -2.0F * atan2f(z, w);
-    roll = 0.0F;
-  } else {
-    pitch = asinf(2.0F * test);
-    yaw = atan2f(2.0F * ((w * y) - (x * z)), 1.0F - 2.0F * ((x * x) + (y * y)));
-    roll = atan2f(2.0F * ((w * z) - (x * y)), 1.0F - 2.0F * ((y * y) + (z * z)));
-  }
-
-  vector3_t q = {
-    pitch,
-    yaw,
-    roll,
+  vector3_t v = {
+    asinf(sinp),
+    atan2f(2.0F * (w * y + x * z), 1.0F - 2.0F * (x * x + y * y)),
+    atan2f(2.0F * (w * z + x * y), 1.0F - 2.0F * (x * x + z * z)),
   };
 
-  return q;
+  return v;
 }
 __forceinline quaternion_t quaternion_from_euler_angles(vector3_t a) {
   float sp = sinf(a.x * 0.5F);

@@ -94,10 +94,10 @@ void window_run(void) {
   QueryPerformanceFrequency(&g_window.time_freq);
   QueryPerformanceCounter(&g_window.time_prev);
 
-  player_t player = player_create();
+  g_player_0 = player_create();
 
-  // transform_set_position_xyz(&player.transform, 0.0F, 0.0F, -50.0F);
-  // transform_set_euler_angles_pyr(&player.transform, deg_to_rad(35.264F), deg_to_rad(45.0F), 0.0F);
+  transform_set_position_xyz(&g_player_0.transform, -20.0F, 50.0F, -20.0F);
+  transform_set_euler_angles_pyr(&g_player_0.transform, deg_to_rad(45.0F), deg_to_rad(45.0F), deg_to_rad(0.0F));
 
   while (g_window.is_window_running) {
 
@@ -167,21 +167,21 @@ void window_run(void) {
       DispatchMessageA(&g_window.window_message);
     }
 
-    player_update(&player);
+    player_update(&g_player_0);
 
-    transform_compute_world_position(&player.transform);
-    transform_compute_world_rotation(&player.transform);
-    transform_compute_world_scale(&player.transform);
+    transform_compute_world_position(&g_player_0.transform);
+    transform_compute_world_rotation(&g_player_0.transform);
+    transform_compute_world_scale(&g_player_0.transform);
 
-    camera_update(&player.camera, &player.transform);
-    camera_debug(&player.camera);
+    camera_update(&g_player_0.camera, &g_player_0.transform);
+    camera_debug(&g_player_0.camera);
 
     renderer_draw_debug_box(
       (vector3_t){0.0F, 0.0F, 0.0F},
       (vector3_t){32.0F, 32.0F, 32.0F},
       (vector4_t){1.0F, 1.0F, 1.0F, 1.0F});
 
-    renderer_draw(&player.transform, &player.camera);
+    renderer_draw(&g_player_0.transform, &g_player_0.camera);
 
     QueryPerformanceCounter(&g_window.time_curr);
 

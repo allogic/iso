@@ -59,8 +59,8 @@ typedef struct iso_renderer_push_constant_t {
   vector4_t rotation;
   float tile_size;
   float tile_height;
-  float depth_scale;
-  float depth_eps;
+  float inner_scale;
+  float outer_scale;
 } iso_renderer_push_constant_t;
 
 STATIC_ASSERT(ALIGNOF(iso_renderer_push_constant_t) == 4);
@@ -76,8 +76,8 @@ typedef struct renderer_t {
   vector4_t rotation;        // TODO
   float tile_size;           // TODO
   float tile_height;         // TODO
-  float depth_scale;         // TODO
-  float depth_eps;           // TODO
+  float inner_scale;         // TODO
+  float outer_scale;         // TODO
 } renderer_t;
 
 #ifdef __cplusplus

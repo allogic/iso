@@ -46,12 +46,13 @@
 #include <pipeline.h>
 #include <buffer.h>
 #include <image.h>
-#include <dbgui.h>
 #include <swapchain.h>
 #include <framebuffer.h>
 #include <player.h>
 #include <renderer.h>
 #include <renderpass.h>
 #include <window.h>
+
+#include <dbgui.h>
 
 #endif // PCH_H
