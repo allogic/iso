@@ -51,10 +51,31 @@ STATIC_ASSERT(ALIGNOF(debug_line_vertex_t) == 4);
 typedef uint32_t full_screen_index_t;
 typedef uint32_t debug_line_index_t;
 
+typedef struct iso_renderer_push_constant_t {
+  vector4_t vertex_offset_0;
+  vector4_t vertex_offset_1;
+  vector4_t vertex_offset_2;
+  vector4_t vertex_offset_3;
+  float tile_size;
+  float tile_height;
+  float depth_scale;
+  float depth_eps;
+} iso_renderer_push_constant_t;
+
+STATIC_ASSERT(ALIGNOF(iso_renderer_push_constant_t) == 4);
+
 typedef struct renderer_t {
   int8_t is_dirty;
   int8_t is_debug_enabled;
   int8_t rebuild_world;
+  vector4_t vertex_offset_0; // TODO
+  vector4_t vertex_offset_1; // TODO
+  vector4_t vertex_offset_2; // TODO
+  vector4_t vertex_offset_3; // TODO
+  float tile_size;           // TODO
+  float tile_height;         // TODO
+  float depth_scale;         // TODO
+  float depth_eps;           // TODO
 } renderer_t;
 
 #ifdef __cplusplus

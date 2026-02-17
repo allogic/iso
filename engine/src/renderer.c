@@ -116,11 +116,7 @@ static VkDescriptorPoolSize const s_vdb_iso_renderer_descriptor_pool_size[] = {
   },
   {
     .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-    .descriptorCount = CHUNK_COUNT,
-  },
-  {
-    .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-    .descriptorCount = 1,
+    .descriptorCount = 1 + CHUNK_COUNT,
   },
 };
 static VkDescriptorPoolSize const s_vdb_debug_line_renderer_descriptor_pool_size[] = {
@@ -163,7 +159,7 @@ static VkDescriptorSetLayoutBinding const s_vdb_iso_renderer_descriptor_set_layo
   },
   {
     .binding = 2,
-    .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
     .descriptorCount = 1,
     .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
     .pImmutableSamplers = 0,
@@ -176,6 +172,14 @@ static VkDescriptorSetLayoutBinding const s_debug_line_renderer_descriptor_set_l
     .descriptorCount = 1,
     .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
     .pImmutableSamplers = 0,
+  },
+};
+
+static VkPushConstantRange const s_vdb_iso_renderer_push_constant_range[] = {
+  {
+    .stageFlags = VK_SHADER_STAGE_MESH_BIT_EXT,
+    .offset = 0,
+    .size = sizeof(iso_renderer_push_constant_t),
   },
 };
 
@@ -192,6 +196,8 @@ static pipeline_t s_vdb_iso_renderer_pipeline = {
   .task_shader = ROOT_DIR "/shader/vdb/iso_renderer.task.spv",
   .mesh_shader = ROOT_DIR "/shader/vdb/iso_renderer.mesh.spv",
   .fragment_shader = ROOT_DIR "/shader/vdb/iso_renderer.frag.spv",
+  .push_constant_range = s_vdb_iso_renderer_push_constant_range,
+  .push_constant_range_count = ARRAY_COUNT(s_vdb_iso_renderer_push_constant_range),
   .descriptor_pool_size = s_vdb_iso_renderer_descriptor_pool_size,
   .descriptor_pool_size_count = ARRAY_COUNT(s_vdb_iso_renderer_descriptor_pool_size),
   .descriptor_set_layout_binding = s_vdb_iso_renderer_descriptor_set_layout_binding,
@@ -268,7 +274,7 @@ static image_t s_tile_atlas_image = {
   .depth = 1,
   .channel = 4,
   .element_size = sizeof(uint8_t),
-  .format = VK_FORMAT_R8G8B8A8_UINT,
+  .format = VK_FORMAT_R8G8B8A8_UNORM,
   .filter = VK_FILTER_NEAREST,
   .image_usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT,
   .image_type = VK_IMAGE_TYPE_2D,
@@ -289,6 +295,10 @@ static VkDescriptorImageInfo s_tile_atlas_descriptor_image_info = {0};
 void renderer_create(void) {
   g_renderer.is_debug_enabled = 1;
   g_renderer.rebuild_world = 1;
+  g_renderer.tile_size = 1.0F;
+  g_renderer.tile_height = 1.0F;
+  g_renderer.depth_scale = 0.001F;
+  g_renderer.depth_eps = 0.00001F;
 
   renderer_create_sync_object();
   renderer_create_global_buffer();
@@ -744,7 +754,7 @@ static void renderer_update_vdb_iso_renderer_descriptor_set(void) {
       .dstSet = s_vdb_iso_renderer_pipeline.descriptor_set,
       .dstBinding = 2,
       .dstArrayElement = 0,
-      .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+      .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
       .descriptorCount = 1,
       .pImageInfo = &s_tile_atlas_descriptor_image_info,
       .pBufferInfo = 0,
@@ -906,8 +916,20 @@ static void renderer_record_main_pass(void) {
   {
     int32_t group_count = 1;
 
+    iso_renderer_push_constant_t iso_renderer_push_constant = {
+      .vertex_offset_0 = g_renderer.vertex_offset_0,
+      .vertex_offset_1 = g_renderer.vertex_offset_1,
+      .vertex_offset_2 = g_renderer.vertex_offset_2,
+      .vertex_offset_3 = g_renderer.vertex_offset_3,
+      .tile_size = g_renderer.tile_size,
+      .tile_height = g_renderer.tile_height,
+      .depth_scale = g_renderer.depth_scale,
+      .depth_eps = g_renderer.depth_eps,
+    };
+
     vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_vdb_iso_renderer_pipeline.pipeline_handle);
     vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_vdb_iso_renderer_pipeline.pipeline_layout, 0, 1, &s_vdb_iso_renderer_pipeline.descriptor_set, 0, 0);
+    vkCmdPushConstants(g_window.command_buffer, s_vdb_iso_renderer_pipeline.pipeline_layout, VK_SHADER_STAGE_MESH_BIT_EXT, 0, sizeof(iso_renderer_push_constant_t), &iso_renderer_push_constant);
     vkCmdDrawMeshTasks(g_window.command_buffer, group_count, group_count, group_count);
   }
 

@@ -16,10 +16,12 @@ typedef struct pipeline_t {
   char const *compute_shader;
   uint32_t vertex_input_binding_description_count;
   uint32_t vertex_input_attribute_description_count;
+  uint32_t push_constant_range_count;
   uint32_t descriptor_pool_size_count;
   uint32_t descriptor_set_layout_binding_count;
   VkVertexInputBindingDescription const *vertex_input_binding_description;
   VkVertexInputAttributeDescription const *vertex_input_attribute_description;
+  VkPushConstantRange const *push_constant_range;
   VkDescriptorPoolSize const *descriptor_pool_size;
   VkDescriptorSetLayoutBinding const *descriptor_set_layout_binding;
   VkRenderPass *render_pass;

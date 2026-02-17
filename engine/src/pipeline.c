@@ -78,8 +78,8 @@ static void pipeline_create_pipeline_layout(pipeline_t *pipeline) {
     .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
     .setLayoutCount = 1,
     .pSetLayouts = &pipeline->descriptor_set_layout,
-    .pPushConstantRanges = 0,
-    .pushConstantRangeCount = 0,
+    .pPushConstantRanges = pipeline->push_constant_range,
+    .pushConstantRangeCount = pipeline->push_constant_range_count,
   };
 
   VK_CHECK(vkCreatePipelineLayout(g_window.device, &pipeline_layout_create_info, 0, &pipeline->pipeline_layout));

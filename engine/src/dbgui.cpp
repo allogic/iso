@@ -63,6 +63,17 @@ void dbgui_draw(void) {
 
   ImGui::NewFrame();
 
+  ImGui::Begin("ISO Mesher");
+  ImGui::DragFloat4("Vertex Offset 0", (float *)&g_renderer.vertex_offset_0, 0.05F);
+  ImGui::DragFloat4("Vertex Offset 1", (float *)&g_renderer.vertex_offset_1, 0.05F);
+  ImGui::DragFloat4("Vertex Offset 2", (float *)&g_renderer.vertex_offset_2, 0.05F);
+  ImGui::DragFloat4("Vertex Offset 3", (float *)&g_renderer.vertex_offset_3, 0.05F);
+  ImGui::DragFloat("Tile Size", &g_renderer.tile_size, 0.05F);
+  ImGui::DragFloat("Tile Height", &g_renderer.tile_height, 0.05F);
+  ImGui::InputFloat("Depth Scale", &g_renderer.depth_scale);
+  ImGui::InputFloat("Depth Epsilon", &g_renderer.depth_eps);
+  ImGui::End();
+
   ImGui::Render();
 
   ImDrawData *draw_data = ImGui::GetDrawData();
