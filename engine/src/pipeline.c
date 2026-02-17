@@ -379,7 +379,7 @@ static void pipeline_create_tmf(pipeline_t *pipeline) {
     .rasterizerDiscardEnable = 0,
     .polygonMode = VK_POLYGON_MODE_FILL,
     .lineWidth = 1.0F,
-    .cullMode = VK_CULL_MODE_BACK_BIT,
+    .cullMode = VK_CULL_MODE_NONE,
     .frontFace = VK_FRONT_FACE_CLOCKWISE,
     .depthBiasEnable = 0,
     .depthBiasConstantFactor = 0.0F,

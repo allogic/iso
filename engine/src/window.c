@@ -176,6 +176,11 @@ void window_run(void) {
     camera_update(&player.camera, &player.transform);
     camera_debug(&player.camera);
 
+    renderer_draw_debug_box(
+      (vector3_t){0.0F, 0.0F, 0.0F},
+      (vector3_t){32.0F, 32.0F, 32.0F},
+      (vector4_t){1.0F, 1.0F, 1.0F, 1.0F});
+
     renderer_draw(&player.transform, &player.camera);
 
     QueryPerformanceCounter(&g_window.time_curr);

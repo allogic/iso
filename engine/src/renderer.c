@@ -921,6 +921,7 @@ static void renderer_record_main_pass(void) {
       .vertex_offset_1 = g_renderer.vertex_offset_1,
       .vertex_offset_2 = g_renderer.vertex_offset_2,
       .vertex_offset_3 = g_renderer.vertex_offset_3,
+      .rotation = g_renderer.rotation,
       .tile_size = g_renderer.tile_size,
       .tile_height = g_renderer.tile_height,
       .depth_scale = g_renderer.depth_scale,

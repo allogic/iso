@@ -191,17 +191,13 @@ __forceinline vector3_t quaternion_to_euler_angles_xyzw(float x, float y, float 
   return q;
 }
 __forceinline quaternion_t quaternion_from_euler_angles(vector3_t a) {
-  float pitch = deg_to_rad(a.x);
-  float yaw = deg_to_rad(a.y);
-  float roll = deg_to_rad(a.z);
+  float sp = sinf(a.x * 0.5F);
+  float sy = sinf(a.y * 0.5F);
+  float sr = sinf(a.z * 0.5F);
 
-  float sp = sinf(pitch * 0.5F);
-  float sy = sinf(yaw * 0.5F);
-  float sr = sinf(roll * 0.5F);
-
-  float cp = cosf(pitch * 0.5F);
-  float cy = cosf(yaw * 0.5F);
-  float cr = cosf(roll * 0.5F);
+  float cp = cosf(a.x * 0.5F);
+  float cy = cosf(a.y * 0.5F);
+  float cr = cosf(a.z * 0.5F);
 
   quaternion_t q = {
     sr * cp * cy - cr * sp * sy,
@@ -213,17 +209,13 @@ __forceinline quaternion_t quaternion_from_euler_angles(vector3_t a) {
   return q;
 }
 __forceinline quaternion_t quaternion_from_euler_angles_pyr(float p, float y, float r) {
-  float pitch = deg_to_rad(p);
-  float yaw = deg_to_rad(y);
-  float roll = deg_to_rad(r);
+  float sp = sinf(p * 0.5F);
+  float sy = sinf(y * 0.5F);
+  float sr = sinf(r * 0.5F);
 
-  float sp = sinf(pitch * 0.5F);
-  float sy = sinf(yaw * 0.5F);
-  float sr = sinf(roll * 0.5F);
-
-  float cp = cosf(pitch * 0.5F);
-  float cy = cosf(yaw * 0.5F);
-  float cr = cosf(roll * 0.5F);
+  float cp = cosf(p * 0.5F);
+  float cy = cosf(y * 0.5F);
+  float cr = cosf(r * 0.5F);
 
   quaternion_t q = {
     sr * cp * cy - cr * sp * sy,

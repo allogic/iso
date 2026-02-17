@@ -56,6 +56,7 @@ typedef struct iso_renderer_push_constant_t {
   vector4_t vertex_offset_1;
   vector4_t vertex_offset_2;
   vector4_t vertex_offset_3;
+  vector4_t rotation;
   float tile_size;
   float tile_height;
   float depth_scale;
@@ -72,6 +73,7 @@ typedef struct renderer_t {
   vector4_t vertex_offset_1; // TODO
   vector4_t vertex_offset_2; // TODO
   vector4_t vertex_offset_3; // TODO
+  vector4_t rotation;        // TODO
   float tile_size;           // TODO
   float tile_height;         // TODO
   float depth_scale;         // TODO
