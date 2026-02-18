@@ -135,6 +135,40 @@ void emit_tile(uint tile_counter, vec3 voxel_position, uint tile_id) {
 	uint t = tile_counter * 6;
 
 	{
+		vec3 iso_right = vec3(1.0, 0.0, -1.0);
+		vec3 iso_up = vec3(0.5, -1.0, 0.5);
+
+		vec3 a = base + (-0.5 * sx) * iso_right;
+		vec3 b = base + ( 0.5 * sx) * iso_right;
+		vec3 c = base + (-0.5 * sx) * iso_right + sz * iso_up;
+		vec3 d = base + ( 0.5 * sx) * iso_right + sz * iso_up;
+
+		gl_MeshVerticesEXT[v + 0].gl_Position = camera_info.view_projection * vec4(a, 1);
+		gl_MeshVerticesEXT[v + 1].gl_Position = camera_info.view_projection * vec4(b, 1);
+		gl_MeshVerticesEXT[v + 2].gl_Position = camera_info.view_projection * vec4(c, 1);
+		gl_MeshVerticesEXT[v + 3].gl_Position = camera_info.view_projection * vec4(d, 1);
+
+		output_color[v + 0] = color;
+		output_color[v + 1] = color;
+		output_color[v + 2] = color;
+		output_color[v + 3] = color;
+
+		output_uv[v + 0] = vec2(0, 0);
+		output_uv[v + 1] = vec2(1, 0);
+		output_uv[v + 2] = vec2(0, 1);
+		output_uv[v + 3] = vec2(1, 1);
+
+		output_atlas_id[v + 0] = 0;
+		output_atlas_id[v + 1] = 0;
+		output_atlas_id[v + 2] = 0;
+		output_atlas_id[v + 3] = 0;
+
+		gl_PrimitiveTriangleIndicesEXT[t + 0] = uvec3(v + 0, v + 1, v + 2);
+		gl_PrimitiveTriangleIndicesEXT[t + 1] = uvec3(v + 2, v + 3, v + 0);
+	}
+
+	/*
+	{
 		vec3 a = base + vec3(0, 0, sz);
 		vec3 b = base + vec3(sx, 0, sz);
 		vec3 c = base + vec3(sx, 0, 0);
@@ -190,6 +224,7 @@ void emit_tile(uint tile_counter, vec3 voxel_position, uint tile_id) {
 			2
 		);
 	}
+	*/
 }
 
 void main() {

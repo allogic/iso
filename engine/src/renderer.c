@@ -11,10 +11,9 @@
 #define MAKE_GROUP_COUNT(GLOBAL_SIZE, LOCAL_SIZE) ((int32_t)ceilf(((float)(GLOBAL_SIZE)) / (LOCAL_SIZE)))
 
 static void renderer_create_sync_object(void);
-static void renderer_create_global_buffer(void);
+static void renderer_create_coherent_buffer(void);
 static void renderer_create_debug_line_buffer(void);
 static void renderer_create_full_screen_buffer(void);
-static void renderer_create_cluster_info_buffer(void);
 static void renderer_create_chunk_info_buffer(void);
 static void renderer_create_tile_lut_buffer(void);
 
@@ -26,7 +25,7 @@ static void renderer_update_vdb_world_generator_descriptor_set(void);
 static void renderer_update_vdb_iso_renderer_descriptor_set(void);
 static void renderer_update_debug_line_descriptor_set(void);
 
-static void renderer_update_uniform_buffer(transform_t *transform, camera_t *camera);
+static void renderer_update_coherent_buffer(transform_t *transform, camera_t *camera);
 
 static void renderer_dda_trace(void);
 static void renderer_generate_world(void);
@@ -105,11 +104,15 @@ static VkVertexInputAttributeDescription const s_debug_line_vertex_input_attribu
 static VkDescriptorPoolSize const s_vdb_dda_trace_descriptor_pool_size[] = {
   {
     .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    .descriptorCount = 1,
+    .descriptorCount = 4,
   },
   {
     .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
     .descriptorCount = CHUNK_COUNT,
+  },
+  {
+    .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    .descriptorCount = 1,
   },
 };
 static VkDescriptorPoolSize const s_vdb_world_generator_descriptor_pool_size[] = {
@@ -153,8 +156,36 @@ static VkDescriptorSetLayoutBinding const s_vdb_dda_trace_descriptor_set_layout_
   },
   {
     .binding = 1,
+    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    .descriptorCount = 1,
+    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+    .pImmutableSamplers = 0,
+  },
+  {
+    .binding = 2,
+    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    .descriptorCount = 1,
+    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+    .pImmutableSamplers = 0,
+  },
+  {
+    .binding = 3,
+    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    .descriptorCount = 1,
+    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+    .pImmutableSamplers = 0,
+  },
+  {
+    .binding = 4,
     .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
     .descriptorCount = CHUNK_COUNT,
+    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+    .pImmutableSamplers = 0,
+  },
+  {
+    .binding = 5,
+    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    .descriptorCount = 1,
     .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
     .pImmutableSamplers = 0,
   },
@@ -299,6 +330,11 @@ static buffer_t s_screen_info_buffer = {
   .buffer_usage_flags = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
   .memory_property_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 };
+static buffer_t s_mouse_info_buffer = {
+  .size = sizeof(mouse_info_t),
+  .buffer_usage_flags = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+  .memory_property_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+};
 static buffer_t s_camera_info_buffer = {
   .size = sizeof(camera_info_t),
   .buffer_usage_flags = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
@@ -307,6 +343,11 @@ static buffer_t s_camera_info_buffer = {
 static buffer_t s_cluster_info_buffer = {
   .size = sizeof(cluster_info_t),
   .buffer_usage_flags = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+  .memory_property_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+};
+static buffer_t s_trace_result_buffer = {
+  .size = sizeof(trace_result_t),
+  .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
   .memory_property_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 };
 static buffer_t s_chunk_info_buffer = {
@@ -339,9 +380,11 @@ static image_t s_tile_atlas_image = {
 
 static VkDescriptorBufferInfo s_time_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_screen_info_descriptor_buffer_info = {0};
+static VkDescriptorBufferInfo s_mouse_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_camera_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_cluster_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_chunk_info_descriptor_buffer_info = {0};
+static VkDescriptorBufferInfo s_trace_result_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_tile_lut_descriptor_buffer_info = {0};
 
 static VkDescriptorImageInfo *s_chunk_data_descriptor_image_info = 0;
@@ -359,10 +402,9 @@ void renderer_create(void) {
   g_renderer.rotation.z = 180.0F;
 
   renderer_create_sync_object();
-  renderer_create_global_buffer();
+  renderer_create_coherent_buffer();
   renderer_create_debug_line_buffer();
   renderer_create_full_screen_buffer();
-  renderer_create_cluster_info_buffer();
   renderer_create_chunk_info_buffer();
   renderer_create_tile_lut_buffer();
 
@@ -443,7 +485,7 @@ void renderer_draw(transform_t *transform, camera_t *camera) {
 #endif // BUILD_DEBUG
   }
 
-  renderer_update_uniform_buffer(transform, camera);
+  renderer_update_coherent_buffer(transform, camera);
 
   VkCommandBufferBeginInfo command_buffer_begin_info = {
     .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -639,14 +681,20 @@ static void renderer_create_sync_object(void) {
   VK_CHECK(vkCreateSemaphore(g_window.device, &semaphore_create_info, 0, &s_image_available_semaphore));
   VK_CHECK(vkCreateFence(g_window.device, &fence_create_info, 0, &s_frame_fence));
 }
-static void renderer_create_global_buffer(void) {
+static void renderer_create_coherent_buffer(void) {
   buffer_create(&s_time_info_buffer);
   buffer_create(&s_screen_info_buffer);
+  buffer_create(&s_mouse_info_buffer);
   buffer_create(&s_camera_info_buffer);
+  buffer_create(&s_cluster_info_buffer);
+  buffer_create(&s_trace_result_buffer);
 
   buffer_map(&s_time_info_buffer);
   buffer_map(&s_screen_info_buffer);
+  buffer_map(&s_mouse_info_buffer);
   buffer_map(&s_camera_info_buffer);
+  buffer_map(&s_cluster_info_buffer);
+  buffer_map(&s_trace_result_buffer);
 
   s_time_info_descriptor_buffer_info.offset = 0;
   s_time_info_descriptor_buffer_info.buffer = s_time_info_buffer.buffer_handle;
@@ -656,9 +704,21 @@ static void renderer_create_global_buffer(void) {
   s_screen_info_descriptor_buffer_info.buffer = s_screen_info_buffer.buffer_handle;
   s_screen_info_descriptor_buffer_info.range = VK_WHOLE_SIZE;
 
+  s_mouse_info_descriptor_buffer_info.offset = 0;
+  s_mouse_info_descriptor_buffer_info.buffer = s_mouse_info_buffer.buffer_handle;
+  s_mouse_info_descriptor_buffer_info.range = VK_WHOLE_SIZE;
+
   s_camera_info_descriptor_buffer_info.offset = 0;
   s_camera_info_descriptor_buffer_info.buffer = s_camera_info_buffer.buffer_handle;
   s_camera_info_descriptor_buffer_info.range = VK_WHOLE_SIZE;
+
+  s_cluster_info_descriptor_buffer_info.offset = 0;
+  s_cluster_info_descriptor_buffer_info.buffer = s_cluster_info_buffer.buffer_handle;
+  s_cluster_info_descriptor_buffer_info.range = VK_WHOLE_SIZE;
+
+  s_trace_result_descriptor_buffer_info.offset = 0;
+  s_trace_result_descriptor_buffer_info.buffer = s_trace_result_buffer.buffer_handle;
+  s_trace_result_descriptor_buffer_info.range = VK_WHOLE_SIZE;
 }
 static void renderer_create_debug_line_buffer(void) {
   buffer_create(&s_debug_line_vertex_buffer);
@@ -670,15 +730,6 @@ static void renderer_create_debug_line_buffer(void) {
 static void renderer_create_full_screen_buffer(void) {
   buffer_create(&s_full_screen_vertex_buffer);
   buffer_create(&s_full_screen_index_buffer);
-}
-static void renderer_create_cluster_info_buffer(void) {
-  buffer_create(&s_cluster_info_buffer);
-
-  buffer_map(&s_cluster_info_buffer);
-
-  s_cluster_info_descriptor_buffer_info.offset = 0;
-  s_cluster_info_descriptor_buffer_info.buffer = s_cluster_info_buffer.buffer_handle;
-  s_cluster_info_descriptor_buffer_info.range = VK_WHOLE_SIZE;
 }
 static void renderer_create_chunk_info_buffer(void) {
   chunk_info_t *chunk_info = (chunk_info_t *)HEAP_ALLOC(sizeof(chunk_info_t) * CHUNK_COUNT, 1, 0);
@@ -772,7 +823,7 @@ static void renderer_update_vdb_dda_trace_descriptor_set(void) {
       .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
       .descriptorCount = 1,
       .pImageInfo = 0,
-      .pBufferInfo = &s_cluster_info_descriptor_buffer_info,
+      .pBufferInfo = &s_camera_info_descriptor_buffer_info,
       .pTexelBufferView = 0,
     },
     {
@@ -781,10 +832,58 @@ static void renderer_update_vdb_dda_trace_descriptor_set(void) {
       .dstSet = s_vdb_dda_trace_pipeline.descriptor_set,
       .dstBinding = 1,
       .dstArrayElement = 0,
+      .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+      .descriptorCount = 1,
+      .pImageInfo = 0,
+      .pBufferInfo = &s_cluster_info_descriptor_buffer_info,
+      .pTexelBufferView = 0,
+    },
+    {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = 0,
+      .dstSet = s_vdb_dda_trace_pipeline.descriptor_set,
+      .dstBinding = 2,
+      .dstArrayElement = 0,
+      .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+      .descriptorCount = 1,
+      .pImageInfo = 0,
+      .pBufferInfo = &s_screen_info_descriptor_buffer_info,
+      .pTexelBufferView = 0,
+    },
+    {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = 0,
+      .dstSet = s_vdb_dda_trace_pipeline.descriptor_set,
+      .dstBinding = 3,
+      .dstArrayElement = 0,
+      .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+      .descriptorCount = 1,
+      .pImageInfo = 0,
+      .pBufferInfo = &s_mouse_info_descriptor_buffer_info,
+      .pTexelBufferView = 0,
+    },
+    {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = 0,
+      .dstSet = s_vdb_dda_trace_pipeline.descriptor_set,
+      .dstBinding = 4,
+      .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
       .descriptorCount = CHUNK_COUNT,
       .pImageInfo = s_chunk_data_descriptor_image_info,
       .pBufferInfo = 0,
+      .pTexelBufferView = 0,
+    },
+    {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = 0,
+      .dstSet = s_vdb_dda_trace_pipeline.descriptor_set,
+      .dstBinding = 5,
+      .dstArrayElement = 0,
+      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+      .descriptorCount = 1,
+      .pImageInfo = 0,
+      .pBufferInfo = &s_trace_result_descriptor_buffer_info,
       .pTexelBufferView = 0,
     },
   };
@@ -894,13 +993,16 @@ static void renderer_update_debug_line_descriptor_set(void) {
   vkUpdateDescriptorSets(g_window.device, ARRAY_COUNT(write_descriptor_set), write_descriptor_set, 0, 0);
 }
 
-static void renderer_update_uniform_buffer(transform_t *transform, camera_t *camera) {
+static void renderer_update_coherent_buffer(transform_t *transform, camera_t *camera) {
   time_info_t *time_info = (time_info_t *)s_time_info_buffer.device_data;
   time_info->time = g_window.time;
   time_info->delta_time = g_window.delta_time;
 
   screen_info_t *screen_info = (screen_info_t *)s_screen_info_buffer.device_data;
-  screen_info->resolution = vector2_xy((float)g_window.window_width, (float)g_window.window_height);
+  screen_info->resolution = (ivector2_t){g_window.window_width, g_window.window_height};
+
+  mouse_info_t *mouse_info = (mouse_info_t *)s_mouse_info_buffer.device_data;
+  mouse_info->resolution = (ivector2_t){g_window.mouse_position_x, g_window.mouse_position_y};
 
   camera_info_t *camera_info = (camera_info_t *)s_camera_info_buffer.device_data;
   camera_info->position = transform->world_position;
@@ -1100,8 +1202,10 @@ static void renderer_destroy_buffer(void) {
   buffer_destroy(&s_full_screen_index_buffer);
   buffer_destroy(&s_time_info_buffer);
   buffer_destroy(&s_screen_info_buffer);
+  buffer_destroy(&s_mouse_info_buffer);
   buffer_destroy(&s_camera_info_buffer);
   buffer_destroy(&s_cluster_info_buffer);
+  buffer_destroy(&s_trace_result_buffer);
   buffer_destroy(&s_chunk_info_buffer);
   buffer_destroy(&s_tile_lut_buffer);
 }

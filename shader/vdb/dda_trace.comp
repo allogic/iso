@@ -26,16 +26,16 @@ layout (binding = 1) uniform cluster_info_t {
 	ivec2 dimension;
 } cluster_info;
 layout (binding = 2) uniform screen_info_t {
-	vec2 resolution;
+	ivec2 resolution;
 } screen_info;
 layout (binding = 3) uniform mouse_info_t {
-	vec2 position;
+	ivec2 position;
 } mouse_info;
 layout (binding = 4, r32ui) uniform uimage3D chunk_data[];
-layout (binding = 5) buffer hit_result_buffer_t {
+layout (binding = 5) buffer trace_result_buffer_t {
 	ivec3 voxel_position;
 	int intersection;
-} hit_result_buffer;
+} trace_result_buffer;
 
 uint get_voxel(ivec3 voxel_position) {
 	return uint(imageLoad(chunk_data[0], voxel_position).r);
@@ -78,8 +78,8 @@ void dda_trace(vec3 ray_origin, vec3 ray_direction, inout vec3 hit_voxel, inout 
 void main() {
 	ivec3 chunk_position = ivec3(0); // TODO
 
-	float mouse_ndc_x = (2 * mouse_info.position.x) / screen_info.resolution.x - 1;
-	float mouse_ndc_y = 1 - (2 * mouse_info.position.y) / screen_info.resolution.y;
+	float mouse_ndc_x = (2 * float(mouse_info.position.x)) / float(screen_info.resolution.x) - 1;
+	float mouse_ndc_y = 1 - (2 * float(mouse_info.position.y)) / float(screen_info.resolution.y);
 
 	vec4 ray_clip_near = vec4(mouse_ndc_x, mouse_ndc_y, -1, 1);
 	vec4 ray_clip_far = vec4(mouse_ndc_x, mouse_ndc_y,  1, 1);
@@ -88,7 +88,7 @@ void main() {
 	vec4 ray_world_far = camera_info.view_projection_inv * ray_clip_far;
 
 	ray_world_near /= ray_world_near.w;
-	ray_world_far  /= ray_world_far.w;
+	ray_world_far /= ray_world_far.w;
 
 	vec3 ray_origin = ray_world_near.xyz;
 	vec3 ray_direction = normalize(ray_world_far.xyz - ray_world_near.xyz);
@@ -98,6 +98,8 @@ void main() {
 
 	dda_trace(ray_origin, ray_direction, hit_voxel, intersection);
 
-	hit_result_buffer.voxel_position = ivec3(hit_voxel);
-	hit_result_buffer.intersection = int(intersection);
+	trace_result_buffer.voxel_position = ivec3(hit_voxel);
+	trace_result_buffer.intersection = int(intersection);
+
+	// TODO: put ray_origin and ray_direction into trace_result_buffer and check on CPU..
 }

@@ -6,10 +6,10 @@ typedef struct time_info_t {
   float delta_time;
 } time_info_t;
 typedef struct screen_info_t {
-  vector2_t resolution;
+  ivector2_t resolution;
 } screen_info_t;
 typedef struct mouse_info_t {
-  vector2_t resolution;
+  ivector2_t resolution;
 } mouse_info_t;
 typedef struct camera_info_t {
   vector3_t position;
