@@ -8,6 +8,9 @@ typedef struct time_info_t {
 typedef struct screen_info_t {
   vector2_t resolution;
 } screen_info_t;
+typedef struct mouse_info_t {
+  vector2_t resolution;
+} mouse_info_t;
 typedef struct camera_info_t {
   vector3_t position;
   int32_t reserved0;
@@ -28,12 +31,17 @@ typedef struct chunk_info_t {
   int32_t visible;
   int32_t reserved0;
 } chunk_info_t;
+typedef struct trace_result_t {
+  ivector3_t voxel_position;
+  int32_t intersection;
+} trace_result_t;
 
 STATIC_ASSERT(ALIGNOF(time_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(screen_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(camera_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(cluster_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(chunk_info_t) == 4);
+STATIC_ASSERT(ALIGNOF(trace_result_t) == 4);
 
 typedef struct full_screen_vertex_t {
   vector3_t position;

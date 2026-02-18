@@ -35,6 +35,7 @@ void main() {
 	vec2 tile_origin = vec2(tile_x, tile_y);
 	vec2 atlas_uv = (tile_origin + input_uv) / tiles_per_row;
 
+	// TODO
 	// Avoid bleeding..
 	//atlas_uv = clamp(atlas_uv, tile_origin / tiles_per_row, (tile_origin + 1.0) / tiles_per_row);
 

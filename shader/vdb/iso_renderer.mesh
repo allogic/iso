@@ -134,89 +134,62 @@ void emit_tile(uint tile_counter, vec3 voxel_position, uint tile_id) {
 	uint v = tile_counter * 12;
 	uint t = tile_counter * 6;
 
-	vec3 ta = base + vec3(0, 0, sz);
-	vec3 tb = base + vec3(sx, 0, sz);
-	vec3 tc = base + vec3(sx, 0, 0);
-	vec3 td = base + vec3(0, 0, 0);
+	{
+		vec3 a = base + vec3(0, 0, sz);
+		vec3 b = base + vec3(sx, 0, sz);
+		vec3 c = base + vec3(sx, 0, 0);
+		vec3 d = base + vec3(0, 0, 0);
 
-	vec3 xa = base + vec3(0, 0, 0);
-	vec3 xb = base + vec3(sx, 0, 0);
-	vec3 xc = base + vec3(sx, sy, 0);
-	vec3 xd = base + vec3(0, sy, 0);
+		emit_quad(
+			v + 0, t + 0,
+			a, b, c, d,
+			uv_top(a, base, sx, sz),
+			uv_top(b, base, sx, sz),
+			uv_top(c, base, sx, sz),
+			uv_top(d, base, sx, sz),
+			depth_top,
+			vec3(0.8, 0.9, 1.0),
+			0
+		);
+	}
 
-	vec3 za = base + vec3(0, 0, sz);
-	vec3 zb = base + vec3(0, 0, 0);
-	vec3 zc = base + vec3(0, sy, 0);
-	vec3 zd = base + vec3(0, sy, sz);
+	{
+		vec3 a = base + vec3(0, 0, 0);
+		vec3 b = base + vec3(sx, 0, 0);
+		vec3 c = base + vec3(sx, sy, 0);
+		vec3 d = base + vec3(0, sy, 0);
 
-	emit_quad(
-		v + 0, t + 0,
-		ta, tb, tc, td,
-		uv_top(ta, base, sx, sz),
-		uv_top(tb, base, sx, sz),
-		uv_top(tc, base, sx, sz),
-		uv_top(td, base, sx, sz),
-		depth_top,
-		vec3(0.8, 0.9, 1.0),
-		0
-	);
+		emit_quad(
+			v + 4, t + 2,
+			a, b, c, d,
+			uv_side_x(a, base, sx, sy),
+			uv_side_x(b, base, sx, sy),
+			uv_side_x(c, base, sx, sy),
+			uv_side_x(d, base, sx, sy),
+			depth_side,
+			vec3(0.55, 0.7, 0.9),
+			1
+		);
+	}
 
-	emit_quad(
-		v + 4, t + 2,
-		xa, xb, xc, xd,
-		uv_side_x(xa, base, sx, sy),
-		uv_side_x(xb, base, sx, sy),
-		uv_side_x(xc, base, sx, sy),
-		uv_side_x(xd, base, sx, sy),
-		depth_side,
-		vec3(0.55, 0.7, 0.9),
-		1
-	);
+	{
+		vec3 a = base + vec3(0, 0, sz);
+		vec3 b = base + vec3(0, 0, 0);
+		vec3 c = base + vec3(0, sy, 0);
+		vec3 d = base + vec3(0, sy, sz);
 
-	emit_quad(
-		v + 8, t + 4,
-		za, zb, zc, zd,
-		uv_side_z(za, base, sz, sy),
-		uv_side_z(zb, base, sz, sy),
-		uv_side_z(zc, base, sz, sy),
-		uv_side_z(zd, base, sz, sy),
-		depth_side,
-		vec3(0.45, 0.6, 0.85),
-		2
-	);
-
-	//emit_quad(
-	//	v + 0, t + 0,
-	//	world_base + vec3(0, 0, sz),
-	//	world_base + vec3(sx, 0, sz),
-	//	world_base + vec3(sx, 0, 0),
-	//	world_base + vec3(0, 0, 0),
-	//	depth_top,
-	//	vec3(0.8, 0.9, 1.0),
-	//	tile_lut.atlas_id
-	//);
-
-	//emit_quad(
-	//	v + 4, t + 2,
-	//	world_base + vec3(0, 0, 0),
-	//	world_base + vec3(sx, 0, 0),
-	//	world_base + vec3(sx, sy, 0),
-	//	world_base + vec3(0, sy, 0),
-	//	depth_side,
-	//	vec3(0.55, 0.7, 0.9),
-	//	tile_lut.atlas_id
-	//);
-
-	//emit_quad(
-	//	v + 8, t + 4,
-	//	world_base + vec3(0, 0, sz),
-	//	world_base + vec3(0, 0, 0),
-	//	world_base + vec3(0, sy, 0),
-	//	world_base + vec3(0, sy, sz),
-	//	depth_side,
-	//	vec3(0.45, 0.6, 0.85),
-	//	tile_lut.atlas_id
-	//);
+		emit_quad(
+			v + 8, t + 4,
+			a, b, c, d,
+			uv_side_z(a, base, sz, sy),
+			uv_side_z(b, base, sz, sy),
+			uv_side_z(c, base, sz, sy),
+			uv_side_z(d, base, sz, sy),
+			depth_side,
+			vec3(0.45, 0.6, 0.85),
+			2
+		);
+	}
 }
 
 void main() {

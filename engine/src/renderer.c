@@ -21,13 +21,15 @@ static void renderer_create_tile_lut_buffer(void);
 static void renderer_create_chunk_data_image(void);
 static void renderer_create_tile_atlas_image(void);
 
+static void renderer_update_vdb_dda_trace_descriptor_set(void);
 static void renderer_update_vdb_world_generator_descriptor_set(void);
 static void renderer_update_vdb_iso_renderer_descriptor_set(void);
 static void renderer_update_debug_line_descriptor_set(void);
 
 static void renderer_update_uniform_buffer(transform_t *transform, camera_t *camera);
 
-static void renderer_compute_world(void);
+static void renderer_dda_trace(void);
+static void renderer_generate_world(void);
 
 static void renderer_record_compute_pass(void);
 static void renderer_record_main_pass(void);
@@ -100,6 +102,16 @@ static VkVertexInputAttributeDescription const s_debug_line_vertex_input_attribu
   },
 };
 
+static VkDescriptorPoolSize const s_vdb_dda_trace_descriptor_pool_size[] = {
+  {
+    .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    .descriptorCount = 1,
+  },
+  {
+    .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+    .descriptorCount = CHUNK_COUNT,
+  },
+};
 static VkDescriptorPoolSize const s_vdb_world_generator_descriptor_pool_size[] = {
   {
     .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -131,6 +143,22 @@ static VkDescriptorPoolSize const s_vdb_debug_line_renderer_descriptor_pool_size
   },
 };
 
+static VkDescriptorSetLayoutBinding const s_vdb_dda_trace_descriptor_set_layout_binding[] = {
+  {
+    .binding = 0,
+    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    .descriptorCount = 1,
+    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+    .pImmutableSamplers = 0,
+  },
+  {
+    .binding = 1,
+    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+    .descriptorCount = CHUNK_COUNT,
+    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+    .pImmutableSamplers = 0,
+  },
+};
 static VkDescriptorSetLayoutBinding const s_vdb_world_generator_descriptor_set_layout_binding[] = {
   {
     .binding = 0,
@@ -195,6 +223,14 @@ static VkPushConstantRange const s_vdb_iso_renderer_push_constant_range[] = {
   },
 };
 
+static pipeline_t s_vdb_dda_trace_pipeline = {
+  .pipeline_type = PIPELINE_TYPE_C,
+  .compute_shader = ROOT_DIR "/shader/vdb/dda_trace.comp.spv",
+  .descriptor_pool_size = s_vdb_dda_trace_descriptor_pool_size,
+  .descriptor_pool_size_count = ARRAY_COUNT(s_vdb_dda_trace_descriptor_pool_size),
+  .descriptor_set_layout_binding = s_vdb_dda_trace_descriptor_set_layout_binding,
+  .descriptor_set_layout_binding_count = ARRAY_COUNT(s_vdb_dda_trace_descriptor_set_layout_binding),
+};
 static pipeline_t s_vdb_world_generator_pipeline = {
   .pipeline_type = PIPELINE_TYPE_C,
   .compute_shader = ROOT_DIR "/shader/vdb/world_generator.comp.spv",
@@ -333,10 +369,12 @@ void renderer_create(void) {
   renderer_create_chunk_data_image();
   renderer_create_tile_atlas_image();
 
+  pipeline_create(&s_vdb_dda_trace_pipeline);
   pipeline_create(&s_vdb_world_generator_pipeline);
   pipeline_create(&s_vdb_iso_renderer_pipeline);
   pipeline_create(&s_debug_line_renderer_pipeline);
 
+  renderer_update_vdb_dda_trace_descriptor_set();
   renderer_update_vdb_world_generator_descriptor_set();
   renderer_update_vdb_iso_renderer_descriptor_set();
   renderer_update_debug_line_descriptor_set();
@@ -480,6 +518,7 @@ void renderer_draw(transform_t *transform, camera_t *camera) {
 void renderer_destroy(void) {
   dbgui_destroy();
 
+  pipeline_destroy(&s_vdb_dda_trace_pipeline);
   pipeline_destroy(&s_vdb_world_generator_pipeline);
   pipeline_destroy(&s_vdb_iso_renderer_pipeline);
   pipeline_destroy(&s_debug_line_renderer_pipeline);
@@ -722,6 +761,36 @@ static void renderer_create_tile_atlas_image(void) {
   s_tile_atlas_descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 }
 
+static void renderer_update_vdb_dda_trace_descriptor_set(void) {
+  VkWriteDescriptorSet write_descriptor_set[] = {
+    {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = 0,
+      .dstSet = s_vdb_dda_trace_pipeline.descriptor_set,
+      .dstBinding = 0,
+      .dstArrayElement = 0,
+      .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+      .descriptorCount = 1,
+      .pImageInfo = 0,
+      .pBufferInfo = &s_cluster_info_descriptor_buffer_info,
+      .pTexelBufferView = 0,
+    },
+    {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = 0,
+      .dstSet = s_vdb_dda_trace_pipeline.descriptor_set,
+      .dstBinding = 1,
+      .dstArrayElement = 0,
+      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+      .descriptorCount = CHUNK_COUNT,
+      .pImageInfo = s_chunk_data_descriptor_image_info,
+      .pBufferInfo = 0,
+      .pTexelBufferView = 0,
+    },
+  };
+
+  vkUpdateDescriptorSets(g_window.device, ARRAY_COUNT(write_descriptor_set), write_descriptor_set, 0, 0);
+}
 static void renderer_update_vdb_world_generator_descriptor_set(void) {
   VkWriteDescriptorSet write_descriptor_set[] = {
     {
@@ -844,7 +913,7 @@ static void renderer_update_uniform_buffer(transform_t *transform, camera_t *cam
   cluster_info->dimension = (ivector2_t){CLUSTER_DIM_X, CLUSTER_DIM_Y};
 }
 
-static void renderer_compute_world(void) {
+static void renderer_generate_world(void) {
   vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_vdb_world_generator_pipeline.pipeline_handle);
   vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_vdb_world_generator_pipeline.pipeline_layout, 0, 1, &s_vdb_world_generator_pipeline.descriptor_set, 0, 0);
 
@@ -884,13 +953,25 @@ static void renderer_compute_world(void) {
     chunk_index++;
   }
 }
+static void renderer_dda_trace(void) {
+  int32_t group_count = 1;
+
+  vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_vdb_dda_trace_pipeline.pipeline_handle);
+  vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_vdb_dda_trace_pipeline.pipeline_layout, 0, 1, &s_vdb_dda_trace_pipeline.descriptor_set, 0, 0);
+  vkCmdDispatch(g_window.command_buffer, group_count, group_count, group_count);
+}
 
 static void renderer_record_compute_pass(void) {
   if (g_renderer.rebuild_world) {
 
     g_renderer.rebuild_world = 0;
 
-    renderer_compute_world();
+    renderer_generate_world();
+  }
+
+  if (window_is_mouse_key_held(MOUSE_KEY_RIGHT)) {
+
+    renderer_dda_trace();
   }
 }
 static void renderer_record_main_pass(void) {
