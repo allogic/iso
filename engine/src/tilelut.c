@@ -1,22 +1,19 @@
 #include <pch.h>
 
-tile_lut_t const g_tile_lut[TILE_COUNT] = {
+tile_t const g_tile_lut[TILE_COUNT] = {
   {
-    .size_x = 0.5F,
-    .size_y = 0.5F,
-    .size_z = 0.5F,
+    .width = 32.0F,
+    .height = 32.0F,
     .atlas_id = 0,
   },
   {
-    .size_x = 0.5F,
-    .size_y = 0.5F,
-    .size_z = 0.5F,
-    .atlas_id = 0,
+    .width = 32.0F,
+    .height = 32.0F,
+    .atlas_id = 1,
   },
   {
-    .size_x = 0.5F,
-    .size_y = 0.5F,
-    .size_z = 0.5F,
-    .atlas_id = 0,
+    .width = 32.0F,
+    .height = 32.0F,
+    .atlas_id = 2,
   },
 };

@@ -63,24 +63,9 @@ void dbgui_draw(void) {
 
   ImGui::NewFrame();
 
-  ImGui::Begin("Player Transform");
-  ImGui::DragFloat3("Local Position", (float *)&g_player_0.transform.local_position, 0.05F);
-  vector3_t euler_angles = quaternion_to_euler_angles(g_player_0.transform.local_rotation);
-  euler_angles.x = rad_to_deg(euler_angles.x);
-  euler_angles.y = rad_to_deg(euler_angles.y);
-  euler_angles.z = rad_to_deg(euler_angles.z);
-  ImGui::DragFloat3("Local Rotation", (float *)&euler_angles, 0.05F);
-  ImGui::DragFloat3("Local Scale", (float *)&g_player_0.transform.local_scale, 0.05F);
-  ImGui::End();
-
-  ImGui::Begin("Player Camera");
-  ImGui::Checkbox("Orthographic", (bool *)&g_player_0.camera.is_orthographic);
-  ImGui::DragFloat("FoV", &g_player_0.camera.fov_deg, 0.05F);
-  ImGui::DragFloat("Zoom", &g_player_0.camera.zoom, 0.05F);
-  ImGui::DragFloat("Persp Near Z", &g_player_0.camera.persp_near_z, 0.05F);
-  ImGui::DragFloat("Persp Far Z", &g_player_0.camera.persp_far_z, 0.05F);
-  ImGui::DragFloat("Ortho Near Z", &g_player_0.camera.ortho_near_z, 0.05F);
-  ImGui::DragFloat("Ortho Far Z", &g_player_0.camera.ortho_far_z, 0.05F);
+  ImGui::Begin("Player");
+  ImGui::DragFloat2("Position", (float *)&g_player.position, 0.05F);
+  ImGui::DragFloat("Zoom", &g_player.camera_zoom, 0.05F);
   ImGui::End();
 
   ImGui::Begin("ISO Mesher");

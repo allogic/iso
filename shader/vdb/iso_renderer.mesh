@@ -6,22 +6,25 @@
 
 #include "../vdb/common.glsl"
 
-const float GLOBAL_TILE_SIZE = 0.5;
-const float GLOBAL_TILE_HEIGHT = 0.5;
+const float TILE_WIDTH = 32.0;
+const float TILE_HEIGHT = 32.0;
 
-const float DEPTH_SCALE = 0.001;
-const float DEPTH_EPS = 0.00001;
+const float ISO_X_SCALE = 16.0;
+const float ISO_Y_SCALE = 8.0;
+const float ISO_Y_HEIGHT = 16.0;
+
+const float DEPTH_SCALE = 0.01;
 
 layout (
-	local_size_x = 4,
+	local_size_x = 8,
 	local_size_y = 1,
-	local_size_z = 4
+	local_size_z = 8
 ) in;
 
 layout (
 	triangles,
-	max_vertices = 192,
-	max_primitives = 96
+	max_vertices = 256,
+	max_primitives = 128
 ) out;
 
 layout (location = 0) out vec3 output_color[];
@@ -29,18 +32,16 @@ layout (location = 1) out vec2 output_uv[];
 layout (location = 2) out uint output_atlas_id[];
 
 layout (binding = 0) uniform camera_info_t {
-	vec3 position;
-	float reserved0;
-	mat4 view;
-	mat4 projection;
-	mat4 view_projection;
-	mat4 view_projection_inv;
-	vec4 frustum_plane[6];
+	vec2 position;
+	float zoom;
 } camera_info;
-layout (binding = 1) readonly buffer tile_lut_buffer_t {
-	tile_lut_t tile_lut[];
-} tile_lut_buffer;
+layout (binding = 1) uniform screen_info_t {
+	ivec2 resolution;
+} screen_info;
 layout (binding = 2) uniform usampler3D chunk_data[];
+layout (binding = 3) readonly buffer tile_lut_buffer_t {
+	tile_t tile_lut[];
+} tile_lut_buffer;
 
 layout (push_constant) uniform push_constant_t {
 	vec4 vertex_offset_0;
@@ -60,182 +61,89 @@ uint get_voxel(ivec3 voxel_position) {
 	return uint(texelFetch(chunk_data[0], voxel_position, 0).r);
 }
 
-float iso_depth(vec3 p) {
-	return (p.x + p.z + p.y) * DEPTH_SCALE;
+void iso_screen_to_world(float screen_position_x, float screen_position_y, float camera_position_x, float camera_position_y, inout float world_position_x, inout float world_position_z) {
+	screen_position_x -= camera_position_x;
+	screen_position_y -= camera_position_y;
+
+	world_position_x = ((screen_position_x / ISO_X_SCALE) + (screen_position_y / ISO_Y_SCALE)) * 0.5;
+	world_position_z = ((screen_position_y / ISO_Y_SCALE) - (screen_position_x / ISO_X_SCALE)) * 0.5;
+}
+void iso_world_to_screen(float world_position_x, float world_position_y, float world_position_z, float camera_position_x, float camera_position_y, inout float screen_position_x, inout float screen_position_y) {
+	screen_position_x = world_position_x * ISO_X_SCALE + world_position_z * -ISO_X_SCALE + camera_position_x;
+	screen_position_y = world_position_x * ISO_Y_SCALE + world_position_z * ISO_Y_SCALE - world_position_y * ISO_Y_HEIGHT + camera_position_y;
+};
+
+float iso_depth(vec3 position) {
+	return (position.x + position.z + position.y) * DEPTH_SCALE;
 }
 
-vec3 iso_project(vec3 p, float depth_bias) {
-	float iso_x = p.x - p.z;
-	float iso_y = (p.x + p.z) * 0.5 - p.y;
-	float iso_z = iso_depth(p) + depth_bias;
+vec2 to_clip(vec2 position, ivec2 screen_resolution) {
+	vec2 ndc = (position / screen_resolution) * 2 - 1;
 
-	return vec3(iso_x, iso_y, iso_z);
-}
+	ndc.y = -ndc.y;
 
-vec2 uv_top(vec3 p, vec3 base, float sx, float sz) {
-	vec2 local = (p.xz - base.xz);
-
-	return vec2(local.x / sx, local.y / sz);
-}
-
-vec2 uv_side_x(vec3 p, vec3 base, float sx, float sy) {
-	vec2 local = vec2(p.x - base.x, p.y - base.y);
-
-	return vec2(local.x / sx, local.y / sy);
-}
-
-vec2 uv_side_z(vec3 p, vec3 base, float sz, float sy) {
-	vec2 local = vec2(p.z - base.z, p.y - base.y);
-
-	return vec2(local.x / sz, local.y / sy);
-}
-
-void emit_quad(uint v, uint t, vec3 a, vec3 b, vec3 c, vec3 d, vec2 uva, vec2 uvb, vec2 uvc, vec2 uvd, float depth_bias, vec3 color, uint atlas_id) {
-	gl_MeshVerticesEXT[v + 0].gl_Position = camera_info.view_projection * vec4(iso_project(a, depth_bias), 1);
-	gl_MeshVerticesEXT[v + 1].gl_Position = camera_info.view_projection * vec4(iso_project(b, depth_bias), 1);
-	gl_MeshVerticesEXT[v + 2].gl_Position = camera_info.view_projection * vec4(iso_project(c, depth_bias), 1);
-	gl_MeshVerticesEXT[v + 3].gl_Position = camera_info.view_projection * vec4(iso_project(d, depth_bias), 1);
-
-	output_color[v + 0] = color;
-	output_color[v + 1] = color;
-	output_color[v + 2] = color;
-	output_color[v + 3] = color;
-
-	output_uv[v + 0] = uva;
-	output_uv[v + 1] = uvb;
-	output_uv[v + 2] = uvc;
-	output_uv[v + 3] = uvd;
-
-	output_atlas_id[v + 0] = atlas_id;
-	output_atlas_id[v + 1] = atlas_id;
-	output_atlas_id[v + 2] = atlas_id;
-	output_atlas_id[v + 3] = atlas_id;
-
-	gl_PrimitiveTriangleIndicesEXT[t + 0] = uvec3(v + 0, v + 1, v + 2);
-	gl_PrimitiveTriangleIndicesEXT[t + 1] = uvec3(v + 2, v + 3, v + 0);
+	return ndc;
 }
 
 void emit_tile(uint tile_counter, vec3 voxel_position, uint tile_id) {
-	tile_lut_t tile_lut = tile_lut_buffer.tile_lut[tile_id];
+	tile_t tile = tile_lut_buffer.tile_lut[tile_id];
 
-	float sx = tile_lut.size_x * GLOBAL_TILE_SIZE;
-	float sy = tile_lut.size_y * GLOBAL_TILE_HEIGHT;
-	float sz = tile_lut.size_z * GLOBAL_TILE_SIZE;
+	float screen_space_x = 0;
+	float screen_space_y = 0;
 
-	vec3 base = vec3(
-		voxel_position.x * sx,
-		voxel_position.y * sy,
-		voxel_position.z * sz
-	);
+	iso_world_to_screen(voxel_position.x, voxel_position.y, voxel_position.z, camera_info.position.x, camera_info.position.y, screen_space_x, screen_space_y);
 
-	float depth_top  = iso_depth(voxel_position) - DEPTH_EPS;
-	float depth_side = iso_depth(voxel_position) + DEPTH_EPS;
+	vec2 pivot = vec2(screen_info.resolution) * 0.5;
 
-	uint v = tile_counter * 12;
-	uint t = tile_counter * 6;
+	screen_space_x = pivot.x + (screen_space_x - pivot.x) * camera_info.zoom;
+	screen_space_y = pivot.y + (screen_space_y - pivot.y) * camera_info.zoom;
 
-	{
-		vec3 iso_right = vec3(1.0, 0.0, -1.0);
-		vec3 iso_up = vec3(0.5, -1.0, 0.5);
+	float depth = iso_depth(voxel_position);
 
-		vec3 a = base + (-0.5 * sx) * iso_right;
-		vec3 b = base + ( 0.5 * sx) * iso_right;
-		vec3 c = base + (-0.5 * sx) * iso_right + sz * iso_up;
-		vec3 d = base + ( 0.5 * sx) * iso_right + sz * iso_up;
+	float w = tile.width;
+	float h = tile.height;
 
-		gl_MeshVerticesEXT[v + 0].gl_Position = camera_info.view_projection * vec4(a, 1);
-		gl_MeshVerticesEXT[v + 1].gl_Position = camera_info.view_projection * vec4(b, 1);
-		gl_MeshVerticesEXT[v + 2].gl_Position = camera_info.view_projection * vec4(c, 1);
-		gl_MeshVerticesEXT[v + 3].gl_Position = camera_info.view_projection * vec4(d, 1);
+	vec2 a = vec2(screen_space_x - w * 0.5, screen_space_y);
+	vec2 b = vec2(screen_space_x + w * 0.5, screen_space_y);
+	vec2 c = vec2(screen_space_x - w * 0.5, screen_space_y + h);
+	vec2 d = vec2(screen_space_x + w * 0.5, screen_space_y + h);
 
-		output_color[v + 0] = color;
-		output_color[v + 1] = color;
-		output_color[v + 2] = color;
-		output_color[v + 3] = color;
+	uint v = tile_counter * 4;
+	uint t = tile_counter * 2;
 
-		output_uv[v + 0] = vec2(0, 0);
-		output_uv[v + 1] = vec2(1, 0);
-		output_uv[v + 2] = vec2(0, 1);
-		output_uv[v + 3] = vec2(1, 1);
+	gl_MeshVerticesEXT[v + 0].gl_Position = vec4(to_clip(a, screen_info.resolution), depth, 1);
+	gl_MeshVerticesEXT[v + 1].gl_Position = vec4(to_clip(b, screen_info.resolution), depth, 1);
+	gl_MeshVerticesEXT[v + 2].gl_Position = vec4(to_clip(c, screen_info.resolution), depth, 1);
+	gl_MeshVerticesEXT[v + 3].gl_Position = vec4(to_clip(d, screen_info.resolution), depth, 1);
 
-		output_atlas_id[v + 0] = 0;
-		output_atlas_id[v + 1] = 0;
-		output_atlas_id[v + 2] = 0;
-		output_atlas_id[v + 3] = 0;
+	output_color[v + 0] = vec3(depth * 50);
+	output_color[v + 1] = vec3(depth * 50);
+	output_color[v + 2] = vec3(depth * 50);
+	output_color[v + 3] = vec3(depth * 50);
 
-		gl_PrimitiveTriangleIndicesEXT[t + 0] = uvec3(v + 0, v + 1, v + 2);
-		gl_PrimitiveTriangleIndicesEXT[t + 1] = uvec3(v + 2, v + 3, v + 0);
-	}
+	output_uv[v + 0] = vec2(0, 1);
+	output_uv[v + 1] = vec2(1, 1);
+	output_uv[v + 2] = vec2(0, 0);
+	output_uv[v + 3] = vec2(1, 0);
 
-	/*
-	{
-		vec3 a = base + vec3(0, 0, sz);
-		vec3 b = base + vec3(sx, 0, sz);
-		vec3 c = base + vec3(sx, 0, 0);
-		vec3 d = base + vec3(0, 0, 0);
+	output_atlas_id[v + 0] = tile.atlas_id;
+	output_atlas_id[v + 1] = tile.atlas_id;
+	output_atlas_id[v + 2] = tile.atlas_id;
+	output_atlas_id[v + 3] = tile.atlas_id;
 
-		emit_quad(
-			v + 0, t + 0,
-			a, b, c, d,
-			uv_top(a, base, sx, sz),
-			uv_top(b, base, sx, sz),
-			uv_top(c, base, sx, sz),
-			uv_top(d, base, sx, sz),
-			depth_top,
-			vec3(0.8, 0.9, 1.0),
-			0
-		);
-	}
-
-	{
-		vec3 a = base + vec3(0, 0, 0);
-		vec3 b = base + vec3(sx, 0, 0);
-		vec3 c = base + vec3(sx, sy, 0);
-		vec3 d = base + vec3(0, sy, 0);
-
-		emit_quad(
-			v + 4, t + 2,
-			a, b, c, d,
-			uv_side_x(a, base, sx, sy),
-			uv_side_x(b, base, sx, sy),
-			uv_side_x(c, base, sx, sy),
-			uv_side_x(d, base, sx, sy),
-			depth_side,
-			vec3(0.55, 0.7, 0.9),
-			1
-		);
-	}
-
-	{
-		vec3 a = base + vec3(0, 0, sz);
-		vec3 b = base + vec3(0, 0, 0);
-		vec3 c = base + vec3(0, sy, 0);
-		vec3 d = base + vec3(0, sy, sz);
-
-		emit_quad(
-			v + 8, t + 4,
-			a, b, c, d,
-			uv_side_z(a, base, sz, sy),
-			uv_side_z(b, base, sz, sy),
-			uv_side_z(c, base, sz, sy),
-			uv_side_z(d, base, sz, sy),
-			depth_side,
-			vec3(0.45, 0.6, 0.85),
-			2
-		);
-	}
-	*/
+	gl_PrimitiveTriangleIndicesEXT[t + 0] = uvec3(v + 0, v + 2, v + 1);
+	gl_PrimitiveTriangleIndicesEXT[t + 1] = uvec3(v + 2, v + 3, v + 1);
 }
 
 void main() {
-	int block_base_x = int(gl_WorkGroupID.x) * 4;
+	int block_base_x = int(gl_WorkGroupID.x) * 8;
 	int block_base_y = (CHUNK_SIZE - 1) - int(gl_WorkGroupID.y);
-	int block_base_z = int(gl_WorkGroupID.z) * 4;
+	int block_base_z = int(gl_WorkGroupID.z) * 8;
 
 	uint tile_counter = 0;
 
-	for (int z = 3; z >= 0; z--) {
-		for (int x = 3; x >= 0; x--) {
+	for (int z = 7; z >= 0; z--) {
+		for (int x = 7; x >= 0; x--) {
 
 			ivec3 voxel_position = ivec3(block_base_x + x, block_base_y, block_base_z + z);
 
@@ -252,5 +160,5 @@ void main() {
 		}
 	}
 
-	SetMeshOutputsEXT(tile_counter * 12, tile_counter * 6);
+	SetMeshOutputsEXT(tile_counter * 4, tile_counter * 2);
 }

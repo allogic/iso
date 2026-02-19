@@ -13,13 +13,8 @@ layout (
 ) in;
 
 layout (binding = 0) uniform camera_info_t {
-	vec3 position;
-	int reserved0;
-	mat4 view;
-	mat4 projection;
-	mat4 view_projection;
-	mat4 view_projection_inv;
-	vec4 frustum_plane[6];
+	vec2 position;
+	float zoom;
 } camera_info;
 
 taskPayloadSharedEXT payload_t payload;
@@ -33,5 +28,5 @@ void main() {
 
 	payload.chunk_index = chunk_index;
 
-	EmitMeshTasksEXT(8, 32, 8);
+	EmitMeshTasksEXT(4, 32, 4);
 }

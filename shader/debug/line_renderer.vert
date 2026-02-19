@@ -3,24 +3,25 @@
 #extension GL_ARB_shading_language_include : require
 #extension GL_EXT_nonuniform_qualifier : require
 
-layout (location = 0) in vec3 vertex_position;
+layout (location = 0) in vec2 vertex_position;
 layout (location = 1) in vec4 vertex_color;
 
 layout (location = 0) out vec4 output_color;
 
-layout (binding = 0) uniform camera_info_t {
-	vec3 position;
-	int reserved0;
-	mat4 view;
-	mat4 projection;
-	mat4 view_projection;
-	mat4 view_projection_inv;
-	vec4 frustum_plane[6];
-} camera_info;
+layout (binding = 0) uniform screen_info_t {
+	ivec2 resolution;
+} screen_info;
+
+vec2 to_clip(vec2 position, ivec2 screen_resolution) {
+	vec2 ndc = (position / screen_resolution) * 2 - 1;
+
+	ndc.y = -ndc.y;
+
+	return ndc;
+}
 
 void main() {
-	vec4 world_position = vec4(vertex_position, 1.0);
-	vec4 clip_position = camera_info.view_projection * world_position;
+	vec4 clip_position = vec4(to_clip(vertex_position, screen_info.resolution), 0, 1);
 
 	output_color = vertex_color;
 

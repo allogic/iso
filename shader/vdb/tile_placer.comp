@@ -1,0 +1,49 @@
+#version 460 core
+
+#extension GL_ARB_shading_language_include : require
+#extension GL_EXT_nonuniform_qualifier : require
+
+#include "../vdb/common.glsl"
+
+const uint MAX_RAY_STEPS = 1000;
+
+layout (
+	local_size_x = 1,
+	local_size_y = 1,
+	local_size_z = 1
+) in;
+
+layout (binding = 0) uniform world_camera_t {
+	vec3 position;
+	float reserved0;
+	mat4 view;
+	mat4 projection;
+	mat4 view_projection;
+	mat4 view_projection_inv;
+	vec4 frustum_plane[6];
+} world_camera;
+layout (binding = 1) uniform cluster_info_t {
+	ivec2 dimension;
+} cluster_info;
+layout (binding = 2) uniform screen_info_t {
+	ivec2 resolution;
+} screen_info;
+layout (binding = 3) uniform mouse_info_t {
+	ivec2 position;
+} mouse_info;
+layout (binding = 4, r32ui) uniform uimage3D chunk_data[];
+layout (binding = 5) buffer trace_result_buffer_t {
+	ivec3 voxel_position;
+	int intersection;
+} trace_result_buffer;
+
+uint get_voxel(ivec3 voxel_position) {
+	return uint(imageLoad(chunk_data[0], voxel_position).r);
+}
+void set_voxel(ivec3 voxel_position, uint voxel) {
+	imageStore(chunk_data[0], voxel_position, uvec4(voxel, 0, 0, 0));
+}
+
+void main() {
+	ivec3 chunk_position = ivec3(0); // TODO
+}

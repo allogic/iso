@@ -13,16 +13,22 @@
 #define VOXEL_IS_SOLID(VOXEL) \
 	((VOXEL & VOXEL_IS_SOLID_BIT) == VOXEL_IS_SOLID_BIT)
 
+#define VOXEL_IS_EMPTY(VOXEL) \
+	((VOXEL & VOXEL_IS_SOLID_BIT) != VOXEL_IS_SOLID_BIT)
+
 #define VOXEL_GET_TILE_ID(VOXEL) \
 	((VOXEL >> 8) & 0xFF)
 
 #define VOXEL_SET_SOLID(VOXEL) \
 	(VOXEL | VOXEL_IS_SOLID_BIT)
 
-struct tile_lut_t {
-	float size_x;
-	float size_y;
-	float size_z;
+#define VOXEL_SET_TILE_ID(VOXEL, TILE_ID) \
+	((VOXEL & ~(0xFF << 8)) | ((TILE_ID & 0xFF) << 8))
+
+struct tile_t {
+	float width;
+	float height;
+	float reserved0;
 	uint atlas_id;
 };
 struct payload_t {

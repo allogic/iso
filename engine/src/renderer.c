@@ -25,7 +25,7 @@ static void renderer_update_vdb_world_generator_descriptor_set(void);
 static void renderer_update_vdb_iso_renderer_descriptor_set(void);
 static void renderer_update_debug_line_descriptor_set(void);
 
-static void renderer_update_coherent_buffer(transform_t *transform, camera_t *camera);
+static void renderer_update_coherent_buffer(void);
 
 static void renderer_dda_trace(void);
 static void renderer_generate_world(void);
@@ -90,7 +90,7 @@ static VkVertexInputAttributeDescription const s_debug_line_vertex_input_attribu
   {
     .location = 0,
     .binding = 0,
-    .format = VK_FORMAT_R32G32B32_SFLOAT,
+    .format = VK_FORMAT_R32G32_SFLOAT,
     .offset = 0,
   },
   {
@@ -118,7 +118,7 @@ static VkDescriptorPoolSize const s_vdb_dda_trace_descriptor_pool_size[] = {
 static VkDescriptorPoolSize const s_vdb_world_generator_descriptor_pool_size[] = {
   {
     .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    .descriptorCount = 1,
+    .descriptorCount = 2,
   },
   {
     .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
@@ -128,7 +128,7 @@ static VkDescriptorPoolSize const s_vdb_world_generator_descriptor_pool_size[] =
 static VkDescriptorPoolSize const s_vdb_iso_renderer_descriptor_pool_size[] = {
   {
     .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    .descriptorCount = 1,
+    .descriptorCount = 2,
   },
   {
     .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -205,6 +205,13 @@ static VkDescriptorSetLayoutBinding const s_vdb_world_generator_descriptor_set_l
     .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
     .pImmutableSamplers = 0,
   },
+  {
+    .binding = 2,
+    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    .descriptorCount = 1,
+    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+    .pImmutableSamplers = 0,
+  },
 };
 static VkDescriptorSetLayoutBinding const s_vdb_iso_renderer_descriptor_set_layout_binding[] = {
   {
@@ -216,7 +223,7 @@ static VkDescriptorSetLayoutBinding const s_vdb_iso_renderer_descriptor_set_layo
   },
   {
     .binding = 1,
-    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
     .descriptorCount = 1,
     .stageFlags = VK_SHADER_STAGE_MESH_BIT_EXT,
     .pImmutableSamplers = 0,
@@ -230,6 +237,13 @@ static VkDescriptorSetLayoutBinding const s_vdb_iso_renderer_descriptor_set_layo
   },
   {
     .binding = 3,
+    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    .descriptorCount = 1,
+    .stageFlags = VK_SHADER_STAGE_MESH_BIT_EXT,
+    .pImmutableSamplers = 0,
+  },
+  {
+    .binding = 4,
     .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
     .descriptorCount = 1,
     .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -246,6 +260,13 @@ static VkDescriptorSetLayoutBinding const s_debug_line_renderer_descriptor_set_l
   },
 };
 
+static VkPushConstantRange const s_vdb_world_generator_push_constant_range[] = {
+  {
+    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+    .offset = 0,
+    .size = sizeof(world_generator_push_constant_t),
+  },
+};
 static VkPushConstantRange const s_vdb_iso_renderer_push_constant_range[] = {
   {
     .stageFlags = VK_SHADER_STAGE_MESH_BIT_EXT | VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -265,6 +286,8 @@ static pipeline_t s_vdb_dda_trace_pipeline = {
 static pipeline_t s_vdb_world_generator_pipeline = {
   .pipeline_type = PIPELINE_TYPE_C,
   .compute_shader = ROOT_DIR "/shader/vdb/world_generator.comp.spv",
+  .push_constant_range = s_vdb_world_generator_push_constant_range,
+  .push_constant_range_count = ARRAY_COUNT(s_vdb_world_generator_push_constant_range),
   .descriptor_pool_size = s_vdb_world_generator_descriptor_pool_size,
   .descriptor_pool_size_count = ARRAY_COUNT(s_vdb_world_generator_descriptor_pool_size),
   .descriptor_set_layout_binding = s_vdb_world_generator_descriptor_set_layout_binding,
@@ -285,8 +308,8 @@ static pipeline_t s_vdb_iso_renderer_pipeline = {
 };
 static pipeline_t s_debug_line_renderer_pipeline = {
   .pipeline_type = PIPELINE_TYPE_VF,
-  .vertex_shader = ROOT_DIR "/shader/debug/line_renderer.vert.spv",
-  .fragment_shader = ROOT_DIR "/shader/debug/line_renderer.frag.spv",
+  .vertex_shader = ROOT_DIR "/shader/debug/ss_line_renderer.vert.spv",
+  .fragment_shader = ROOT_DIR "/shader/debug/ss_line_renderer.frag.spv",
   .vertex_input_binding_description = s_debug_line_vertex_input_binding_description,
   .vertex_input_binding_description_count = ARRAY_COUNT(s_debug_line_vertex_input_binding_description),
   .vertex_input_attribute_description = s_debug_line_vertex_input_attribute_description,
@@ -393,8 +416,11 @@ static VkDescriptorImageInfo s_tile_atlas_descriptor_image_info = {0};
 void renderer_create(void) {
   g_renderer.is_debug_enabled = 1;
   g_renderer.rebuild_world = 1;
-  g_renderer.tile_size = 0.0F;
-  g_renderer.tile_height = 0.0F;
+  // TODO
+  g_renderer.vertex_offset_0.x = 1000.0F;
+  g_renderer.vertex_offset_0.y = 600.0F;
+  g_renderer.tile_size = 16.0F;
+  g_renderer.tile_height = 8.0F;
   g_renderer.inner_scale = 64.0F;
   g_renderer.outer_scale = 64.0F;
   g_renderer.rotation.x = 0.0F;
@@ -423,7 +449,7 @@ void renderer_create(void) {
 
   dbgui_create();
 }
-void renderer_draw(transform_t *transform, camera_t *camera) {
+void renderer_draw(void) {
   VkResult result = VK_SUCCESS;
 
   result = vkWaitForFences(g_window.device, 1, &s_frame_fence, 1, UINT64_MAX);
@@ -485,7 +511,7 @@ void renderer_draw(transform_t *transform, camera_t *camera) {
 #endif // BUILD_DEBUG
   }
 
-  renderer_update_coherent_buffer(transform, camera);
+  renderer_update_coherent_buffer();
 
   VkCommandBufferBeginInfo command_buffer_begin_info = {
     .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -570,7 +596,7 @@ void renderer_destroy(void) {
   renderer_destroy_image();
 }
 
-void renderer_draw_debug_line(vector3_t from, vector3_t to, vector4_t color) {
+void renderer_draw_debug_line(vector2_t from, vector2_t to, vector4_t color) {
   if (g_renderer.is_debug_enabled) {
 
     uint32_t vertex_offset = s_debug_line_vertex_offset;
@@ -596,7 +622,7 @@ void renderer_draw_debug_line(vector3_t from, vector3_t to, vector4_t color) {
     }
   }
 }
-void renderer_draw_debug_box(vector3_t position, vector3_t size, vector4_t color) {
+void renderer_draw_debug_box(vector2_t position, vector2_t size, vector4_t color) {
   if (g_renderer.is_debug_enabled) {
 
     uint32_t vertex_offset = s_debug_line_vertex_offset;
@@ -608,14 +634,14 @@ void renderer_draw_debug_box(vector3_t position, vector3_t size, vector4_t color
       debug_line_vertex_t *vertices = (debug_line_vertex_t *)s_debug_line_vertex_buffer.device_data;
       debug_line_index_t *indices = (debug_line_index_t *)s_debug_line_index_buffer.device_data;
 
-      vertices[vertex_offset + 0].position = (vector3_t){position.x, position.y, position.z};
-      vertices[vertex_offset + 1].position = (vector3_t){position.x, position.y + size.y, position.z};
-      vertices[vertex_offset + 2].position = (vector3_t){position.x + size.x, position.y, position.z};
-      vertices[vertex_offset + 3].position = (vector3_t){position.x + size.x, position.y + size.y, position.z};
-      vertices[vertex_offset + 4].position = (vector3_t){position.x, position.y, position.z + size.z};
-      vertices[vertex_offset + 5].position = (vector3_t){position.x, position.y + size.y, position.z + size.z};
-      vertices[vertex_offset + 6].position = (vector3_t){position.x + size.x, position.y, position.z + size.z};
-      vertices[vertex_offset + 7].position = (vector3_t){position.x + size.x, position.y + size.y, position.z + size.z};
+      vertices[vertex_offset + 0].position = (vector2_t){position.x, position.y};
+      vertices[vertex_offset + 1].position = (vector2_t){position.x, position.y + size.y};
+      vertices[vertex_offset + 2].position = (vector2_t){position.x + size.x, position.y};
+      vertices[vertex_offset + 3].position = (vector2_t){position.x + size.x, position.y + size.y};
+      vertices[vertex_offset + 4].position = (vector2_t){position.x, position.y};
+      vertices[vertex_offset + 5].position = (vector2_t){position.x, position.y + size.y};
+      vertices[vertex_offset + 6].position = (vector2_t){position.x + size.x, position.y};
+      vertices[vertex_offset + 7].position = (vector2_t){position.x + size.x, position.y + size.y};
 
       vertices[vertex_offset + 0].color = color;
       vertices[vertex_offset + 1].color = color;
@@ -634,25 +660,9 @@ void renderer_draw_debug_box(vector3_t position, vector3_t size, vector4_t color
       indices[index_offset + 5] = (debug_line_index_t)(vertex_offset + 2);
       indices[index_offset + 6] = (debug_line_index_t)(vertex_offset + 2);
       indices[index_offset + 7] = (debug_line_index_t)(vertex_offset + 0);
-      indices[index_offset + 8] = (debug_line_index_t)(vertex_offset + 4);
-      indices[index_offset + 9] = (debug_line_index_t)(vertex_offset + 5);
-      indices[index_offset + 10] = (debug_line_index_t)(vertex_offset + 5);
-      indices[index_offset + 11] = (debug_line_index_t)(vertex_offset + 7);
-      indices[index_offset + 12] = (debug_line_index_t)(vertex_offset + 7);
-      indices[index_offset + 13] = (debug_line_index_t)(vertex_offset + 6);
-      indices[index_offset + 14] = (debug_line_index_t)(vertex_offset + 6);
-      indices[index_offset + 15] = (debug_line_index_t)(vertex_offset + 4);
-      indices[index_offset + 16] = (debug_line_index_t)(vertex_offset + 0);
-      indices[index_offset + 17] = (debug_line_index_t)(vertex_offset + 4);
-      indices[index_offset + 18] = (debug_line_index_t)(vertex_offset + 1);
-      indices[index_offset + 19] = (debug_line_index_t)(vertex_offset + 5);
-      indices[index_offset + 20] = (debug_line_index_t)(vertex_offset + 2);
-      indices[index_offset + 21] = (debug_line_index_t)(vertex_offset + 6);
-      indices[index_offset + 22] = (debug_line_index_t)(vertex_offset + 3);
-      indices[index_offset + 23] = (debug_line_index_t)(vertex_offset + 7);
 
-      s_debug_line_vertex_offset += 8;
-      s_debug_line_index_offset += 24;
+      s_debug_line_vertex_offset += 4;
+      s_debug_line_index_offset += 8;
     }
   }
 }
@@ -916,6 +926,18 @@ static void renderer_update_vdb_world_generator_descriptor_set(void) {
       .pBufferInfo = 0,
       .pTexelBufferView = 0,
     },
+    {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = 0,
+      .dstSet = s_vdb_world_generator_pipeline.descriptor_set,
+      .dstBinding = 2,
+      .dstArrayElement = 0,
+      .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+      .descriptorCount = 1,
+      .pImageInfo = 0,
+      .pBufferInfo = &s_time_info_descriptor_buffer_info,
+      .pTexelBufferView = 0,
+    },
   };
 
   vkUpdateDescriptorSets(g_window.device, ARRAY_COUNT(write_descriptor_set), write_descriptor_set, 0, 0);
@@ -940,10 +962,10 @@ static void renderer_update_vdb_iso_renderer_descriptor_set(void) {
       .dstSet = s_vdb_iso_renderer_pipeline.descriptor_set,
       .dstBinding = 1,
       .dstArrayElement = 0,
-      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+      .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
       .descriptorCount = 1,
       .pImageInfo = 0,
-      .pBufferInfo = &s_tile_lut_descriptor_buffer_info,
+      .pBufferInfo = &s_screen_info_descriptor_buffer_info,
       .pTexelBufferView = 0,
     },
     {
@@ -963,6 +985,18 @@ static void renderer_update_vdb_iso_renderer_descriptor_set(void) {
       .pNext = 0,
       .dstSet = s_vdb_iso_renderer_pipeline.descriptor_set,
       .dstBinding = 3,
+      .dstArrayElement = 0,
+      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+      .descriptorCount = 1,
+      .pImageInfo = 0,
+      .pBufferInfo = &s_tile_lut_descriptor_buffer_info,
+      .pTexelBufferView = 0,
+    },
+    {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = 0,
+      .dstSet = s_vdb_iso_renderer_pipeline.descriptor_set,
+      .dstBinding = 4,
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
       .descriptorCount = 1,
@@ -985,7 +1019,7 @@ static void renderer_update_debug_line_descriptor_set(void) {
       .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
       .descriptorCount = 1,
       .pImageInfo = 0,
-      .pBufferInfo = &s_camera_info_descriptor_buffer_info,
+      .pBufferInfo = &s_screen_info_descriptor_buffer_info,
       .pTexelBufferView = 0,
     },
   };
@@ -993,7 +1027,7 @@ static void renderer_update_debug_line_descriptor_set(void) {
   vkUpdateDescriptorSets(g_window.device, ARRAY_COUNT(write_descriptor_set), write_descriptor_set, 0, 0);
 }
 
-static void renderer_update_coherent_buffer(transform_t *transform, camera_t *camera) {
+static void renderer_update_coherent_buffer(void) {
   time_info_t *time_info = (time_info_t *)s_time_info_buffer.device_data;
   time_info->time = g_window.time;
   time_info->delta_time = g_window.delta_time;
@@ -1005,11 +1039,8 @@ static void renderer_update_coherent_buffer(transform_t *transform, camera_t *ca
   mouse_info->resolution = (ivector2_t){g_window.mouse_position_x, g_window.mouse_position_y};
 
   camera_info_t *camera_info = (camera_info_t *)s_camera_info_buffer.device_data;
-  camera_info->position = transform->world_position;
-  camera_info->view = camera->view;
-  camera_info->projection = camera->projection;
-  camera_info->view_projection = camera->view_projection;
-  camera_info->view_projection_inv = camera->view_projection_inv;
+  camera_info->position = g_player.position;
+  camera_info->zoom = g_player.camera_zoom;
 
   cluster_info_t *cluster_info = (cluster_info_t *)s_cluster_info_buffer.device_data;
   cluster_info->dimension = (ivector2_t){CLUSTER_DIM_X, CLUSTER_DIM_Y};
@@ -1019,38 +1050,87 @@ static void renderer_generate_world(void) {
   vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_vdb_world_generator_pipeline.pipeline_handle);
   vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_vdb_world_generator_pipeline.pipeline_layout, 0, 1, &s_vdb_world_generator_pipeline.descriptor_set, 0, 0);
 
+  world_generator_push_constant_t world_generator_push_constant = {0};
+
   int32_t group_count = MAKE_GROUP_COUNT(CHUNK_SIZE, 8);
   int32_t chunk_index = 0;
   int32_t chunk_count = CHUNK_COUNT;
 
   while (chunk_index < chunk_count) {
 
+    world_generator_push_constant.stage = 0;
+
+    vkCmdPushConstants(g_window.command_buffer, s_vdb_world_generator_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(world_generator_push_constant_t), &world_generator_push_constant);
     vkCmdDispatch(g_window.command_buffer, group_count, group_count, group_count);
 
-    /// TODO: make image memory barriere..
-    // VkBufferMemoryBarrier buffer_memory_barrier = {
-    //   .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-    //   .pNext = 0,
-    //   .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-    //   .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-    //   .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-    //   .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-    //   .buffer = s_chunk_mask_buffer.handle,
-    //   .offset = 0,
-    //   .size = VK_WHOLE_SIZE,
-    // };
+    {
+      VkImageMemoryBarrier image_memory_barrier = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = s_chunk_data_image[chunk_index].image_handle,
+        .subresourceRange = {
+          .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+          .baseMipLevel = 0,
+          .levelCount = 1,
+          .baseArrayLayer = 0,
+          .layerCount = 1,
+        },
+        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+      };
 
-    // vkCmdPipelineBarrier(
-    //   g_window.command_buffer,
-    //   VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-    //   VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-    //   0,
-    //   0,
-    //   0,
-    //   1,
-    //   &buffer_memory_barrier,
-    //   0,
-    //   0);
+      vkCmdPipelineBarrier(
+        g_window.command_buffer,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        &image_memory_barrier);
+    }
+
+    world_generator_push_constant.stage = 1;
+
+    vkCmdPushConstants(g_window.command_buffer, s_vdb_world_generator_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(world_generator_push_constant_t), &world_generator_push_constant);
+    vkCmdDispatch(g_window.command_buffer, group_count, group_count, group_count);
+
+    {
+      VkImageMemoryBarrier image_memory_barrier = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = s_chunk_data_image[chunk_index].image_handle,
+        .subresourceRange = {
+          .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+          .baseMipLevel = 0,
+          .levelCount = 1,
+          .baseArrayLayer = 0,
+          .layerCount = 1,
+        },
+        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+      };
+
+      vkCmdPipelineBarrier(
+        g_window.command_buffer,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        &image_memory_barrier);
+    }
 
     chunk_index++;
   }
@@ -1066,7 +1146,7 @@ static void renderer_dda_trace(void) {
 static void renderer_record_compute_pass(void) {
   if (g_renderer.rebuild_world) {
 
-    g_renderer.rebuild_world = 0;
+    g_renderer.rebuild_world = 1; // TODO
 
     renderer_generate_world();
   }
@@ -1159,21 +1239,19 @@ static void renderer_record_main_pass(void) {
     vkCmdDrawMeshTasks(g_window.command_buffer, group_count, group_count, group_count);
   }
 
-  {
-    if (g_renderer.is_debug_enabled) {
+  if (g_renderer.is_debug_enabled) {
 
-      VkBuffer vertex_buffer[] = {s_debug_line_vertex_buffer.buffer_handle};
-      VkDeviceSize vertex_offset[] = {0};
+    VkBuffer vertex_buffer[] = {s_debug_line_vertex_buffer.buffer_handle};
+    VkDeviceSize vertex_offset[] = {0};
 
-      vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_debug_line_renderer_pipeline.pipeline_handle);
-      vkCmdBindVertexBuffers(g_window.command_buffer, 0, ARRAY_COUNT(vertex_buffer), vertex_buffer, vertex_offset);
-      vkCmdBindIndexBuffer(g_window.command_buffer, s_debug_line_index_buffer.buffer_handle, 0, VK_INDEX_TYPE_UINT32);
-      vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_debug_line_renderer_pipeline.pipeline_layout, 0, 1, &s_debug_line_renderer_pipeline.descriptor_set, 0, 0);
-      vkCmdDrawIndexed(g_window.command_buffer, s_debug_line_index_offset, 1, 0, 0, 0);
+    vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_debug_line_renderer_pipeline.pipeline_handle);
+    vkCmdBindVertexBuffers(g_window.command_buffer, 0, ARRAY_COUNT(vertex_buffer), vertex_buffer, vertex_offset);
+    vkCmdBindIndexBuffer(g_window.command_buffer, s_debug_line_index_buffer.buffer_handle, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_debug_line_renderer_pipeline.pipeline_layout, 0, 1, &s_debug_line_renderer_pipeline.descriptor_set, 0, 0);
+    vkCmdDrawIndexed(g_window.command_buffer, s_debug_line_index_offset, 1, 0, 0, 0);
 
-      s_debug_line_vertex_offset = 0;
-      s_debug_line_index_offset = 0;
-    }
+    s_debug_line_vertex_offset = 0;
+    s_debug_line_index_offset = 0;
   }
 
   dbgui_draw();

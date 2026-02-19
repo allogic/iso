@@ -22,6 +22,14 @@ layout (binding = 0) uniform cluster_info_t {
 	ivec2 dimension;
 } cluster_info;
 layout (binding = 1, r32ui) uniform uimage3D chunk_data[];
+layout (binding = 2) uniform time_info_t {
+	float time;
+	float delta_time;
+} time_info;
+
+layout (push_constant) uniform push_constant_t {
+	uint stage;
+} pc;
 
 uint get_voxel(ivec3 voxel_position) {
 	return uint(imageLoad(chunk_data[0], voxel_position).r);
@@ -31,29 +39,33 @@ void set_voxel(ivec3 voxel_position, uint voxel) {
 }
 
 float default_terrain_density(vec3 sample_position, float ground_level, float cluster_height) {
-	float density = 0.0;
-
-	density += noise_cellular_t1((sample_position + vec3(131.0, 11.0, 141.0)) * 0.115, 2.9, 0.3) * 2.44;
-	density += noise_curl_t1((sample_position + vec3(887.0, 358.0, 262.0)) * 0.006).x * 14.13;
-	density += noise_curl_t1((sample_position + vec3(32.0, 288.0, 204.0)) * 0.045).x * 2.04;
+	float density = 0;
 
 	float norm_y = sample_position.y / cluster_height;
 	float height_thresh = ground_level / cluster_height;
 
-	float blend = smoothstep(height_thresh + 0.3, height_thresh - 0.3, norm_y);
+	if (norm_y < height_thresh) {
+		density = 1;
+	}
 
-	density *= blend;
+	//density += noise_cellular_t1((sample_position + vec3(131.0, 11.0, 141.0)) * 0.115, 2.9, 0.3) * 2.44;
+	//density += noise_curl_t1((sample_position + vec3(887.0, 358.0, 262.0)) * 0.006).x * 14.13;
+	//density += noise_curl_t1((sample_position + vec3(32.0, 288.0, 204.0)) * 0.045).x * 2.04;
+
+	//float blend = 1 - smoothstep(height_thresh + 0.1, height_thresh - 0.1, norm_y);
+
+	//density *= blend * 10;
 
 	//density = soft_terrace(density, 5, 10.0);
 
-	return density;
+	return 1 - density;
 }
 
-void main() {
-	ivec3 chunk_position = ivec3(0); // TODO
-	ivec3 voxel_position = ivec3(gl_GlobalInvocationID.xyz);
-	
+void stage_0(ivec3 chunk_position, ivec3 voxel_position) {
 	vec3 sample_position = vec3((chunk_position * CHUNK_SIZE) + voxel_position);
+
+	sample_position.x += time_info.time * 10;
+	sample_position.z += time_info.time * 7;
 
 	float cluster_height = CHUNK_SIZE;
 	float ground_level = cluster_height / 2.0;
@@ -62,9 +74,33 @@ void main() {
 
 	uint voxel = EMPTY_VOXEL;
 
-	if (density <= SURFACE_THRESHOLD) {
+	if (density > SURFACE_THRESHOLD) {
 		voxel = VOXEL_SET_SOLID(voxel);
 	}
 
 	set_voxel(voxel_position, voxel);
+}
+void stage_1(ivec3 chunk_position, ivec3 voxel_position) {
+	// TODO: figure out why it's flipped..
+
+	if (voxel_position.y > 0) {
+		uint voxel = get_voxel(voxel_position);
+		uint voxel_above = get_voxel(voxel_position + ivec3(0, -1, 0));
+
+		if (VOXEL_IS_SOLID(voxel) && VOXEL_IS_EMPTY(voxel_above)) {
+			voxel = VOXEL_SET_TILE_ID(voxel, 1);
+
+			set_voxel(voxel_position, voxel);
+		}
+	}
+}
+
+void main() {
+	ivec3 chunk_position = ivec3(0); // TODO
+	ivec3 voxel_position = ivec3(gl_GlobalInvocationID.xyz);
+
+	switch (pc.stage) {
+		case 0: stage_0(chunk_position, voxel_position); break;
+		case 1: stage_1(chunk_position, voxel_position); break;
+	}
 }

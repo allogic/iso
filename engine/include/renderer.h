@@ -12,13 +12,9 @@ typedef struct mouse_info_t {
   ivector2_t resolution;
 } mouse_info_t;
 typedef struct camera_info_t {
-  vector3_t position;
+  vector2_t position;
+  float zoom;
   int32_t reserved0;
-  matrix4_t view;
-  matrix4_t projection;
-  matrix4_t view_projection;
-  matrix4_t view_projection_inv;
-  vector4_t frustum_plane[6];
 } camera_info_t;
 typedef struct cluster_info_t {
   ivector2_t dimension;
@@ -48,8 +44,7 @@ typedef struct full_screen_vertex_t {
   int32_t reserved0;
 } full_screen_vertex_t;
 typedef struct debug_line_vertex_t {
-  vector3_t position;
-  int32_t reserved0;
+  vector2_t position;
   vector4_t color;
 } debug_line_vertex_t;
 
@@ -59,6 +54,9 @@ STATIC_ASSERT(ALIGNOF(debug_line_vertex_t) == 4);
 typedef uint32_t full_screen_index_t;
 typedef uint32_t debug_line_index_t;
 
+typedef struct world_generator_push_constant_t {
+  uint32_t stage;
+} world_generator_push_constant_t;
 typedef struct iso_renderer_push_constant_t {
   vector4_t vertex_offset_0;
   vector4_t vertex_offset_1;
@@ -71,6 +69,7 @@ typedef struct iso_renderer_push_constant_t {
   float outer_scale;
 } iso_renderer_push_constant_t;
 
+STATIC_ASSERT(ALIGNOF(world_generator_push_constant_t) == 4);
 STATIC_ASSERT(ALIGNOF(iso_renderer_push_constant_t) == 4);
 
 typedef struct renderer_t {
@@ -95,11 +94,11 @@ extern "C" {
 extern renderer_t g_renderer;
 
 void renderer_create(void);
-void renderer_draw(transform_t *transform, camera_t *camera);
+void renderer_draw(void);
 void renderer_destroy(void);
 
-void renderer_draw_debug_line(vector3_t from, vector3_t to, vector4_t color);
-void renderer_draw_debug_box(vector3_t position, vector3_t size, vector4_t color);
+void renderer_draw_debug_line(vector2_t from, vector2_t to, vector4_t color);
+void renderer_draw_debug_box(vector2_t position, vector2_t size, vector4_t color);
 
 #ifdef __cplusplus
 }

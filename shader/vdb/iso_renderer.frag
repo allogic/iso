@@ -12,7 +12,7 @@ layout (location = 2) in flat uint input_atlas_id;
 
 layout (location = 0) out vec4 output_color;
 
-layout (binding = 3) uniform sampler2D tile_atlas;
+layout (binding = 4) uniform sampler2D tile_atlas;
 
 layout (push_constant) uniform push_constant_t {
 	vec4 vertex_offset_0;
@@ -41,9 +41,10 @@ void main() {
 
 	vec4 color = texture(tile_atlas, atlas_uv);
 
-	//if (color.a < 0.01) {
-	//	discard;
-	//}
+	if (color.a < 0.01) {
+		discard;
+	}
 
+	output_color = vec4(input_color / 50.0, 1);
 	output_color = color;
 }

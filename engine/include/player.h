@@ -2,28 +2,22 @@
 #define PLAYER_H
 
 typedef struct player_t {
-  transform_t transform;
-  camera_t camera;
-  vector3_t mouse_begin;
-  vector3_t mouse_end;
-  vector3_t mouse_delta;
-  vector3_t linear_velocity;
-  vector3_t angular_velocity;
-  float keyboard_speed_fast;
-  float keyboard_speed_default;
-  float mouse_rotation_speed;
+  vector2_t position;
+  float camera_zoom;
+  float movement_speed_fast;
+  float movement_speed_default;
   float linear_drag;
-  float angular_drag;
+  vector2_t linear_velocity;
 } player_t;
 
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
 
-extern player_t g_player_0;
+extern player_t g_player;
 
-player_t player_create(void);
-void player_update(player_t *player);
+void player_create(void);
+void player_update(void);
 
 #ifdef __cplusplus
 }
