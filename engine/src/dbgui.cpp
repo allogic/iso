@@ -66,6 +66,8 @@ void dbgui_draw(void) {
   ImGui::Begin("Player");
   ImGui::DragFloat2("Position", (float *)&g_player.position, 0.05F);
   ImGui::DragFloat("Zoom", &g_player.camera_zoom, 0.05F);
+  ImGui::DragInt3("Tile Position", (int32_t *)&g_player.tile_position);
+  ImGui::InputInt("Selected Tile", (int32_t *)&g_player.tile_id);
   ImGui::End();
 
   ImGui::Begin("ISO Mesher");

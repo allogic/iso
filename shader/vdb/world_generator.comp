@@ -88,6 +88,7 @@ void stage_1(ivec3 chunk_position, ivec3 voxel_position) {
 		uint voxel_above = get_voxel(voxel_position + ivec3(0, -1, 0));
 
 		if (VOXEL_IS_SOLID(voxel) && VOXEL_IS_EMPTY(voxel_above)) {
+
 			voxel = VOXEL_SET_TILE_ID(voxel, 1);
 
 			set_voxel(voxel_position, voxel);

@@ -6,14 +6,11 @@
 
 #include "../vdb/common.glsl"
 
-const float TILE_WIDTH = 32.0;
-const float TILE_HEIGHT = 32.0;
-
 const float ISO_X_SCALE = 16.0;
 const float ISO_Y_SCALE = 8.0;
 const float ISO_Y_HEIGHT = 16.0;
 
-const float DEPTH_SCALE = 0.01;
+const float DEPTH_SCALE = 0.001;
 
 layout (
 	local_size_x = 8,
@@ -100,8 +97,8 @@ void emit_tile(uint tile_counter, vec3 voxel_position, uint tile_id) {
 
 	float depth = iso_depth(voxel_position);
 
-	float w = tile.width;
-	float h = tile.height;
+	float w = float(tile.width) * camera_info.zoom;
+	float h = float(tile.height) * camera_info.zoom;
 
 	vec2 a = vec2(screen_space_x - w * 0.5, screen_space_y);
 	vec2 b = vec2(screen_space_x + w * 0.5, screen_space_y);

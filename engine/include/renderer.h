@@ -21,23 +21,27 @@ typedef struct cluster_info_t {
   int32_t reserved0;
   int32_t reserved1;
 } cluster_info_t;
+typedef struct place_info_t {
+  ivector3_t tile_position;
+  uint32_t tile_id;
+} place_info_t;
 typedef struct chunk_info_t {
   ivector2_t chunk_position;
   ivector2_t chunk_size;
   int32_t visible;
   int32_t reserved0;
 } chunk_info_t;
-typedef struct trace_result_t {
-  ivector3_t voxel_position;
-  int32_t intersection;
-} trace_result_t;
+typedef struct place_result_t {
+  uint32_t is_obstructed;
+} place_result_t;
 
 STATIC_ASSERT(ALIGNOF(time_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(screen_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(camera_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(cluster_info_t) == 4);
+STATIC_ASSERT(ALIGNOF(place_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(chunk_info_t) == 4);
-STATIC_ASSERT(ALIGNOF(trace_result_t) == 4);
+STATIC_ASSERT(ALIGNOF(place_result_t) == 4);
 
 typedef struct full_screen_vertex_t {
   vector3_t position;

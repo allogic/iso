@@ -26,9 +26,10 @@
 	((VOXEL & ~(0xFF << 8)) | ((TILE_ID & 0xFF) << 8))
 
 struct tile_t {
-	float width;
-	float height;
-	float reserved0;
+	uint tile_size_x;
+	uint tile_size_z;
+	uint width;
+	uint height;
 	uint atlas_id;
 };
 struct payload_t {

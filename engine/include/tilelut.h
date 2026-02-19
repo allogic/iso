@@ -4,9 +4,10 @@
 #define TILE_COUNT (3)
 
 typedef struct tile_t {
-  float width;
-  float height;
-  float reserved0;
+  uint32_t tile_size_x;
+  uint32_t tile_size_z;
+  uint32_t width;
+  uint32_t height;
   uint32_t atlas_id;
 } tile_t;
 

@@ -94,11 +94,6 @@ void window_run(void) {
   QueryPerformanceFrequency(&g_window.time_freq);
   QueryPerformanceCounter(&g_window.time_prev);
 
-  player_create();
-
-  // transform_set_position_xyz(&g_player_0.transform, -20.0F, 50.0F, -20.0F);
-  // transform_set_euler_angles_pyr(&g_player_0.transform, deg_to_rad(45.0F), deg_to_rad(45.0F), deg_to_rad(0.0F));
-
   while (g_window.is_window_running) {
 
     g_window.mouse_wheel_delta = 0;
@@ -168,47 +163,6 @@ void window_run(void) {
     }
 
     player_update();
-
-    // TODO
-    {
-      float mouse_position_x = (float)g_window.mouse_position_x;
-      float mouse_position_y = (float)g_window.mouse_position_y;
-
-      float camera_position_x = g_player.position.x;
-      float camera_position_y = g_player.position.y;
-
-      int32_t tile_x = 0;
-      static int32_t tile_y = 0;
-      int32_t tile_z = 0;
-
-      tile_y -= g_window.mouse_wheel_delta;
-
-      iso_pick_tile(mouse_position_x, mouse_position_y, camera_position_x, camera_position_y, &tile_x, &tile_z);
-
-      printf("%d, %d, %d\n", tile_x, tile_y, tile_z);
-
-      float screen_space_x = 0.0F;
-      float screen_space_y = 0.0F;
-
-      iso_world_to_screen((float)tile_x + 0.5F, (float)tile_y, (float)tile_z + 0.5F, camera_position_x, camera_position_y, &screen_space_x, &screen_space_y);
-
-      vector2_t pivot = {(float)g_window.window_width * 0.5F, (float)g_window.window_height * 0.5F};
-
-      screen_space_x = pivot.x + (screen_space_x - pivot.x) * g_player.camera_zoom;
-      screen_space_y = pivot.y + (screen_space_y - pivot.y) * g_player.camera_zoom;
-
-      vector2_t top = {screen_space_x, screen_space_y - ISO_Y_SCALE};
-      vector2_t right = {screen_space_x + ISO_X_SCALE, screen_space_y};
-      vector2_t bottom = {screen_space_x, screen_space_y + ISO_Y_SCALE};
-      vector2_t left = {screen_space_x - ISO_X_SCALE, screen_space_y};
-
-      vector4_t color = {1.0F, 1.0F, 1.0F, 1.0F};
-
-      renderer_draw_debug_line(top, right, color);
-      renderer_draw_debug_line(right, bottom, color);
-      renderer_draw_debug_line(bottom, left, color);
-      renderer_draw_debug_line(left, top, color);
-    }
 
     renderer_draw();
 

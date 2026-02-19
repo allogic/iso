@@ -8,6 +8,8 @@ typedef struct player_t {
   float movement_speed_default;
   float linear_drag;
   vector2_t linear_velocity;
+  ivector3_t tile_position;
+  uint32_t tile_id;
 } player_t;
 
 #ifdef __cplusplus
@@ -16,7 +18,6 @@ extern "C" {
 
 extern player_t g_player;
 
-void player_create(void);
 void player_update(void);
 
 #ifdef __cplusplus

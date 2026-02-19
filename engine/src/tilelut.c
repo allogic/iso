@@ -2,18 +2,24 @@
 
 tile_t const g_tile_lut[TILE_COUNT] = {
   {
-    .width = 32.0F,
-    .height = 32.0F,
+    .tile_size_x = 1,
+    .tile_size_z = 1,
+    .width = 32,
+    .height = 32,
     .atlas_id = 0,
   },
   {
-    .width = 32.0F,
-    .height = 32.0F,
+    .tile_size_x = 1,
+    .tile_size_z = 1,
+    .width = 32,
+    .height = 32,
     .atlas_id = 1,
   },
   {
-    .width = 32.0F,
-    .height = 32.0F,
+    .tile_size_x = 1,
+    .tile_size_z = 1,
+    .width = 32,
+    .height = 32,
     .atlas_id = 2,
   },
 };
