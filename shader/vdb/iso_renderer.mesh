@@ -28,15 +28,18 @@ layout (location = 0) out vec3 output_color[];
 layout (location = 1) out vec2 output_uv[];
 layout (location = 2) out uint output_atlas_id[];
 
-layout (binding = 0) uniform camera_info_t {
+layout (binding = 0) uniform player_info_t {
+	vec3 position;
+} player_info;
+layout (binding = 1) uniform camera_info_t {
 	vec2 position;
 	float zoom;
 } camera_info;
-layout (binding = 1) uniform screen_info_t {
+layout (binding = 2) uniform screen_info_t {
 	ivec2 resolution;
 } screen_info;
-layout (binding = 2) uniform usampler3D chunk_data[];
-layout (binding = 3) readonly buffer tile_lut_buffer_t {
+layout (binding = 3) uniform usampler3D chunk_data[];
+layout (binding = 4) readonly buffer tile_lut_buffer_t {
 	tile_t tile_lut[];
 } tile_lut_buffer;
 
@@ -90,15 +93,15 @@ void emit_tile(uint tile_counter, vec3 voxel_position, uint tile_id) {
 
 	iso_world_to_screen(voxel_position.x, voxel_position.y, voxel_position.z, camera_info.position.x, camera_info.position.y, screen_space_x, screen_space_y);
 
-	vec2 pivot = vec2(screen_info.resolution) * 0.5;
-
-	screen_space_x = pivot.x + (screen_space_x - pivot.x) * camera_info.zoom;
-	screen_space_y = pivot.y + (screen_space_y - pivot.y) * camera_info.zoom;
+	//vec2 pivot = vec2(screen_info.resolution) * 0.5;
+	//
+	//screen_space_x = pivot.x + (screen_space_x - pivot.x) * camera_info.zoom;
+	//screen_space_y = pivot.y + (screen_space_y - pivot.y) * camera_info.zoom;
 
 	float depth = iso_depth(voxel_position);
 
-	float w = float(tile.width) * camera_info.zoom;
-	float h = float(tile.height) * camera_info.zoom;
+	float w = float(tile.width); // * camera_info.zoom;
+	float h = float(tile.height); // * camera_info.zoom;
 
 	vec2 a = vec2(screen_space_x - w * 0.5, screen_space_y);
 	vec2 b = vec2(screen_space_x + w * 0.5, screen_space_y);

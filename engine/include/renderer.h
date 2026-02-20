@@ -11,6 +11,10 @@ typedef struct screen_info_t {
 typedef struct mouse_info_t {
   ivector2_t position;
 } mouse_info_t;
+typedef struct player_info_t {
+  vector3_t position;
+  int32_t reserved0;
+} player_info_t;
 typedef struct camera_info_t {
   vector2_t position;
   float zoom;
@@ -37,6 +41,7 @@ typedef struct place_result_t {
 
 STATIC_ASSERT(ALIGNOF(time_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(screen_info_t) == 4);
+STATIC_ASSERT(ALIGNOF(player_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(camera_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(cluster_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(place_info_t) == 4);
@@ -82,6 +87,7 @@ typedef struct renderer_t {
   time_info_t *time_info;
   screen_info_t *screen_info;
   mouse_info_t *mouse_info;
+  player_info_t *player_info;
   camera_info_t *camera_info;
   cluster_info_t *cluster_info;
   place_info_t *place_info;

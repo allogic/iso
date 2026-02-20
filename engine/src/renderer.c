@@ -351,6 +351,11 @@ static buffer_t s_mouse_info_buffer = {
   .buffer_usage_flags = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
   .memory_property_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 };
+static buffer_t s_player_info_buffer = {
+  .size = sizeof(player_info_t),
+  .buffer_usage_flags = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+  .memory_property_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+};
 static buffer_t s_camera_info_buffer = {
   .size = sizeof(camera_info_t),
   .buffer_usage_flags = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
@@ -402,6 +407,7 @@ static image_t s_tile_atlas_image = {
 static VkDescriptorBufferInfo s_time_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_screen_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_mouse_info_descriptor_buffer_info = {0};
+static VkDescriptorBufferInfo s_player_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_camera_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_cluster_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_place_info_descriptor_buffer_info = {0};
@@ -690,6 +696,7 @@ static void renderer_create_coherent_buffer(void) {
   buffer_create(&s_time_info_buffer);
   buffer_create(&s_screen_info_buffer);
   buffer_create(&s_mouse_info_buffer);
+  buffer_create(&s_player_info_buffer);
   buffer_create(&s_camera_info_buffer);
   buffer_create(&s_cluster_info_buffer);
   buffer_create(&s_place_info_buffer);
@@ -698,6 +705,7 @@ static void renderer_create_coherent_buffer(void) {
   buffer_map(&s_time_info_buffer);
   buffer_map(&s_screen_info_buffer);
   buffer_map(&s_mouse_info_buffer);
+  buffer_map(&s_player_info_buffer);
   buffer_map(&s_camera_info_buffer);
   buffer_map(&s_cluster_info_buffer);
   buffer_map(&s_place_info_buffer);
@@ -706,6 +714,7 @@ static void renderer_create_coherent_buffer(void) {
   g_renderer.time_info = (time_info_t *)s_time_info_buffer.device_data;
   g_renderer.screen_info = (screen_info_t *)s_screen_info_buffer.device_data;
   g_renderer.mouse_info = (mouse_info_t *)s_mouse_info_buffer.device_data;
+  g_renderer.player_info = (player_info_t *)s_player_info_buffer.device_data;
   g_renderer.camera_info = (camera_info_t *)s_camera_info_buffer.device_data;
   g_renderer.cluster_info = (cluster_info_t *)s_cluster_info_buffer.device_data;
   g_renderer.place_info = (place_info_t *)s_place_info_buffer.device_data;
@@ -721,6 +730,10 @@ static void renderer_create_coherent_buffer(void) {
   s_mouse_info_descriptor_buffer_info.offset = 0;
   s_mouse_info_descriptor_buffer_info.buffer = s_mouse_info_buffer.buffer_handle;
   s_mouse_info_descriptor_buffer_info.range = VK_WHOLE_SIZE;
+
+  s_player_info_descriptor_buffer_info.offset = 0;
+  s_player_info_descriptor_buffer_info.buffer = s_player_info_buffer.buffer_handle;
+  s_player_info_descriptor_buffer_info.range = VK_WHOLE_SIZE;
 
   s_camera_info_descriptor_buffer_info.offset = 0;
   s_camera_info_descriptor_buffer_info.buffer = s_camera_info_buffer.buffer_handle;
@@ -1031,7 +1044,9 @@ static void renderer_update_coherent_buffer(void) {
 
   g_renderer.mouse_info->position = (ivector2_t){g_window.mouse_position_x, g_window.mouse_position_y};
 
-  g_renderer.camera_info->position = g_player.position;
+  g_renderer.player_info->position = g_player.position;
+
+  // g_renderer.camera_info->position = ; // TODO
   g_renderer.camera_info->zoom = g_player.camera_zoom;
 
   g_renderer.cluster_info->dimension = (ivector2_t){CLUSTER_DIM_X, CLUSTER_DIM_Y};
@@ -1309,6 +1324,7 @@ static void renderer_destroy_buffer(void) {
   buffer_destroy(&s_time_info_buffer);
   buffer_destroy(&s_screen_info_buffer);
   buffer_destroy(&s_mouse_info_buffer);
+  buffer_destroy(&s_player_info_buffer);
   buffer_destroy(&s_camera_info_buffer);
   buffer_destroy(&s_cluster_info_buffer);
   buffer_destroy(&s_place_info_buffer);

@@ -12,7 +12,7 @@ layout (location = 2) in flat uint input_atlas_id;
 
 layout (location = 0) out vec4 output_color;
 
-layout (binding = 4) uniform sampler2D tile_atlas;
+layout (binding = 5) uniform sampler2D tile_atlas;
 
 layout (push_constant) uniform push_constant_t {
 	vec4 vertex_offset_0;

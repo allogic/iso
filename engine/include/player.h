@@ -4,6 +4,7 @@
 typedef struct player_t {
   vector3_t position;
   vector3_t velocity;
+  ivector3_t tile_position;
   float camera_zoom;
   float movement_speed_fast;
   float movement_speed_default;

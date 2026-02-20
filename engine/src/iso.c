@@ -44,6 +44,7 @@ void iso_pick_tile(float mouse_position_x, float mouse_position_y, float camera_
   iso_world_to_screen((float)(*tile_x) + 0.5F, 0.0F, (float)(*tile_z) + 0.5F, camera_position_x, camera_position_y, &tile_center_x, &tile_center_y);
 
   if (iso_point_in_diamond(mouse_position_x, mouse_position_y, tile_center_x, tile_center_y) == 0) {
+
     int32_t offset_index = 0;
     int32_t offset_count = 4;
 

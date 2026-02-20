@@ -9,9 +9,14 @@ player_t g_player = {
     .y = 15.0F,
     .z = 0.0F,
   },
+  .tile_position = {
+    .x = 0,
+    .y = 15,
+    .z = 0,
+  },
   .camera_zoom = 1.0,
-  .movement_speed_fast = 50000.0F,
-  .movement_speed_default = 10000.0F,
+  .movement_speed_fast = 1000.0F,
+  .movement_speed_default = 100.0F,
   .linear_drag = 25.0F,
 };
 
@@ -50,8 +55,8 @@ static void player_update_selection(void) {
   float mouse_position_x = (float)g_window.mouse_position_x;
   float mouse_position_y = (float)g_window.mouse_position_y;
 
-  float camera_position_x = g_player.camera_position.x;
-  float camera_position_y = g_player.camera_position.y;
+  float camera_position_x = g_player.position.x; // THIS
+  float camera_position_y = g_player.position.y; // THIS
 
   iso_pick_tile(mouse_position_x, mouse_position_y, camera_position_x, camera_position_y, &g_player.tile_position.x, &g_player.tile_position.z);
 
