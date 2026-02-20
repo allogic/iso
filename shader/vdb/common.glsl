@@ -30,6 +30,7 @@ struct tile_t {
 	uint tile_size_z;
 	uint width;
 	uint height;
+	uint flipbock_id;
 	uint atlas_id;
 };
 struct payload_t {

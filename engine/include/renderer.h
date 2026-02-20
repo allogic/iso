@@ -9,7 +9,7 @@ typedef struct screen_info_t {
   ivector2_t resolution;
 } screen_info_t;
 typedef struct mouse_info_t {
-  ivector2_t resolution;
+  ivector2_t position;
 } mouse_info_t;
 typedef struct camera_info_t {
   vector2_t position;
@@ -77,9 +77,14 @@ STATIC_ASSERT(ALIGNOF(world_generator_push_constant_t) == 4);
 STATIC_ASSERT(ALIGNOF(iso_renderer_push_constant_t) == 4);
 
 typedef struct renderer_t {
-  int8_t is_dirty;
   int8_t is_debug_enabled;
   int8_t rebuild_world;
+  time_info_t *time_info;
+  screen_info_t *screen_info;
+  mouse_info_t *mouse_info;
+  camera_info_t *camera_info;
+  cluster_info_t *cluster_info;
+  place_info_t *place_info;
   vector4_t vertex_offset_0; // TODO
   vector4_t vertex_offset_1; // TODO
   vector4_t vertex_offset_2; // TODO

@@ -4,6 +4,11 @@ static void player_update_position(void);
 static void player_update_selection(void);
 
 player_t g_player = {
+  .position = {
+    .x = 0.0F,
+    .y = 15.0F,
+    .z = 0.0F,
+  },
   .camera_zoom = 1.0,
   .movement_speed_fast = 50000.0F,
   .movement_speed_default = 10000.0F,
@@ -21,38 +26,36 @@ static void player_update_position(void) {
                   : g_player.movement_speed_default;
 
   if (window_is_keyboard_key_held(KEYBOARD_KEY_D)) {
-    g_player.linear_velocity.x -= speed * g_window.delta_time;
+    g_player.velocity.x -= speed * g_window.delta_time;
   }
 
   if (window_is_keyboard_key_held(KEYBOARD_KEY_A)) {
-    g_player.linear_velocity.x += speed * g_window.delta_time;
+    g_player.velocity.x += speed * g_window.delta_time;
   }
 
   if (window_is_keyboard_key_held(KEYBOARD_KEY_W)) {
-    g_player.linear_velocity.y -= speed * g_window.delta_time;
+    g_player.velocity.z -= speed * g_window.delta_time;
   }
 
   if (window_is_keyboard_key_held(KEYBOARD_KEY_S)) {
-    g_player.linear_velocity.y += speed * g_window.delta_time;
+    g_player.velocity.z += speed * g_window.delta_time;
   }
 
   float linear_damping = expf(-g_player.linear_drag * g_window.delta_time);
 
-  g_player.position = vector2_add(g_player.position, vector2_muls(g_player.linear_velocity, g_window.delta_time));
-  g_player.linear_velocity = vector2_muls(g_player.linear_velocity, linear_damping);
+  g_player.position = vector3_add(g_player.position, vector3_muls(g_player.velocity, g_window.delta_time));
+  g_player.velocity = vector3_muls(g_player.velocity, linear_damping);
 }
 static void player_update_selection(void) {
   float mouse_position_x = (float)g_window.mouse_position_x;
   float mouse_position_y = (float)g_window.mouse_position_y;
 
-  float camera_position_x = g_player.position.x;
-  float camera_position_y = g_player.position.y;
+  float camera_position_x = g_player.camera_position.x;
+  float camera_position_y = g_player.camera_position.y;
 
   iso_pick_tile(mouse_position_x, mouse_position_y, camera_position_x, camera_position_y, &g_player.tile_position.x, &g_player.tile_position.z);
 
   g_player.tile_position.y -= g_window.mouse_wheel_delta;
-
-  // printf("%d, %d, %d\n", tile_x, tile_y, tile_z);
 
   // TODO: make it this pretty..
   {

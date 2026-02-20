@@ -1,13 +1,14 @@
-#ifndef TILELUT_H
-#define TILELUT_H
+#ifndef TILE_H
+#define TILE_H
 
-#define TILE_COUNT (3)
+#define TILE_COUNT (5)
 
 typedef struct tile_t {
   uint32_t tile_size_x;
   uint32_t tile_size_z;
   uint32_t width;
   uint32_t height;
+  uint32_t flipbock_id;
   uint32_t atlas_id;
 } tile_t;
 
@@ -23,4 +24,4 @@ extern tile_t const g_tile_lut[TILE_COUNT];
 }
 #endif // __cplusplus
 
-#endif // TILELUT_H
+#endif // TILE_H

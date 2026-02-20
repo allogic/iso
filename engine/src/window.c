@@ -84,11 +84,16 @@ void window_create(int32_t width, int32_t height, char const *title) {
 
   window_update_surface_capabilities();
 
+  structure_create();
+
   renderpass_create_main();
 
   swapchain_create(3);
+
   framebuffer_create_main();
+
   renderer_create();
+  dbgui_create();
 }
 void window_run(void) {
   QueryPerformanceFrequency(&g_window.time_freq);
@@ -133,7 +138,6 @@ void window_run(void) {
       VK_CHECK(vkQueueWaitIdle(g_window.primary_queue));
       VK_CHECK(vkQueueWaitIdle(g_window.present_queue));
 
-      renderer_destroy();
       framebuffer_destroy_main();
       swapchain_destroy();
 
@@ -141,19 +145,6 @@ void window_run(void) {
 
       swapchain_create(3);
       framebuffer_create_main();
-      renderer_create();
-    }
-
-    if (g_renderer.is_dirty) {
-
-      g_renderer.is_dirty = 0;
-
-      VK_CHECK(vkQueueWaitIdle(g_window.primary_queue));
-      VK_CHECK(vkQueueWaitIdle(g_window.present_queue));
-
-      renderer_destroy();
-
-      renderer_create();
     }
 
     while (PeekMessageA(&g_window.window_message, 0, 0, 0, PM_REMOVE)) {
@@ -208,11 +199,16 @@ void window_destroy(void) {
   VK_CHECK(vkQueueWaitIdle(g_window.primary_queue));
   VK_CHECK(vkQueueWaitIdle(g_window.present_queue));
 
+  dbgui_destroy();
   renderer_destroy();
+
   framebuffer_destroy_main();
+
   swapchain_destroy();
 
   renderpass_destroy_main();
+
+  structure_destroy();
 
   window_destroy_command_buffer();
   window_destroy_command_pool();

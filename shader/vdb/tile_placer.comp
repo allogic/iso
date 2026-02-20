@@ -33,17 +33,15 @@ void set_voxel(ivec3 voxel_position, uint voxel) {
 	imageStore(chunk_data[0], voxel_position, uvec4(voxel, 0, 0, 0));
 }
 
-void main() {
-	ivec3 chunk_position = ivec3(0); // TODO
+// TODO: globally remove "voxel" naming..
 
-	tile_t tile = tile_lut_buffer.tile_lut[place_info.tile_id];
-
+uint is_structure_obstructed(ivec3 tile_position, uint tile_id, tile_t tile) {
 	uint is_obstructed = 0;
 
 	for (uint z = 0; z < tile.tile_size_z; z++) {
 		for (uint x = 0; x < tile.tile_size_x; x++) {
 			
-			ivec3 voxel_position = place_info.tile_position + ivec3(x, 0, z);
+			ivec3 voxel_position = tile_position + ivec3(x, 0, z);
 
 			uint voxel = get_voxel(voxel_position);
 
@@ -53,19 +51,35 @@ void main() {
 		}
 	}
 
-	if (is_obstructed == 0) {
+	return is_obstructed;
+}
 
-		ivec3 voxel_position = place_info.tile_position;
+void place_structure(ivec3 tile_position, uint tile_id, tile_t tile) {
+	uint voxel = EMPTY_VOXEL;
 
-		uint tile_id = place_info.tile_id;
-
-		uint voxel = EMPTY_VOXEL;
+	if (tile.atlas_id != 255) {
 
 		voxel = VOXEL_SET_SOLID(voxel);
 		voxel = VOXEL_SET_TILE_ID(voxel, tile_id);
 
-		set_voxel(voxel_position, voxel);
 	}
+
+	set_voxel(tile_position, voxel);
+}
+
+void main() {
+	ivec3 chunk_position = ivec3(0); // TODO
+
+	tile_t tile = tile_lut_buffer.tile_lut[place_info.tile_id];
+
+	uint is_obstructed = is_structure_obstructed(place_info.tile_position, place_info.tile_id, tile);
+
+	if (is_obstructed == 0) {
+
+		// TODO
+	}
+
+	place_structure(place_info.tile_position, place_info.tile_id, tile);
 
 	place_result_buffer.is_obstructed = is_obstructed;
 }

@@ -445,8 +445,6 @@ void renderer_create(void) {
   renderer_update_vdb_world_generator_descriptor_set();
   renderer_update_vdb_iso_renderer_descriptor_set();
   renderer_update_debug_line_descriptor_set();
-
-  dbgui_create();
 }
 void renderer_draw(void) {
   VkResult result = VK_SUCCESS;
@@ -583,8 +581,6 @@ void renderer_draw(void) {
   }
 }
 void renderer_destroy(void) {
-  dbgui_destroy();
-
   pipeline_destroy(&s_vdb_tile_placer_pipeline);
   pipeline_destroy(&s_vdb_world_generator_pipeline);
   pipeline_destroy(&s_vdb_iso_renderer_pipeline);
@@ -697,7 +693,6 @@ static void renderer_create_coherent_buffer(void) {
   buffer_create(&s_camera_info_buffer);
   buffer_create(&s_cluster_info_buffer);
   buffer_create(&s_place_info_buffer);
-
   buffer_create(&s_place_result_buffer);
 
   buffer_map(&s_time_info_buffer);
@@ -706,8 +701,14 @@ static void renderer_create_coherent_buffer(void) {
   buffer_map(&s_camera_info_buffer);
   buffer_map(&s_cluster_info_buffer);
   buffer_map(&s_place_info_buffer);
-
   buffer_map(&s_place_result_buffer);
+
+  g_renderer.time_info = (time_info_t *)s_time_info_buffer.device_data;
+  g_renderer.screen_info = (screen_info_t *)s_screen_info_buffer.device_data;
+  g_renderer.mouse_info = (mouse_info_t *)s_mouse_info_buffer.device_data;
+  g_renderer.camera_info = (camera_info_t *)s_camera_info_buffer.device_data;
+  g_renderer.cluster_info = (cluster_info_t *)s_cluster_info_buffer.device_data;
+  g_renderer.place_info = (place_info_t *)s_place_info_buffer.device_data;
 
   s_time_info_descriptor_buffer_info.offset = 0;
   s_time_info_descriptor_buffer_info.buffer = s_time_info_buffer.buffer_handle;
@@ -1023,28 +1024,20 @@ static void renderer_update_debug_line_descriptor_set(void) {
 }
 
 static void renderer_update_coherent_buffer(void) {
-  // TODO: move these memory maps into the renderer itself..
+  g_renderer.time_info->time = g_window.time;
+  g_renderer.time_info->delta_time = g_window.delta_time;
 
-  time_info_t *time_info = (time_info_t *)s_time_info_buffer.device_data;
-  time_info->time = g_window.time;
-  time_info->delta_time = g_window.delta_time;
+  g_renderer.screen_info->resolution = (ivector2_t){g_window.window_width, g_window.window_height};
 
-  screen_info_t *screen_info = (screen_info_t *)s_screen_info_buffer.device_data;
-  screen_info->resolution = (ivector2_t){g_window.window_width, g_window.window_height};
+  g_renderer.mouse_info->position = (ivector2_t){g_window.mouse_position_x, g_window.mouse_position_y};
 
-  mouse_info_t *mouse_info = (mouse_info_t *)s_mouse_info_buffer.device_data;
-  mouse_info->resolution = (ivector2_t){g_window.mouse_position_x, g_window.mouse_position_y};
+  g_renderer.camera_info->position = g_player.position;
+  g_renderer.camera_info->zoom = g_player.camera_zoom;
 
-  camera_info_t *camera_info = (camera_info_t *)s_camera_info_buffer.device_data;
-  camera_info->position = g_player.position;
-  camera_info->zoom = g_player.camera_zoom;
+  g_renderer.cluster_info->dimension = (ivector2_t){CLUSTER_DIM_X, CLUSTER_DIM_Y};
 
-  cluster_info_t *cluster_info = (cluster_info_t *)s_cluster_info_buffer.device_data;
-  cluster_info->dimension = (ivector2_t){CLUSTER_DIM_X, CLUSTER_DIM_Y};
-
-  place_info_t *place_info = (place_info_t *)s_place_info_buffer.device_data;
-  place_info->tile_position = g_player.tile_position;
-  place_info->tile_id = g_player.tile_id;
+  g_renderer.place_info->tile_position = g_player.tile_position;
+  g_renderer.place_info->tile_id = g_player.tile_id;
 }
 
 static void renderer_generate_world(void) {
@@ -1182,7 +1175,7 @@ static void renderer_record_compute_pass(void) {
     renderer_generate_world();
   }
 
-  if (window_is_mouse_key_pressed(MOUSE_KEY_RIGHT)) {
+  if (window_is_mouse_key_held(MOUSE_KEY_RIGHT)) {
 
     renderer_place_tile();
 

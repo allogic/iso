@@ -41,7 +41,8 @@
 #include <vkutil.h>
 
 #include <iso.h>
-#include <tilelut.h>
+#include <tile.h>
+#include <structure.h>
 #include <pipeline.h>
 #include <buffer.h>
 #include <image.h>
