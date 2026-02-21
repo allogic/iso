@@ -30,11 +30,23 @@ typedef struct place_info_t {
   uint32_t voxel_id;
 } place_info_t;
 typedef struct chunk_info_t {
-  ivector2_t chunk_position;
-  ivector2_t chunk_size;
-  int32_t visible;
-  int32_t reserved0;
+  uint32_t vertex_count;
+  uint32_t index_count;
 } chunk_info_t;
+typedef struct chunk_mask_t {
+  uint32_t any_px_faces;
+  uint32_t any_nx_faces;
+  uint32_t any_py_faces;
+  uint32_t any_ny_faces;
+  uint32_t any_pz_faces;
+  uint32_t any_nz_faces;
+  uint32_t nx_mask[CHUNK_PAD * CHUNK_PAD];
+  uint32_t px_mask[CHUNK_PAD * CHUNK_PAD];
+  uint32_t py_mask[CHUNK_PAD * CHUNK_PAD];
+  uint32_t ny_mask[CHUNK_PAD * CHUNK_PAD];
+  uint32_t pz_mask[CHUNK_PAD * CHUNK_PAD];
+  uint32_t nz_mask[CHUNK_PAD * CHUNK_PAD];
+} chunk_mask_t;
 typedef struct place_result_t {
   uint32_t is_obstructed;
 } place_result_t;
@@ -45,17 +57,18 @@ STATIC_ASSERT(ALIGNOF(camera_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(cluster_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(place_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(chunk_info_t) == 4);
+STATIC_ASSERT(ALIGNOF(chunk_mask_t) == 4);
 STATIC_ASSERT(ALIGNOF(place_result_t) == 4);
 
 typedef struct full_screen_vertex_t {
-  vector2_t position;
+  vector4_t position;
 } full_screen_vertex_t;
 typedef struct vdb_chunk_vertex_t {
-  vector3_t position;
+  vector4_t position;
   vector4_t color;
 } vdb_chunk_vertex_t;
 typedef struct debug_line_vertex_t {
-  vector3_t position;
+  vector4_t position;
   vector4_t color;
 } debug_line_vertex_t;
 
@@ -70,8 +83,13 @@ typedef uint32_t debug_line_index_t;
 typedef struct world_generator_push_constant_t {
   uint32_t stage;
 } world_generator_push_constant_t;
+typedef struct mask_generator_push_constant_t {
+  ivector3_t chunk_position;
+  uint32_t chunk_index;
+} mask_generator_push_constant_t;
 
 STATIC_ASSERT(ALIGNOF(world_generator_push_constant_t) == 4);
+STATIC_ASSERT(ALIGNOF(mask_generator_push_constant_t) == 4);
 
 typedef struct renderer_t {
   int8_t is_debug_enabled;
@@ -81,6 +99,7 @@ typedef struct renderer_t {
   mouse_info_t *mouse_info;
   camera_info_t *camera_info;
   cluster_info_t *cluster_info;
+  chunk_info_t *chunk_info;
   place_info_t *place_info;
   place_result_t *place_result;
   vector4_t vertex_offset_0; // TODO

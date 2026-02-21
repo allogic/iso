@@ -3,7 +3,7 @@
 #extension GL_ARB_shading_language_include : require
 #extension GL_EXT_nonuniform_qualifier : require
 
-layout (location = 0) in vec3 vertex_position;
+layout (location = 0) in vec4 vertex_position;
 layout (location = 1) in vec4 vertex_color;
 
 layout (location = 0) out vec4 output_color;
@@ -19,7 +19,7 @@ layout (binding = 0) uniform camera_info_t {
 } camera_info;
 
 void main() {
-	vec4 clip_position = camera_info.view_projection * vec4(vertex_position, 1);
+	vec4 clip_position = camera_info.view_projection * vertex_position;
 
 	output_color = vertex_color;
 

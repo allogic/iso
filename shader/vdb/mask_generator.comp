@@ -18,7 +18,7 @@ layout (
 	local_size_z = 8
 ) in;
 
-layout (binding = 1) writeonly buffer chunk_mask_buffer_t {
+layout (binding = 0) writeonly buffer chunk_mask_buffer_t {
 	chunk_mask_t chunk_mask[];
 } chunk_mask_buffer;
 
@@ -65,48 +65,50 @@ void main() {
 		return;
 	}
 
-	float dxp = default_terrain_density(sample_position + vec3(1,0,0), ground_level, cluster_height);
-	float dxn = default_terrain_density(sample_position + vec3(-1,0,0), ground_level, cluster_height);
-	float dyp = default_terrain_density(sample_position + vec3(0,1,0), ground_level, cluster_height);
-	float dyn = default_terrain_density(sample_position + vec3(0,-1,0), ground_level, cluster_height);
-	float dzp = default_terrain_density(sample_position + vec3(0,0,1), ground_level, cluster_height);
-	float dzn = default_terrain_density(sample_position + vec3(0,0,-1), ground_level, cluster_height);
+	float dpx = default_terrain_density(sample_position + vec3(1,0,0), ground_level, cluster_height);
+	float dnx = default_terrain_density(sample_position + vec3(-1,0,0), ground_level, cluster_height);
+	float dpy = default_terrain_density(sample_position + vec3(0,1,0), ground_level, cluster_height);
+	float dny = default_terrain_density(sample_position + vec3(0,-1,0), ground_level, cluster_height);
+	float dpz = default_terrain_density(sample_position + vec3(0,0,1), ground_level, cluster_height);
+	float dnz = default_terrain_density(sample_position + vec3(0,0,-1), ground_level, cluster_height);
 
-	uint x = uint(clamp(voxel_position.x, 0, CHUNK_SIZE - 1));
-	uint y = uint(clamp(voxel_position.y, 0, CHUNK_SIZE - 1));
-	uint z = uint(clamp(voxel_position.z, 0, CHUNK_SIZE - 1));
+	uint x = uint(voxel_position.x + 1);
+	uint y = uint(voxel_position.y + 1);
+	uint z = uint(voxel_position.z + 1);
 
-	uint idx_yz = 1u + y + z * CHUNK_SIZE;
-	uint idx_xz = 1u + x + z * CHUNK_SIZE;
-	uint idx_xy = 1u + x + y * CHUNK_SIZE;
-
-	if (dxp <= SURFACE_THRESHOLD) {
-		atomicOr(chunk_mask_buffer.chunk_mask[0].px_mask[idx_yz], 1u << x);
-		atomicOr(chunk_mask_buffer.chunk_mask[0].any_px_faces, 1u << x);
+	if (dpx <= SURFACE_THRESHOLD) {
+		uint idx = x * CHUNK_PAD + y;
+		atomicOr(chunk_mask_buffer.chunk_mask[0].px_mask[idx], 1u << (z - 1));
+		atomicOr(chunk_mask_buffer.chunk_mask[0].any_px_faces, 1u << (x - 1));
 	}
 
-	if (dxn <= SURFACE_THRESHOLD) {
-		atomicOr(chunk_mask_buffer.chunk_mask[0].nx_mask[idx_yz], 1u << x);
-		atomicOr(chunk_mask_buffer.chunk_mask[0].any_nx_faces, 1u << x);
+	if (dnx <= SURFACE_THRESHOLD) {
+		uint idx = x * CHUNK_PAD + y;
+		atomicOr(chunk_mask_buffer.chunk_mask[0].nx_mask[idx], 1u << (z - 1));
+		atomicOr(chunk_mask_buffer.chunk_mask[0].any_nx_faces, 1u << (x - 1));
 	}
 
-	if (dyp <= SURFACE_THRESHOLD) {
-		atomicOr(chunk_mask_buffer.chunk_mask[0].py_mask[idx_xz], 1u << y);
-		atomicOr(chunk_mask_buffer.chunk_mask[0].any_py_faces, 1u << y);
+	if (dpy <= SURFACE_THRESHOLD) {
+		uint idx = y * CHUNK_PAD + x;
+		atomicOr(chunk_mask_buffer.chunk_mask[0].py_mask[idx], 1u << (z - 1));
+		atomicOr(chunk_mask_buffer.chunk_mask[0].any_py_faces, 1u << (y - 1));
 	}
 
-	if (dyn <= SURFACE_THRESHOLD) {
-		atomicOr(chunk_mask_buffer.chunk_mask[0].ny_mask[idx_xz], 1u << y);
-		atomicOr(chunk_mask_buffer.chunk_mask[0].any_ny_faces, 1u << y);
+	if (dny <= SURFACE_THRESHOLD) {
+		uint idx = y * CHUNK_PAD + x;
+		atomicOr(chunk_mask_buffer.chunk_mask[0].ny_mask[idx], 1u << (z - 1));
+		atomicOr(chunk_mask_buffer.chunk_mask[0].any_ny_faces, 1u << (y - 1));
 	}
 
-	if (dzp <= SURFACE_THRESHOLD) {
-		atomicOr(chunk_mask_buffer.chunk_mask[0].pz_mask[idx_xy], 1u << z);
-		atomicOr(chunk_mask_buffer.chunk_mask[0].any_pz_faces, 1u << z);
+	if (dpz <= SURFACE_THRESHOLD) {
+		uint idx = z * CHUNK_PAD + x;
+		atomicOr(chunk_mask_buffer.chunk_mask[0].pz_mask[idx], 1u << (y - 1));
+		atomicOr(chunk_mask_buffer.chunk_mask[0].any_pz_faces, 1u << (z - 1));
 	}
 
-	if (dzn <= SURFACE_THRESHOLD) {
-		atomicOr(chunk_mask_buffer.chunk_mask[0].nz_mask[idx_xy], 1u << z);
-		atomicOr(chunk_mask_buffer.chunk_mask[0].any_nz_faces, 1u << z);
+	if (dnz <= SURFACE_THRESHOLD) {
+		uint idx = z * CHUNK_PAD + x;
+		atomicOr(chunk_mask_buffer.chunk_mask[0].nz_mask[idx], 1u << (y - 1));
+		atomicOr(chunk_mask_buffer.chunk_mask[0].any_nz_faces, 1u << (z - 1));
 	}
 }

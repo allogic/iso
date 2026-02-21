@@ -148,7 +148,7 @@ static void pipeline_create_vf(pipeline_t *pipeline) {
 
   VkPipelineInputAssemblyStateCreateInfo pipeline_input_assembly_state_create_info = {
     .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-    .topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST,
+    .topology = pipeline->primitive_topology,
     .primitiveRestartEnable = 0,
   };
 

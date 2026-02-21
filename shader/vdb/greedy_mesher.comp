@@ -1,0 +1,193 @@
+#version 460 core
+
+#extension GL_ARB_shading_language_include : require
+#extension GL_EXT_nonuniform_qualifier : require
+
+#include "../vdb/common.glsl"
+
+// TODO: add std430 to all buffers.. also check read/write's..
+
+const uint FACE_PX = 0;
+const uint FACE_NX = 1;
+const uint FACE_PY = 2;
+const uint FACE_NY = 3;
+const uint FACE_PZ = 4;
+const uint FACE_NZ = 5;
+
+layout (
+	local_size_x = 1,
+	local_size_y = 1,
+	local_size_z = 1
+) in;
+
+layout (binding = 0, std430) readonly buffer chunk_mask_buffer_t {
+	chunk_mask_t chunk_mask[];
+} chunk_mask_buffer;
+layout (binding = 1, std430) writeonly buffer chunk_vertex_buffer_t {
+	chunk_vertex_t chunk_vertex[];
+} chunk_vertex_buffer;
+layout (binding = 2, std430) writeonly buffer chunk_index_buffer_t {
+	uint chunk_index[];
+} chunk_index_buffer;
+layout (binding = 3, std430) buffer chunk_info_buffer_t {
+	chunk_info_t chunk_info[];
+} chunk_info_buffer;
+
+void emit_quad(vec3 p0, vec3 p1, vec3 p2, vec3 p3, uint face, vec3 normal) {
+	uint v = atomicAdd(chunk_info_buffer.chunk_info[0].vertex_count, 4); // TODO
+	uint i = atomicAdd(chunk_info_buffer.chunk_info[0].index_count, 6); // TODO
+
+	chunk_vertex_buffer.chunk_vertex[v + 0] = chunk_vertex_t(vec4(p0, 1), vec4(normal, 1)); // TODO: add face back in..
+	chunk_vertex_buffer.chunk_vertex[v + 1] = chunk_vertex_t(vec4(p1, 1), vec4(normal, 1)); // TODO: add face back in..
+	chunk_vertex_buffer.chunk_vertex[v + 2] = chunk_vertex_t(vec4(p2, 1), vec4(normal, 1)); // TODO: add face back in..
+	chunk_vertex_buffer.chunk_vertex[v + 3] = chunk_vertex_t(vec4(p3, 1), vec4(normal, 1)); // TODO: add face back in..
+
+	bool flip = (face == FACE_NX) || (face == FACE_NY) || (face == FACE_NZ);
+
+	if (flip) {
+		chunk_index_buffer.chunk_index[i + 0] = v + 0;
+		chunk_index_buffer.chunk_index[i + 1] = v + 1;
+		chunk_index_buffer.chunk_index[i + 2] = v + 2;
+		chunk_index_buffer.chunk_index[i + 3] = v + 0;
+		chunk_index_buffer.chunk_index[i + 4] = v + 2;
+		chunk_index_buffer.chunk_index[i + 5] = v + 3;
+	} else {
+		chunk_index_buffer.chunk_index[i + 0] = v + 0;
+		chunk_index_buffer.chunk_index[i + 1] = v + 2;
+		chunk_index_buffer.chunk_index[i + 2] = v + 1;
+		chunk_index_buffer.chunk_index[i + 3] = v + 0;
+		chunk_index_buffer.chunk_index[i + 4] = v + 3;
+		chunk_index_buffer.chunk_index[i + 5] = v + 2;
+	}
+}
+
+uint load_mask(uint face, uint slice, uint row) {
+	uint idx = (slice + 1) * CHUNK_PAD + row;
+
+	switch (face) {
+		case FACE_PX: return chunk_mask_buffer.chunk_mask[0].px_mask[idx];
+		case FACE_NX: return chunk_mask_buffer.chunk_mask[0].nx_mask[idx];
+		case FACE_PY: return chunk_mask_buffer.chunk_mask[0].py_mask[idx];
+		case FACE_NY: return chunk_mask_buffer.chunk_mask[0].ny_mask[idx];
+		case FACE_PZ: return chunk_mask_buffer.chunk_mask[0].pz_mask[idx];
+		case FACE_NZ: return chunk_mask_buffer.chunk_mask[0].nz_mask[idx];
+	}
+	return 0;
+}
+
+ivec3 logical_to_world(uint face, uint slice, uint y, uint z) {
+	switch (face) {
+		case FACE_PX:
+		case FACE_NX:
+			return ivec3(slice, y, z);
+
+		case FACE_PY:
+		case FACE_NY:
+			return ivec3(y, slice, z);
+
+		case FACE_PZ:
+		case FACE_NZ:
+			return ivec3(y, z, slice);
+	}
+
+	return ivec3(0);
+}
+
+void greedy_slice(uint face, uint slice) {
+	uint rows[CHUNK_PAD];
+
+	for (uint y = 0; y < CHUNK_PAD; y++) {
+		rows[y] = load_mask(face, slice, y);
+	}
+
+	for (uint y = 1; y <= CHUNK_SIZE; y++) {
+		uint row = rows[y];
+
+		while (row != 0) {
+			uint z0 = findLSB(row);
+			uint z1 = z0;
+
+			while (z1 + 1 < 32 && ((row >> (z1 + 1)) & 1u) != 0) {
+				z1++;
+			}
+
+			uint width_mask = ((1u << (z1 - z0 + 1)) - 1u) << z0;
+
+			uint y1 = y;
+			while (y1 + 1 <= CHUNK_SIZE && (rows[y1 + 1] & width_mask) == width_mask) {
+				y1++;
+			}
+
+			for (uint yy = y; yy <= y1; yy++) {
+				rows[yy] &= ~width_mask;
+			}
+
+			vec3 base = vec3(slice, y, z0);
+			vec3 du = vec3(0, 0, z1 - z0 + 1);
+			vec3 dv = vec3(0, y1 - y + 1, 0);
+
+			vec3 p0, p1, p2, p3;
+			
+			uint w = z1 - z0 + 1;
+			uint h = y1 - y + 1;
+
+			ivec3 a = logical_to_world(face, slice, y - 1, z0);
+			ivec3 b = logical_to_world(face, slice, y - 1, z0 + w);
+			ivec3 c = logical_to_world(face, slice, y - 1 + h, z0 + w);
+			ivec3 d = logical_to_world(face, slice, y - 1 + h, z0);
+
+			ivec3 normal_offset = ivec3(0);
+			vec3 normal = vec3(0);
+
+			if (face == FACE_PX) {
+				normal_offset = ivec3(1, 0, 0);
+				normal = vec3(1, 0, 0);
+			}
+
+			if (face == FACE_NX) {
+				normal_offset = ivec3(0, 0, 0);
+				normal = vec3(0.5, 0.5, 0);
+			}
+
+			if (face == FACE_PY) {
+				normal_offset = ivec3(0, 1, 0);
+				normal = vec3(0, 1, 0);
+			}
+
+			if (face == FACE_NY) {
+				normal_offset = ivec3(0, 0, 0);
+				normal = vec3(0, 0.5, 0.5);
+			}
+
+			if (face == FACE_PZ) {
+				normal_offset = ivec3(0, 0, 1);
+				normal = vec3(0, 0, 1);
+			}
+
+			if (face == FACE_NZ) {
+				normal_offset = ivec3(0, 0, 0);
+				normal = vec3(0.5, 0, 0.5);
+			}
+
+			p0 = vec3(a + normal_offset);
+			p1 = vec3(b + normal_offset);
+			p2 = vec3(c + normal_offset);
+			p3 = vec3(d + normal_offset);
+
+			emit_quad(p0, p1, p2, p3, face, normal);
+
+			row = rows[y];
+		}
+	}
+}
+
+void main() {
+	uint slice = gl_GlobalInvocationID.x;
+	uint face = gl_GlobalInvocationID.z;
+
+	if (slice >= CHUNK_SIZE || face >= 6) {
+		return;
+	}
+
+	greedy_slice(face, slice);
+}

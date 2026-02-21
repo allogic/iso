@@ -19,6 +19,7 @@ typedef struct pipeline_t {
   uint32_t push_constant_range_count;
   uint32_t descriptor_pool_size_count;
   uint32_t descriptor_set_layout_binding_count;
+  VkPrimitiveTopology primitive_topology;
   VkVertexInputBindingDescription const *vertex_input_binding_description;
   VkVertexInputAttributeDescription const *vertex_input_attribute_description;
   VkPushConstantRange const *push_constant_range;

@@ -3,6 +3,7 @@
 
 #define CHUNK_SIZE (32)
 #define CHUNK_COUNT (1)
+#define CHUNK_PAD (34)
 
 #define SURFACE_THRESHOLD (0.5)
 
@@ -25,6 +26,11 @@
 #define VOXEL_SET_ATLAS_ID(VOXEL, ATLAS_ID) \
 	((VOXEL & ~(0xFF << 8)) | ((ATLAS_ID & 0xFF) << 8))
 
+struct chunk_info_t {
+	uint vertex_count;
+	uint index_count;
+};
+
 struct chunk_mask_t {
 	uint any_px_faces;
 	uint any_nx_faces;
@@ -32,16 +38,17 @@ struct chunk_mask_t {
 	uint any_ny_faces;
 	uint any_pz_faces;
 	uint any_nz_faces;
-	uint nx_mask[(CHUNK_SIZE + 2) * (CHUNK_SIZE + 2)];
-	uint px_mask[(CHUNK_SIZE + 2) * (CHUNK_SIZE + 2)];
-	uint py_mask[(CHUNK_SIZE + 2) * (CHUNK_SIZE + 2)];
-	uint ny_mask[(CHUNK_SIZE + 2) * (CHUNK_SIZE + 2)];
-	uint pz_mask[(CHUNK_SIZE + 2) * (CHUNK_SIZE + 2)];
-	uint nz_mask[(CHUNK_SIZE + 2) * (CHUNK_SIZE + 2)];
+	uint nx_mask[CHUNK_PAD * CHUNK_PAD];
+	uint px_mask[CHUNK_PAD * CHUNK_PAD];
+	uint py_mask[CHUNK_PAD * CHUNK_PAD];
+	uint ny_mask[CHUNK_PAD * CHUNK_PAD];
+	uint pz_mask[CHUNK_PAD * CHUNK_PAD];
+	uint nz_mask[CHUNK_PAD * CHUNK_PAD];
 };
 
-struct payload_t {
-	uint chunk_index;
+struct chunk_vertex_t {
+  vec4 position;
+  vec4 color;
 };
 
 #endif // VDB_COMMON_H
