@@ -32,7 +32,7 @@ layout (binding = 3) uniform mouse_info_t {
 	ivec2 position;
 } mouse_info;
 layout (binding = 4, r32ui) uniform uimage3D chunk_data[];
-layout (binding = 5) buffer trace_result_buffer_t {
+layout (binding = 5, std430) writeonly buffer trace_result_buffer_t {
 	ivec3 voxel_position;
 	int intersection;
 } trace_result_buffer;

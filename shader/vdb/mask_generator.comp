@@ -18,7 +18,8 @@ layout (
 	local_size_z = 8
 ) in;
 
-layout (binding = 0) writeonly buffer chunk_mask_buffer_t {
+layout (binding = 0, r32ui) uniform uimage3D chunk_data[];
+layout (binding = 1, std430) writeonly buffer chunk_mask_buffer_t {
 	chunk_mask_t chunk_mask[];
 } chunk_mask_buffer;
 
@@ -27,88 +28,111 @@ layout (push_constant) uniform push_constant_t {
 	uint chunk_index;
 } pc;
 
-float default_terrain_density(vec3 sample_position, float ground_level, float cluster_height) {
-	float density = 0.0;
+uint get_voxel(ivec3 chunk_position, ivec3 voxel_position) {
+	uint voxel = EMPTY_VOXEL;
 
-	density += noise_cellular_t1((sample_position + vec3(131.0, 11.0, 141.0)) * 0.115, 2.9, 0.3) * 2.44;
-	density += noise_curl_t1((sample_position + vec3(887.0, 358.0, 262.0)) * 0.006).x * 14.13;
-	density += noise_curl_t1((sample_position + vec3(32.0, 288.0, 204.0)) * 0.045).x * 2.04;
+	if (voxel_position.x < 0) {
+		chunk_position.x--;
+		voxel_position.x = CHUNK_SIZE - 1;
+	}
 
-	float norm_y = sample_position.y / cluster_height;
-	float height_thresh = ground_level / cluster_height;
+	if (voxel_position.y < 0) {
+		chunk_position.y--;
+		voxel_position.y = CHUNK_SIZE - 1;
+	}
 
-	float blend = 1.0 - smoothstep(height_thresh - 0.4, height_thresh + 0.2, norm_y);
+	if (voxel_position.z < 0) {
+		chunk_position.z--;
+		voxel_position.z = CHUNK_SIZE - 1;
+	}
 
-	density *= blend;
+	if (voxel_position.x >= CHUNK_SIZE) {
+		chunk_position.x++;
+		voxel_position.x = 0;
+	}
 
-	//density = soft_terrace(density, 5, 10.0);
+	if (voxel_position.y >= CHUNK_SIZE) {
+		chunk_position.y++;
+		voxel_position.y = 0;
+	}
 
-	return density;
+	if (voxel_position.z >= CHUNK_SIZE) {
+		chunk_position.z++;
+		voxel_position.z = 0;
+	}
+
+	if (all(greaterThanEqual(chunk_position, ivec3(0))) && all(lessThan(chunk_position, ivec3(CLUSTER_DIM_X, CLUSTER_DIM_Y, CLUSTER_DIM_Z)))) {
+		
+		uint chunk_index = (chunk_position.x) + (chunk_position.y * CLUSTER_DIM_X) + (chunk_position.z * CLUSTER_DIM_X * CLUSTER_DIM_Y);
+
+		voxel = uint(imageLoad(chunk_data[chunk_index], voxel_position).r);
+	}
+
+	return voxel;
 }
 
 void main() {
 	ivec3 chunk_position = pc.chunk_position;
 	ivec3 voxel_position = ivec3(gl_GlobalInvocationID) - ivec3(1);
 
-	if (any(lessThan(voxel_position, ivec3(-1))) || any(greaterThan(voxel_position, ivec3(CHUNK_SIZE)))) { // TODO: greater or equal..?
+	if (any(lessThan(voxel_position, ivec3(-1))) || any(greaterThan(voxel_position, ivec3(CHUNK_SIZE)))) {
 		return;
 	}
 
-	ivec3 sample_position = chunk_position + voxel_position;
+	uint v = get_voxel(chunk_position, voxel_position);
 
-	float cluster_height = float(CHUNK_SIZE);
-	float ground_level = cluster_height / 2;
-
-	float d  = default_terrain_density(sample_position, ground_level, cluster_height);
-
-	if (d <= SURFACE_THRESHOLD) {
+	if (VOXEL_IS_SOLID(v)) {
 		return;
 	}
 
-	float dpx = default_terrain_density(sample_position + vec3(1,0,0), ground_level, cluster_height);
-	float dnx = default_terrain_density(sample_position + vec3(-1,0,0), ground_level, cluster_height);
-	float dpy = default_terrain_density(sample_position + vec3(0,1,0), ground_level, cluster_height);
-	float dny = default_terrain_density(sample_position + vec3(0,-1,0), ground_level, cluster_height);
-	float dpz = default_terrain_density(sample_position + vec3(0,0,1), ground_level, cluster_height);
-	float dnz = default_terrain_density(sample_position + vec3(0,0,-1), ground_level, cluster_height);
+	uint vpx = get_voxel(chunk_position, voxel_position + ivec3(1,0,0));
+	uint vnx = get_voxel(chunk_position, voxel_position + ivec3(-1,0,0));
+	uint vpy = get_voxel(chunk_position, voxel_position + ivec3(0,1,0));
+	uint vny = get_voxel(chunk_position, voxel_position + ivec3(0,-1,0));
+	uint vpz = get_voxel(chunk_position, voxel_position + ivec3(0,0,1));
+	uint vnz = get_voxel(chunk_position, voxel_position + ivec3(0,0,-1));
 
 	uint x = uint(voxel_position.x + 1);
 	uint y = uint(voxel_position.y + 1);
 	uint z = uint(voxel_position.z + 1);
 
-	if (dpx <= SURFACE_THRESHOLD) {
+	if (x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE) {
+		return;
+	}
+
+	if (VOXEL_IS_SOLID(vpx)) {
 		uint idx = x * CHUNK_PAD + y;
-		atomicOr(chunk_mask_buffer.chunk_mask[0].px_mask[idx], 1u << (z - 1));
-		atomicOr(chunk_mask_buffer.chunk_mask[0].any_px_faces, 1u << (x - 1));
+		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].px_mask[idx], 1u << z);
+		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].any_px_faces, 1u << x);
 	}
 
-	if (dnx <= SURFACE_THRESHOLD) {
+	if (VOXEL_IS_SOLID(vnx)) {
 		uint idx = x * CHUNK_PAD + y;
-		atomicOr(chunk_mask_buffer.chunk_mask[0].nx_mask[idx], 1u << (z - 1));
-		atomicOr(chunk_mask_buffer.chunk_mask[0].any_nx_faces, 1u << (x - 1));
+		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].nx_mask[idx], 1u << z);
+		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].any_nx_faces, 1u << x);
 	}
 
-	if (dpy <= SURFACE_THRESHOLD) {
+	if (VOXEL_IS_SOLID(vpy)) {
 		uint idx = y * CHUNK_PAD + x;
-		atomicOr(chunk_mask_buffer.chunk_mask[0].py_mask[idx], 1u << (z - 1));
-		atomicOr(chunk_mask_buffer.chunk_mask[0].any_py_faces, 1u << (y - 1));
+		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].py_mask[idx], 1u << z);
+		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].any_py_faces, 1u << y);
 	}
 
-	if (dny <= SURFACE_THRESHOLD) {
+	if (VOXEL_IS_SOLID(vny)) {
 		uint idx = y * CHUNK_PAD + x;
-		atomicOr(chunk_mask_buffer.chunk_mask[0].ny_mask[idx], 1u << (z - 1));
-		atomicOr(chunk_mask_buffer.chunk_mask[0].any_ny_faces, 1u << (y - 1));
+		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].ny_mask[idx], 1u << z);
+		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].any_ny_faces, 1u << y);
 	}
 
-	if (dpz <= SURFACE_THRESHOLD) {
+	if (VOXEL_IS_SOLID(vpz)) {
 		uint idx = z * CHUNK_PAD + x;
-		atomicOr(chunk_mask_buffer.chunk_mask[0].pz_mask[idx], 1u << (y - 1));
-		atomicOr(chunk_mask_buffer.chunk_mask[0].any_pz_faces, 1u << (z - 1));
+		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].pz_mask[idx], 1u << y);
+		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].any_pz_faces, 1u << z);
 	}
 
-	if (dnz <= SURFACE_THRESHOLD) {
+	if (VOXEL_IS_SOLID(vnz)) {
 		uint idx = z * CHUNK_PAD + x;
-		atomicOr(chunk_mask_buffer.chunk_mask[0].nz_mask[idx], 1u << (y - 1));
-		atomicOr(chunk_mask_buffer.chunk_mask[0].any_nz_faces, 1u << (z - 1));
+		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].nz_mask[idx], 1u << y);
+		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].any_nz_faces, 1u << z);
 	}
 }

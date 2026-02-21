@@ -5,8 +5,6 @@
 
 #include "../vdb/common.glsl"
 
-// TODO: add std430 to all buffers.. also check read/write's..
-
 const uint FACE_PX = 0;
 const uint FACE_NX = 1;
 const uint FACE_PY = 2;
@@ -33,9 +31,14 @@ layout (binding = 3, std430) buffer chunk_info_buffer_t {
 	chunk_info_t chunk_info[];
 } chunk_info_buffer;
 
+layout (push_constant) uniform push_constant_t {
+	ivec3 chunk_position;
+	uint chunk_index;
+} pc;
+
 void emit_quad(vec3 p0, vec3 p1, vec3 p2, vec3 p3, uint face, vec3 normal) {
-	uint v = atomicAdd(chunk_info_buffer.chunk_info[0].vertex_count, 4); // TODO
-	uint i = atomicAdd(chunk_info_buffer.chunk_info[0].index_count, 6); // TODO
+	uint v = atomicAdd(chunk_info_buffer.chunk_info[pc.chunk_index].vertex_count, 4);
+	uint i = atomicAdd(chunk_info_buffer.chunk_info[pc.chunk_index].index_count, 6);
 
 	chunk_vertex_buffer.chunk_vertex[v + 0] = chunk_vertex_t(vec4(p0, 1), vec4(normal, 1)); // TODO: add face back in..
 	chunk_vertex_buffer.chunk_vertex[v + 1] = chunk_vertex_t(vec4(p1, 1), vec4(normal, 1)); // TODO: add face back in..
@@ -44,20 +47,73 @@ void emit_quad(vec3 p0, vec3 p1, vec3 p2, vec3 p3, uint face, vec3 normal) {
 
 	bool flip = (face == FACE_NX) || (face == FACE_NY) || (face == FACE_NZ);
 
-	if (flip) {
-		chunk_index_buffer.chunk_index[i + 0] = v + 0;
-		chunk_index_buffer.chunk_index[i + 1] = v + 1;
-		chunk_index_buffer.chunk_index[i + 2] = v + 2;
-		chunk_index_buffer.chunk_index[i + 3] = v + 0;
-		chunk_index_buffer.chunk_index[i + 4] = v + 2;
-		chunk_index_buffer.chunk_index[i + 5] = v + 3;
-	} else {
-		chunk_index_buffer.chunk_index[i + 0] = v + 0;
-		chunk_index_buffer.chunk_index[i + 1] = v + 2;
-		chunk_index_buffer.chunk_index[i + 2] = v + 1;
-		chunk_index_buffer.chunk_index[i + 3] = v + 0;
-		chunk_index_buffer.chunk_index[i + 4] = v + 3;
-		chunk_index_buffer.chunk_index[i + 5] = v + 2;
+	switch (face) {
+		case FACE_PX: {
+
+			chunk_index_buffer.chunk_index[i + 0] = v + 0;
+			chunk_index_buffer.chunk_index[i + 1] = v + 2;
+			chunk_index_buffer.chunk_index[i + 2] = v + 1;
+			chunk_index_buffer.chunk_index[i + 3] = v + 0;
+			chunk_index_buffer.chunk_index[i + 4] = v + 3;
+			chunk_index_buffer.chunk_index[i + 5] = v + 2;
+
+			break;
+		}
+		case FACE_NX: {
+
+			chunk_index_buffer.chunk_index[i + 0] = v + 0;
+			chunk_index_buffer.chunk_index[i + 1] = v + 1;
+			chunk_index_buffer.chunk_index[i + 2] = v + 2;
+			chunk_index_buffer.chunk_index[i + 3] = v + 0;
+			chunk_index_buffer.chunk_index[i + 4] = v + 2;
+			chunk_index_buffer.chunk_index[i + 5] = v + 3;
+
+			break;
+		}
+		case FACE_PY: {
+
+			chunk_index_buffer.chunk_index[i + 0] = v + 0;
+			chunk_index_buffer.chunk_index[i + 1] = v + 1;
+			chunk_index_buffer.chunk_index[i + 2] = v + 2;
+			chunk_index_buffer.chunk_index[i + 3] = v + 0;
+			chunk_index_buffer.chunk_index[i + 4] = v + 2;
+			chunk_index_buffer.chunk_index[i + 5] = v + 3;
+
+			break;
+		}
+		case FACE_NY: {
+
+			chunk_index_buffer.chunk_index[i + 0] = v + 0;
+			chunk_index_buffer.chunk_index[i + 1] = v + 2;
+			chunk_index_buffer.chunk_index[i + 2] = v + 1;
+			chunk_index_buffer.chunk_index[i + 3] = v + 0;
+			chunk_index_buffer.chunk_index[i + 4] = v + 3;
+			chunk_index_buffer.chunk_index[i + 5] = v + 2;
+
+			break;
+		}
+		case FACE_PZ: {
+
+			chunk_index_buffer.chunk_index[i + 0] = v + 0;
+			chunk_index_buffer.chunk_index[i + 1] = v + 2;
+			chunk_index_buffer.chunk_index[i + 2] = v + 1;
+			chunk_index_buffer.chunk_index[i + 3] = v + 0;
+			chunk_index_buffer.chunk_index[i + 4] = v + 3;
+			chunk_index_buffer.chunk_index[i + 5] = v + 2;
+
+			break;
+		}
+		case FACE_NZ: {
+
+			chunk_index_buffer.chunk_index[i + 0] = v + 0;
+			chunk_index_buffer.chunk_index[i + 1] = v + 1;
+			chunk_index_buffer.chunk_index[i + 2] = v + 2;
+			chunk_index_buffer.chunk_index[i + 3] = v + 0;
+			chunk_index_buffer.chunk_index[i + 4] = v + 2;
+			chunk_index_buffer.chunk_index[i + 5] = v + 3;
+
+			break;
+		}
 	}
 }
 
@@ -65,13 +121,14 @@ uint load_mask(uint face, uint slice, uint row) {
 	uint idx = (slice + 1) * CHUNK_PAD + row;
 
 	switch (face) {
-		case FACE_PX: return chunk_mask_buffer.chunk_mask[0].px_mask[idx];
-		case FACE_NX: return chunk_mask_buffer.chunk_mask[0].nx_mask[idx];
-		case FACE_PY: return chunk_mask_buffer.chunk_mask[0].py_mask[idx];
-		case FACE_NY: return chunk_mask_buffer.chunk_mask[0].ny_mask[idx];
-		case FACE_PZ: return chunk_mask_buffer.chunk_mask[0].pz_mask[idx];
-		case FACE_NZ: return chunk_mask_buffer.chunk_mask[0].nz_mask[idx];
+		case FACE_PX: return chunk_mask_buffer.chunk_mask[pc.chunk_index].px_mask[idx];
+		case FACE_NX: return chunk_mask_buffer.chunk_mask[pc.chunk_index].nx_mask[idx];
+		case FACE_PY: return chunk_mask_buffer.chunk_mask[pc.chunk_index].py_mask[idx];
+		case FACE_NY: return chunk_mask_buffer.chunk_mask[pc.chunk_index].ny_mask[idx];
+		case FACE_PZ: return chunk_mask_buffer.chunk_mask[pc.chunk_index].pz_mask[idx];
+		case FACE_NZ: return chunk_mask_buffer.chunk_mask[pc.chunk_index].nz_mask[idx];
 	}
+
 	return 0;
 }
 
@@ -101,20 +158,22 @@ void greedy_slice(uint face, uint slice) {
 	}
 
 	for (uint y = 1; y <= CHUNK_SIZE; y++) {
+
 		uint row = rows[y];
 
 		while (row != 0) {
-			uint z0 = findLSB(row);
-			uint z1 = z0;
 
-			while (z1 + 1 < 32 && ((row >> (z1 + 1)) & 1u) != 0) {
+			uint z0 = findLSB(row);
+
+			uint z1 = z0;
+			while (z1 + 1 < CHUNK_SIZE && ((row >> (z1 + 1)) & 1u) != 0) { // TODO: <
 				z1++;
 			}
 
 			uint width_mask = ((1u << (z1 - z0 + 1)) - 1u) << z0;
 
 			uint y1 = y;
-			while (y1 + 1 <= CHUNK_SIZE && (rows[y1 + 1] & width_mask) == width_mask) {
+			while (y1 + 1 <= CHUNK_SIZE && (rows[y1 + 1] & width_mask) == width_mask) { // TODO: <=
 				y1++;
 			}
 
@@ -127,7 +186,7 @@ void greedy_slice(uint face, uint slice) {
 			vec3 dv = vec3(0, y1 - y + 1, 0);
 
 			vec3 p0, p1, p2, p3;
-			
+
 			uint w = z1 - z0 + 1;
 			uint h = y1 - y + 1;
 
@@ -139,34 +198,49 @@ void greedy_slice(uint face, uint slice) {
 			ivec3 normal_offset = ivec3(0);
 			vec3 normal = vec3(0);
 
-			if (face == FACE_PX) {
-				normal_offset = ivec3(1, 0, 0);
-				normal = vec3(1, 0, 0);
-			}
+			switch (face) {
+				case FACE_PX: {
+					
+					normal_offset = ivec3(1, 0, 0);
+					normal = vec3(0.5, 0, 0);
 
-			if (face == FACE_NX) {
-				normal_offset = ivec3(0, 0, 0);
-				normal = vec3(0.5, 0.5, 0);
-			}
+					break;
+				}
+				case FACE_NX: {
 
-			if (face == FACE_PY) {
-				normal_offset = ivec3(0, 1, 0);
-				normal = vec3(0, 1, 0);
-			}
+					normal_offset = ivec3(0, 0, 0);
+					normal = vec3(0.5, 0.5, 0);
 
-			if (face == FACE_NY) {
-				normal_offset = ivec3(0, 0, 0);
-				normal = vec3(0, 0.5, 0.5);
-			}
+					break;
+				}
+				case FACE_PY: {
 
-			if (face == FACE_PZ) {
-				normal_offset = ivec3(0, 0, 1);
-				normal = vec3(0, 0, 1);
-			}
+					normal_offset = ivec3(0, 1, 0);
+					normal = vec3(0, 0.5, 0);
 
-			if (face == FACE_NZ) {
-				normal_offset = ivec3(0, 0, 0);
-				normal = vec3(0.5, 0, 0.5);
+					break;
+				}
+				case FACE_NY: {
+
+					normal_offset = ivec3(0, 0, 0);
+					normal = vec3(0, 0.5, 0.5);
+
+					break;
+				}
+				case FACE_PZ: {
+
+					normal_offset = ivec3(0, 0, 1);
+					normal = vec3(0, 0, 0.5);
+
+					break;
+				}
+				case FACE_NZ: {
+
+					normal_offset = ivec3(0, 0, 0);
+					normal = vec3(0.5, 0, 0.5);
+
+					break;
+				}
 			}
 
 			p0 = vec3(a + normal_offset);

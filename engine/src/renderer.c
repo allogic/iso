@@ -155,6 +155,10 @@ static VkDescriptorPoolSize const s_vdb_world_generator_descriptor_pool_size[] =
 };
 static VkDescriptorPoolSize const s_vdb_mask_generator_descriptor_pool_size[] = {
   {
+    .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+    .descriptorCount = CHUNK_COUNT,
+  },
+  {
     .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
     .descriptorCount = 1,
   },
@@ -241,6 +245,13 @@ static VkDescriptorSetLayoutBinding const s_vdb_world_generator_descriptor_set_l
 static VkDescriptorSetLayoutBinding const s_vdb_mask_generator_descriptor_set_layout_binding[] = {
   {
     .binding = 0,
+    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+    .descriptorCount = CHUNK_COUNT,
+    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+    .pImmutableSamplers = 0,
+  },
+  {
+    .binding = 1,
     .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
     .descriptorCount = 1,
     .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
@@ -310,6 +321,13 @@ static VkPushConstantRange const s_vdb_mask_generator_push_constant_range[] = {
     .size = sizeof(mask_generator_push_constant_t),
   },
 };
+static VkPushConstantRange const s_vdb_greedy_mesher_push_constant_range[] = {
+  {
+    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+    .offset = 0,
+    .size = sizeof(greedy_mesher_push_constant_t),
+  },
+};
 
 static pipeline_t s_vdb_voxel_placer_pipeline = {
   .pipeline_type = PIPELINE_TYPE_C,
@@ -342,6 +360,8 @@ static pipeline_t s_vdb_mask_generator_pipeline = {
 static pipeline_t s_vdb_greedy_mesher_pipeline = {
   .pipeline_type = PIPELINE_TYPE_C,
   .compute_shader = ROOT_DIR "/shader/vdb/greedy_mesher.comp.spv",
+  .push_constant_range = s_vdb_greedy_mesher_push_constant_range,
+  .push_constant_range_count = ARRAY_COUNT(s_vdb_greedy_mesher_push_constant_range),
   .descriptor_pool_size = s_vdb_greedy_mesher_descriptor_pool_size,
   .descriptor_pool_size_count = ARRAY_COUNT(s_vdb_greedy_mesher_descriptor_pool_size),
   .descriptor_set_layout_binding = s_vdb_greedy_mesher_descriptor_set_layout_binding,
@@ -351,7 +371,11 @@ static pipeline_t s_vdb_chunk_renderer_pipeline = {
   .pipeline_type = PIPELINE_TYPE_VF,
   .vertex_shader = ROOT_DIR "/shader/vdb/chunk_renderer.vert.spv",
   .fragment_shader = ROOT_DIR "/shader/vdb/chunk_renderer.frag.spv",
+  .enable_blending = 1,
+  .enable_depth_test = 1,
+  .enable_depth_write = 1,
   .primitive_topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+  .polygon_mode = VK_POLYGON_MODE_FILL,
   .vertex_input_binding_description = s_vdb_chunk_vertex_input_binding_description,
   .vertex_input_binding_description_count = ARRAY_COUNT(s_vdb_chunk_vertex_input_binding_description),
   .vertex_input_attribute_description = s_vdb_chunk_vertex_input_attribute_description,
@@ -367,6 +391,10 @@ static pipeline_t s_debug_line_renderer_pipeline = {
   .vertex_shader = ROOT_DIR "/shader/debug/line_renderer.vert.spv",
   .fragment_shader = ROOT_DIR "/shader/debug/line_renderer.frag.spv",
   .primitive_topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST,
+  .polygon_mode = VK_POLYGON_MODE_FILL,
+  .enable_blending = 1,
+  .enable_depth_test = 1,
+  .enable_depth_write = 1,
   .vertex_input_binding_description = s_debug_line_vertex_input_binding_description,
   .vertex_input_binding_description_count = ARRAY_COUNT(s_debug_line_vertex_input_binding_description),
   .vertex_input_attribute_description = s_debug_line_vertex_input_attribute_description,
@@ -1011,6 +1039,18 @@ static void renderer_update_vdb_mask_generator_descriptor_set(void) {
       .dstSet = s_vdb_mask_generator_pipeline.descriptor_set,
       .dstBinding = 0,
       .dstArrayElement = 0,
+      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+      .descriptorCount = CHUNK_COUNT,
+      .pImageInfo = s_chunk_data_descriptor_image_info,
+      .pBufferInfo = 0,
+      .pTexelBufferView = 0,
+    },
+    {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = 0,
+      .dstSet = s_vdb_mask_generator_pipeline.descriptor_set,
+      .dstBinding = 1,
+      .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
       .descriptorCount = 1,
       .pImageInfo = 0,
@@ -1144,6 +1184,8 @@ static void renderer_generate_world(void) {
 
   while (chunk_index < chunk_count) {
 
+    world_generator_push_constant.chunk_position = (ivector3_t){0, 0, 0};
+    world_generator_push_constant.chunk_index = 0;
     world_generator_push_constant.stage = 0;
 
     vkCmdPushConstants(g_window.command_buffer, s_vdb_world_generator_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(world_generator_push_constant_t), &world_generator_push_constant);
@@ -1227,7 +1269,7 @@ static void renderer_generate_mask(void) {
 
   mask_generator_push_constant_t mask_generator_push_constant = {0};
 
-  int32_t group_count = MAKE_GROUP_COUNT(CHUNK_SIZE, 8); // TODO: revalidate group_count... does it has to be 4?
+  int32_t group_count = MAKE_GROUP_COUNT(CHUNK_PAD, 8);
   int32_t chunk_index = 0;
   int32_t chunk_count = CHUNK_COUNT;
 
@@ -1269,17 +1311,21 @@ static void renderer_greedy_mesh(void) {
   vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_vdb_greedy_mesher_pipeline.pipeline_handle);
   vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_vdb_greedy_mesher_pipeline.pipeline_layout, 0, 1, &s_vdb_greedy_mesher_pipeline.descriptor_set, 0, 0);
 
+  greedy_mesher_push_constant_t greedy_mesher_push_constant = {0};
+
   int32_t chunk_index = 0;
   int32_t chunk_count = CHUNK_COUNT;
 
   while (chunk_index < chunk_count) {
 
-    // TODO: add push constants..
-
     // TODO: find a clean way to reset these counters..
     g_renderer.chunk_info[0].vertex_count = 0;
     g_renderer.chunk_info[0].index_count = 0;
 
+    greedy_mesher_push_constant.chunk_position = (ivector3_t){0, 0, 0};
+    greedy_mesher_push_constant.chunk_index = 0;
+
+    vkCmdPushConstants(g_window.command_buffer, s_vdb_greedy_mesher_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(greedy_mesher_push_constant_t), &greedy_mesher_push_constant);
     vkCmdDispatch(g_window.command_buffer, 32, 1, 6); // TODO
 
     VkBufferMemoryBarrier buffer_memory_barrier[] = {

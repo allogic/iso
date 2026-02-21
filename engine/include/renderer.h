@@ -81,15 +81,22 @@ typedef uint32_t vdb_chunk_index_t;
 typedef uint32_t debug_line_index_t;
 
 typedef struct world_generator_push_constant_t {
+  ivector3_t chunk_position;
+  uint32_t chunk_index;
   uint32_t stage;
 } world_generator_push_constant_t;
 typedef struct mask_generator_push_constant_t {
   ivector3_t chunk_position;
   uint32_t chunk_index;
 } mask_generator_push_constant_t;
+typedef struct greedy_mesher_push_constant_t {
+  ivector3_t chunk_position;
+  uint32_t chunk_index;
+} greedy_mesher_push_constant_t;
 
 STATIC_ASSERT(ALIGNOF(world_generator_push_constant_t) == 4);
 STATIC_ASSERT(ALIGNOF(mask_generator_push_constant_t) == 4);
+STATIC_ASSERT(ALIGNOF(greedy_mesher_push_constant_t) == 4);
 
 typedef struct renderer_t {
   int8_t is_debug_enabled;

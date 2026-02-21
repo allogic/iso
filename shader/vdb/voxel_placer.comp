@@ -19,7 +19,7 @@ layout (binding = 1) uniform place_info_t {
 	uint voxel_id;
 } place_info;
 layout (binding = 2, r32ui) uniform uimage3D chunk_data[];
-layout (binding = 4) buffer place_result_buffer_t {
+layout (binding = 4, std430) writeonly buffer place_result_buffer_t {
 	uint is_obstructed;
 } place_result_buffer;
 

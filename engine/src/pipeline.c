@@ -182,7 +182,7 @@ static void pipeline_create_vf(pipeline_t *pipeline) {
     .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
     .depthClampEnable = 0,
     .rasterizerDiscardEnable = 0,
-    .polygonMode = VK_POLYGON_MODE_FILL,
+    .polygonMode = pipeline->polygon_mode,
     .lineWidth = 1.0F,
     .cullMode = VK_CULL_MODE_BACK_BIT,
     .frontFace = VK_FRONT_FACE_CLOCKWISE,
@@ -204,7 +204,7 @@ static void pipeline_create_vf(pipeline_t *pipeline) {
 
   VkPipelineColorBlendAttachmentState pipeline_color_blend_attachment_state = {
     .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-    .blendEnable = 1,
+    .blendEnable = pipeline->enable_blending,
     .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
     .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
     .colorBlendOp = VK_BLEND_OP_ADD,
@@ -215,8 +215,8 @@ static void pipeline_create_vf(pipeline_t *pipeline) {
 
   VkPipelineDepthStencilStateCreateInfo pipeline_depth_stencil_state_create_info = {
     .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-    .depthTestEnable = 0,
-    .depthWriteEnable = 0,
+    .depthTestEnable = pipeline->enable_depth_test,
+    .depthWriteEnable = pipeline->enable_depth_write,
     .depthCompareOp = VK_COMPARE_OP_LESS,
     .depthBoundsTestEnable = 0,
     .stencilTestEnable = 0,
@@ -377,7 +377,7 @@ static void pipeline_create_tmf(pipeline_t *pipeline) {
     .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
     .depthClampEnable = 0,
     .rasterizerDiscardEnable = 0,
-    .polygonMode = VK_POLYGON_MODE_FILL,
+    .polygonMode = pipeline->polygon_mode,
     .lineWidth = 1.0F,
     .cullMode = VK_CULL_MODE_BACK_BIT,
     .frontFace = VK_FRONT_FACE_CLOCKWISE,
@@ -399,7 +399,7 @@ static void pipeline_create_tmf(pipeline_t *pipeline) {
 
   VkPipelineColorBlendAttachmentState pipeline_color_blend_attachment_state = {
     .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-    .blendEnable = 0,
+    .blendEnable = pipeline->enable_blending,
     .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
     .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
     .colorBlendOp = VK_BLEND_OP_ADD,
@@ -410,8 +410,8 @@ static void pipeline_create_tmf(pipeline_t *pipeline) {
 
   VkPipelineDepthStencilStateCreateInfo pipeline_depth_stencil_state_create_info = {
     .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-    .depthTestEnable = 1,
-    .depthWriteEnable = 1,
+    .depthTestEnable = pipeline->enable_depth_test,
+    .depthWriteEnable = pipeline->enable_depth_write,
     .depthCompareOp = VK_COMPARE_OP_LESS,
     .depthBoundsTestEnable = 0,
     .stencilTestEnable = 0,

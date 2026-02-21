@@ -28,14 +28,16 @@ layout (binding = 2) uniform time_info_t {
 } time_info;
 
 layout (push_constant) uniform push_constant_t {
+	ivec3 chunk_position;
+	uint chunk_index;
 	uint stage;
 } pc;
 
 uint get_voxel(ivec3 voxel_position) {
-	return uint(imageLoad(chunk_data[0], voxel_position).r);
+	return uint(imageLoad(chunk_data[pc.chunk_index], voxel_position).r);
 }
 void set_voxel(ivec3 voxel_position, uint voxel) {
-	imageStore(chunk_data[0], voxel_position, uvec4(voxel, 0, 0, 0));
+	imageStore(chunk_data[pc.chunk_index], voxel_position, uvec4(voxel, 0, 0, 0));
 }
 
 float default_terrain_density(vec3 sample_position, float ground_level, float cluster_height) {
@@ -44,7 +46,19 @@ float default_terrain_density(vec3 sample_position, float ground_level, float cl
 	float norm_y = sample_position.y / cluster_height;
 	float height_thresh = ground_level / cluster_height;
 
-	if (norm_y < height_thresh) {
+	//if (norm_y < height_thresh) {
+	//	density = 1;
+	//}
+
+	if (sample_position.y < 2) {
+		density = 1;
+	}
+
+	if (sample_position.x == 10) {
+		density = 1;
+	}
+
+	if (sample_position.z == 10) {
 		density = 1;
 	}
 
@@ -61,8 +75,8 @@ float default_terrain_density(vec3 sample_position, float ground_level, float cl
 	return 1 - density;
 }
 
-void stage_0(ivec3 chunk_position, ivec3 voxel_position) {
-	vec3 sample_position = vec3((chunk_position * CHUNK_SIZE) + voxel_position);
+void stage_0(ivec3 voxel_position) {
+	vec3 sample_position = vec3((pc.chunk_position * CHUNK_SIZE) + voxel_position);
 
 	sample_position.x += time_info.time * 10;
 	sample_position.z += time_info.time * 7;
@@ -82,7 +96,7 @@ void stage_0(ivec3 chunk_position, ivec3 voxel_position) {
 
 	set_voxel(voxel_position, voxel);
 }
-void stage_1(ivec3 chunk_position, ivec3 voxel_position) {
+void stage_1(ivec3 voxel_position) {
 	// TODO: figure out why it's flipped..
 
 	if (voxel_position.y > 0) {
@@ -99,11 +113,10 @@ void stage_1(ivec3 chunk_position, ivec3 voxel_position) {
 }
 
 void main() {
-	ivec3 chunk_position = ivec3(0); // TODO
 	ivec3 voxel_position = ivec3(gl_GlobalInvocationID.xyz);
 
 	switch (pc.stage) {
-		case 0: stage_0(chunk_position, voxel_position); break;
-		case 1: stage_1(chunk_position, voxel_position); break;
+		case 0: stage_0(voxel_position); break;
+		case 1: stage_1(voxel_position); break;
 	}
 }

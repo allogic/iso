@@ -14,12 +14,16 @@ typedef struct pipeline_t {
   char const *mesh_shader;
   char const *fragment_shader;
   char const *compute_shader;
+  uint32_t enable_blending;
+  uint32_t enable_depth_test;
+  uint32_t enable_depth_write;
   uint32_t vertex_input_binding_description_count;
   uint32_t vertex_input_attribute_description_count;
   uint32_t push_constant_range_count;
   uint32_t descriptor_pool_size_count;
   uint32_t descriptor_set_layout_binding_count;
   VkPrimitiveTopology primitive_topology;
+  VkPolygonMode polygon_mode;
   VkVertexInputBindingDescription const *vertex_input_binding_description;
   VkVertexInputAttributeDescription const *vertex_input_attribute_description;
   VkPushConstantRange const *push_constant_range;

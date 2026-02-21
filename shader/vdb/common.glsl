@@ -5,6 +5,10 @@
 #define CHUNK_COUNT (1)
 #define CHUNK_PAD (34)
 
+#define CLUSTER_DIM_X (1)
+#define CLUSTER_DIM_Y (1)
+#define CLUSTER_DIM_Z (1)
+
 #define SURFACE_THRESHOLD (0.5)
 
 #define VOXEL_IS_SOLID_BIT (0x1)
@@ -32,7 +36,7 @@ struct chunk_info_t {
 };
 
 struct chunk_mask_t {
-	uint any_px_faces;
+	uint any_px_faces; // TODO: implement these..
 	uint any_nx_faces;
 	uint any_py_faces;
 	uint any_ny_faces;
