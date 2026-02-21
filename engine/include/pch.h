@@ -40,8 +40,10 @@
 #include <imgutil.h>
 #include <vkutil.h>
 
-#include <iso.h>
-#include <tile.h>
+#include <transform.h>
+#include <camera.h>
+
+#include <vdb.h>
 #include <structure.h>
 #include <pipeline.h>
 #include <buffer.h>

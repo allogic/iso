@@ -2,14 +2,18 @@
 #define PLAYER_H
 
 typedef struct player_t {
-  vector3_t position;
-  vector3_t velocity;
-  ivector3_t tile_position;
-  float camera_zoom;
-  float movement_speed_fast;
-  float movement_speed_default;
+  transform_t transform;
+  camera_t camera;
+  vector3_t mouse_begin;
+  vector3_t mouse_end;
+  vector3_t mouse_delta;
+  vector3_t linear_velocity;
+  vector3_t angular_velocity;
+  float keyboard_speed_fast;
+  float keyboard_speed_default;
+  float mouse_rotation_speed;
   float linear_drag;
-  uint32_t tile_id;
+  float angular_drag;
 } player_t;
 
 #ifdef __cplusplus

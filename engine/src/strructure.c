@@ -39,10 +39,10 @@ static void structure_add_conveyor_belt(void) {
   *structure++ = 1; // Y axis
   *structure++ = 2; // Z axis
 
-  *structure++ = 2; // Tile 0,0,0
-  *structure++ = 2; // Tile 1,0,0
-  *structure++ = 3; // Tile 0,0,1
-  *structure++ = 3; // Tile 1,0,1
+  *structure++ = 2; // 0,0,0
+  *structure++ = 2; // 1,0,0
+  *structure++ = 3; // 0,0,1
+  *structure++ = 3; // 1,0,1
 
   g_structure_offset[g_structure_count + 1] = structure_size;
   g_structure_count += 1;

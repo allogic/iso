@@ -16,23 +16,30 @@
 #define VOXEL_IS_EMPTY(VOXEL) \
 	((VOXEL & VOXEL_IS_SOLID_BIT) != VOXEL_IS_SOLID_BIT)
 
-#define VOXEL_GET_TILE_ID(VOXEL) \
+#define VOXEL_GET_ATLAS_ID(VOXEL) \
 	((VOXEL >> 8) & 0xFF)
 
 #define VOXEL_SET_SOLID(VOXEL) \
 	(VOXEL | VOXEL_IS_SOLID_BIT)
 
-#define VOXEL_SET_TILE_ID(VOXEL, TILE_ID) \
-	((VOXEL & ~(0xFF << 8)) | ((TILE_ID & 0xFF) << 8))
+#define VOXEL_SET_ATLAS_ID(VOXEL, ATLAS_ID) \
+	((VOXEL & ~(0xFF << 8)) | ((ATLAS_ID & 0xFF) << 8))
 
-struct tile_t {
-	uint tile_size_x;
-	uint tile_size_z;
-	uint width;
-	uint height;
-	uint flipbock_id;
-	uint atlas_id;
+struct chunk_mask_t {
+	uint any_px_faces;
+	uint any_nx_faces;
+	uint any_py_faces;
+	uint any_ny_faces;
+	uint any_pz_faces;
+	uint any_nz_faces;
+	uint nx_mask[(CHUNK_SIZE + 2) * (CHUNK_SIZE + 2)];
+	uint px_mask[(CHUNK_SIZE + 2) * (CHUNK_SIZE + 2)];
+	uint py_mask[(CHUNK_SIZE + 2) * (CHUNK_SIZE + 2)];
+	uint ny_mask[(CHUNK_SIZE + 2) * (CHUNK_SIZE + 2)];
+	uint pz_mask[(CHUNK_SIZE + 2) * (CHUNK_SIZE + 2)];
+	uint nz_mask[(CHUNK_SIZE + 2) * (CHUNK_SIZE + 2)];
 };
+
 struct payload_t {
 	uint chunk_index;
 };

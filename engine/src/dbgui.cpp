@@ -63,22 +63,12 @@ void dbgui_draw(void) {
 
   ImGui::NewFrame();
 
-  ImGui::Begin("Player");
-  ImGui::DragFloat2("Position", (float *)&g_player.position, 0.05F);
-  ImGui::DragFloat("Zoom", &g_player.camera_zoom, 0.05F);
-  ImGui::InputInt("Selected Tile", (int32_t *)&g_player.tile_id);
-  ImGui::End();
-
   ImGui::Begin("ISO Mesher");
   ImGui::DragFloat4("Vertex Offset 0", (float *)&g_renderer.vertex_offset_0, 0.05F);
   ImGui::DragFloat4("Vertex Offset 1", (float *)&g_renderer.vertex_offset_1, 0.05F);
   ImGui::DragFloat4("Vertex Offset 2", (float *)&g_renderer.vertex_offset_2, 0.05F);
   ImGui::DragFloat4("Vertex Offset 3", (float *)&g_renderer.vertex_offset_3, 0.05F);
   ImGui::DragFloat4("Rotation", (float *)&g_renderer.rotation, 0.05F);
-  ImGui::DragFloat("Tile Size", &g_renderer.tile_size, 0.05F);
-  ImGui::DragFloat("Tile Height", &g_renderer.tile_height, 0.05F);
-  ImGui::DragFloat("Inner Scale", &g_renderer.inner_scale, 0.05F);
-  ImGui::DragFloat("Outer Epsilon", &g_renderer.outer_scale, 0.05F);
   ImGui::End();
 
   ImGui::Render();

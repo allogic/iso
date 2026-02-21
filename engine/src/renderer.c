@@ -1,10 +1,5 @@
 #include <pch.h>
 
-#define CHUNK_SIZE (32)
-#define CLUSTER_DIM_X (1)
-#define CLUSTER_DIM_Y (1)
-#define CHUNK_COUNT (1)
-
 #define DEBUG_LINE_VERTEX_COUNT (0xFFFFF)
 #define DEBUG_LINE_INDEX_COUNT (0xFFFFF)
 
@@ -15,19 +10,17 @@ static void renderer_create_coherent_buffer(void);
 static void renderer_create_debug_line_buffer(void);
 static void renderer_create_full_screen_buffer(void);
 static void renderer_create_chunk_info_buffer(void);
-static void renderer_create_tile_lut_buffer(void);
 
 static void renderer_create_chunk_data_image(void);
-static void renderer_create_tile_atlas_image(void);
 
-static void renderer_update_vdb_tile_placer_descriptor_set(void);
+static void renderer_update_vdb_voxel_placer_descriptor_set(void);
 static void renderer_update_vdb_world_generator_descriptor_set(void);
-static void renderer_update_vdb_iso_renderer_descriptor_set(void);
+static void renderer_update_vdb_chunk_renderer_descriptor_set(void);
 static void renderer_update_debug_line_descriptor_set(void);
 
 static void renderer_update_coherent_buffer(void);
 
-static void renderer_place_tile(void);
+static void renderer_place_voxel(void);
 static void renderer_generate_world(void);
 
 static void renderer_record_compute_pass(void);
@@ -49,10 +42,10 @@ static VkSemaphore s_image_available_semaphore = {0};
 static VkFence s_frame_fence = {0};
 
 static full_screen_vertex_t const s_full_screen_vertices[] = {
-  {-1.0F, -1.0F, 0.0F},
-  {1.0F, -1.0F, 0.0F},
-  {-1.0F, 1.0F, 0.0F},
-  {1.0F, 1.0F, 0.0F},
+  {-1.0F, -1.0F},
+  {1.0F, -1.0F},
+  {-1.0F, 1.0F},
+  {1.0F, 1.0F},
 };
 static full_screen_index_t const s_full_screen_indices[] = {
   0,
@@ -70,6 +63,13 @@ static VkVertexInputBindingDescription const s_full_screen_vertex_input_binding_
     .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
   },
 };
+static VkVertexInputBindingDescription const s_vdb_chunk_vertex_input_binding_description[] = {
+  {
+    .binding = 0,
+    .stride = sizeof(vdb_chunk_vertex_t),
+    .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+  },
+};
 static VkVertexInputBindingDescription const s_debug_line_vertex_input_binding_description[] = {
   {
     .binding = 0,
@@ -82,15 +82,29 @@ static VkVertexInputAttributeDescription const s_full_screen_vertex_input_attrib
   {
     .location = 0,
     .binding = 0,
+    .format = VK_FORMAT_R32G32_SFLOAT,
+    .offset = 0,
+  },
+};
+static VkVertexInputAttributeDescription const s_vdb_chunk_vertex_input_attribute_description[] = {
+  {
+    .location = 0,
+    .binding = 0,
     .format = VK_FORMAT_R32G32B32_SFLOAT,
     .offset = 0,
+  },
+  {
+    .location = 1,
+    .binding = 0,
+    .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+    .offset = OFFSET_OF(vdb_chunk_vertex_t, color),
   },
 };
 static VkVertexInputAttributeDescription const s_debug_line_vertex_input_attribute_description[] = {
   {
     .location = 0,
     .binding = 0,
-    .format = VK_FORMAT_R32G32_SFLOAT,
+    .format = VK_FORMAT_R32G32B32_SFLOAT,
     .offset = 0,
   },
   {
@@ -101,7 +115,7 @@ static VkVertexInputAttributeDescription const s_debug_line_vertex_input_attribu
   },
 };
 
-static VkDescriptorPoolSize const s_vdb_tile_placer_descriptor_pool_size[] = {
+static VkDescriptorPoolSize const s_vdb_voxel_placer_descriptor_pool_size[] = {
   {
     .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
     .descriptorCount = 2,
@@ -125,17 +139,9 @@ static VkDescriptorPoolSize const s_vdb_world_generator_descriptor_pool_size[] =
     .descriptorCount = CHUNK_COUNT,
   },
 };
-static VkDescriptorPoolSize const s_vdb_iso_renderer_descriptor_pool_size[] = {
+static VkDescriptorPoolSize const s_vdb_chunk_renderer_descriptor_pool_size[] = {
   {
     .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    .descriptorCount = 2,
-  },
-  {
-    .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-    .descriptorCount = 1 + CHUNK_COUNT,
-  },
-  {
-    .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
     .descriptorCount = 1,
   },
 };
@@ -146,7 +152,7 @@ static VkDescriptorPoolSize const s_vdb_debug_line_renderer_descriptor_pool_size
   },
 };
 
-static VkDescriptorSetLayoutBinding const s_vdb_tile_placer_descriptor_set_layout_binding[] = {
+static VkDescriptorSetLayoutBinding const s_vdb_voxel_placer_descriptor_set_layout_binding[] = {
   {
     .binding = 0,
     .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -206,40 +212,12 @@ static VkDescriptorSetLayoutBinding const s_vdb_world_generator_descriptor_set_l
     .pImmutableSamplers = 0,
   },
 };
-static VkDescriptorSetLayoutBinding const s_vdb_iso_renderer_descriptor_set_layout_binding[] = {
+static VkDescriptorSetLayoutBinding const s_vdb_chunk_renderer_descriptor_set_layout_binding[] = {
   {
     .binding = 0,
     .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
     .descriptorCount = 1,
-    .stageFlags = VK_SHADER_STAGE_TASK_BIT_EXT | VK_SHADER_STAGE_MESH_BIT_EXT,
-    .pImmutableSamplers = 0,
-  },
-  {
-    .binding = 1,
-    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    .descriptorCount = 1,
-    .stageFlags = VK_SHADER_STAGE_MESH_BIT_EXT,
-    .pImmutableSamplers = 0,
-  },
-  {
-    .binding = 2,
-    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-    .descriptorCount = CHUNK_COUNT,
-    .stageFlags = VK_SHADER_STAGE_MESH_BIT_EXT,
-    .pImmutableSamplers = 0,
-  },
-  {
-    .binding = 3,
-    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-    .descriptorCount = 1,
-    .stageFlags = VK_SHADER_STAGE_MESH_BIT_EXT,
-    .pImmutableSamplers = 0,
-  },
-  {
-    .binding = 4,
-    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-    .descriptorCount = 1,
-    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
     .pImmutableSamplers = 0,
   },
 };
@@ -260,21 +238,14 @@ static VkPushConstantRange const s_vdb_world_generator_push_constant_range[] = {
     .size = sizeof(world_generator_push_constant_t),
   },
 };
-static VkPushConstantRange const s_vdb_iso_renderer_push_constant_range[] = {
-  {
-    .stageFlags = VK_SHADER_STAGE_MESH_BIT_EXT | VK_SHADER_STAGE_FRAGMENT_BIT,
-    .offset = 0,
-    .size = sizeof(iso_renderer_push_constant_t),
-  },
-};
 
-static pipeline_t s_vdb_tile_placer_pipeline = {
+static pipeline_t s_vdb_voxel_placer_pipeline = {
   .pipeline_type = PIPELINE_TYPE_C,
-  .compute_shader = ROOT_DIR "/shader/vdb/tile_placer.comp.spv",
-  .descriptor_pool_size = s_vdb_tile_placer_descriptor_pool_size,
-  .descriptor_pool_size_count = ARRAY_COUNT(s_vdb_tile_placer_descriptor_pool_size),
-  .descriptor_set_layout_binding = s_vdb_tile_placer_descriptor_set_layout_binding,
-  .descriptor_set_layout_binding_count = ARRAY_COUNT(s_vdb_tile_placer_descriptor_set_layout_binding),
+  .compute_shader = ROOT_DIR "/shader/vdb/voxel_placer.comp.spv",
+  .descriptor_pool_size = s_vdb_voxel_placer_descriptor_pool_size,
+  .descriptor_pool_size_count = ARRAY_COUNT(s_vdb_voxel_placer_descriptor_pool_size),
+  .descriptor_set_layout_binding = s_vdb_voxel_placer_descriptor_set_layout_binding,
+  .descriptor_set_layout_binding_count = ARRAY_COUNT(s_vdb_voxel_placer_descriptor_set_layout_binding),
 };
 static pipeline_t s_vdb_world_generator_pipeline = {
   .pipeline_type = PIPELINE_TYPE_C,
@@ -286,23 +257,24 @@ static pipeline_t s_vdb_world_generator_pipeline = {
   .descriptor_set_layout_binding = s_vdb_world_generator_descriptor_set_layout_binding,
   .descriptor_set_layout_binding_count = ARRAY_COUNT(s_vdb_world_generator_descriptor_set_layout_binding),
 };
-static pipeline_t s_vdb_iso_renderer_pipeline = {
-  .pipeline_type = PIPELINE_TYPE_TMF,
-  .task_shader = ROOT_DIR "/shader/vdb/iso_renderer.task.spv",
-  .mesh_shader = ROOT_DIR "/shader/vdb/iso_renderer.mesh.spv",
-  .fragment_shader = ROOT_DIR "/shader/vdb/iso_renderer.frag.spv",
-  .push_constant_range = s_vdb_iso_renderer_push_constant_range,
-  .push_constant_range_count = ARRAY_COUNT(s_vdb_iso_renderer_push_constant_range),
-  .descriptor_pool_size = s_vdb_iso_renderer_descriptor_pool_size,
-  .descriptor_pool_size_count = ARRAY_COUNT(s_vdb_iso_renderer_descriptor_pool_size),
-  .descriptor_set_layout_binding = s_vdb_iso_renderer_descriptor_set_layout_binding,
-  .descriptor_set_layout_binding_count = ARRAY_COUNT(s_vdb_iso_renderer_descriptor_set_layout_binding),
+static pipeline_t s_vdb_chunk_renderer_pipeline = {
+  .pipeline_type = PIPELINE_TYPE_VF,
+  .vertex_shader = ROOT_DIR "/shader/vdb/chunk_renderer.vert.spv",
+  .fragment_shader = ROOT_DIR "/shader/vdb/chunk_renderer.frag.spv",
+  .vertex_input_binding_description = s_vdb_chunk_vertex_input_binding_description,
+  .vertex_input_binding_description_count = ARRAY_COUNT(s_vdb_chunk_vertex_input_binding_description),
+  .vertex_input_attribute_description = s_vdb_chunk_vertex_input_attribute_description,
+  .vertex_input_attribute_description_count = ARRAY_COUNT(s_vdb_chunk_vertex_input_attribute_description),
+  .descriptor_pool_size = s_vdb_chunk_renderer_descriptor_pool_size,
+  .descriptor_pool_size_count = ARRAY_COUNT(s_vdb_chunk_renderer_descriptor_pool_size),
+  .descriptor_set_layout_binding = s_vdb_chunk_renderer_descriptor_set_layout_binding,
+  .descriptor_set_layout_binding_count = ARRAY_COUNT(s_vdb_chunk_renderer_descriptor_set_layout_binding),
   .render_pass = &g_renderpass_main,
 };
 static pipeline_t s_debug_line_renderer_pipeline = {
   .pipeline_type = PIPELINE_TYPE_VF,
-  .vertex_shader = ROOT_DIR "/shader/debug/ss_line_renderer.vert.spv",
-  .fragment_shader = ROOT_DIR "/shader/debug/ss_line_renderer.frag.spv",
+  .vertex_shader = ROOT_DIR "/shader/debug/line_renderer.vert.spv",
+  .fragment_shader = ROOT_DIR "/shader/debug/line_renderer.frag.spv",
   .vertex_input_binding_description = s_debug_line_vertex_input_binding_description,
   .vertex_input_binding_description_count = ARRAY_COUNT(s_debug_line_vertex_input_binding_description),
   .vertex_input_attribute_description = s_debug_line_vertex_input_attribute_description,
@@ -351,11 +323,6 @@ static buffer_t s_mouse_info_buffer = {
   .buffer_usage_flags = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
   .memory_property_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 };
-static buffer_t s_player_info_buffer = {
-  .size = sizeof(player_info_t),
-  .buffer_usage_flags = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-  .memory_property_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-};
 static buffer_t s_camera_info_buffer = {
   .size = sizeof(camera_info_t),
   .buffer_usage_flags = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
@@ -381,75 +348,40 @@ static buffer_t s_chunk_info_buffer = {
   .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
   .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 };
-static buffer_t s_tile_lut_buffer = {
-  .host_data = (void *)g_tile_lut,
-  .size = sizeof(g_tile_lut),
-  .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-  .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-};
 
 static image_t *s_chunk_data_image = 0;
-static image_t s_tile_atlas_image = {
-  .width = 512,
-  .height = 512,
-  .depth = 1,
-  .channel = 4,
-  .element_size = sizeof(uint8_t),
-  .format = VK_FORMAT_R8G8B8A8_UNORM,
-  .filter = VK_FILTER_NEAREST,
-  .image_usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT,
-  .image_type = VK_IMAGE_TYPE_2D,
-  .image_view_type = VK_IMAGE_VIEW_TYPE_2D,
-  .image_aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
-  .image_tiling = VK_IMAGE_TILING_OPTIMAL,
-};
 
 static VkDescriptorBufferInfo s_time_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_screen_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_mouse_info_descriptor_buffer_info = {0};
-static VkDescriptorBufferInfo s_player_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_camera_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_cluster_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_place_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_chunk_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_place_result_descriptor_buffer_info = {0};
-static VkDescriptorBufferInfo s_tile_lut_descriptor_buffer_info = {0};
 
 static VkDescriptorImageInfo *s_chunk_data_descriptor_image_info = 0;
-static VkDescriptorImageInfo s_tile_atlas_descriptor_image_info = {0};
 
 void renderer_create(void) {
   g_renderer.is_debug_enabled = 1;
   g_renderer.rebuild_world = 1;
-  // TODO
-  g_renderer.vertex_offset_0.x = 1000.0F;
-  g_renderer.vertex_offset_0.y = 600.0F;
-  g_renderer.tile_size = 16.0F;
-  g_renderer.tile_height = 8.0F;
-  g_renderer.inner_scale = 64.0F;
-  g_renderer.outer_scale = 64.0F;
-  g_renderer.rotation.x = 0.0F;
-  g_renderer.rotation.y = 45.0F;
-  g_renderer.rotation.z = 180.0F;
 
   renderer_create_sync_object();
   renderer_create_coherent_buffer();
   renderer_create_debug_line_buffer();
   renderer_create_full_screen_buffer();
   renderer_create_chunk_info_buffer();
-  renderer_create_tile_lut_buffer();
 
   renderer_create_chunk_data_image();
-  renderer_create_tile_atlas_image();
 
-  pipeline_create(&s_vdb_tile_placer_pipeline);
+  pipeline_create(&s_vdb_voxel_placer_pipeline);
   pipeline_create(&s_vdb_world_generator_pipeline);
-  pipeline_create(&s_vdb_iso_renderer_pipeline);
+  pipeline_create(&s_vdb_chunk_renderer_pipeline);
   pipeline_create(&s_debug_line_renderer_pipeline);
 
-  renderer_update_vdb_tile_placer_descriptor_set();
+  renderer_update_vdb_voxel_placer_descriptor_set();
   renderer_update_vdb_world_generator_descriptor_set();
-  renderer_update_vdb_iso_renderer_descriptor_set();
+  renderer_update_vdb_chunk_renderer_descriptor_set();
   renderer_update_debug_line_descriptor_set();
 }
 void renderer_draw(void) {
@@ -587,9 +519,9 @@ void renderer_draw(void) {
   }
 }
 void renderer_destroy(void) {
-  pipeline_destroy(&s_vdb_tile_placer_pipeline);
+  pipeline_destroy(&s_vdb_voxel_placer_pipeline);
   pipeline_destroy(&s_vdb_world_generator_pipeline);
-  pipeline_destroy(&s_vdb_iso_renderer_pipeline);
+  pipeline_destroy(&s_vdb_chunk_renderer_pipeline);
   pipeline_destroy(&s_debug_line_renderer_pipeline);
 
   renderer_destroy_sync_object();
@@ -597,7 +529,7 @@ void renderer_destroy(void) {
   renderer_destroy_image();
 }
 
-void renderer_draw_debug_line(vector2_t from, vector2_t to, vector4_t color) {
+void renderer_draw_debug_line(vector3_t from, vector3_t to, vector4_t color) {
   if (g_renderer.is_debug_enabled) {
 
     uint32_t vertex_offset = s_debug_line_vertex_offset;
@@ -623,7 +555,7 @@ void renderer_draw_debug_line(vector2_t from, vector2_t to, vector4_t color) {
     }
   }
 }
-void renderer_draw_debug_box(vector2_t position, vector2_t size, vector4_t color) {
+void renderer_draw_debug_box(vector3_t position, vector3_t size, vector4_t color) {
   if (g_renderer.is_debug_enabled) {
 
     uint32_t vertex_offset = s_debug_line_vertex_offset;
@@ -635,14 +567,14 @@ void renderer_draw_debug_box(vector2_t position, vector2_t size, vector4_t color
       debug_line_vertex_t *vertices = (debug_line_vertex_t *)s_debug_line_vertex_buffer.device_data;
       debug_line_index_t *indices = (debug_line_index_t *)s_debug_line_index_buffer.device_data;
 
-      vertices[vertex_offset + 0].position = (vector2_t){position.x, position.y};
-      vertices[vertex_offset + 1].position = (vector2_t){position.x, position.y + size.y};
-      vertices[vertex_offset + 2].position = (vector2_t){position.x + size.x, position.y};
-      vertices[vertex_offset + 3].position = (vector2_t){position.x + size.x, position.y + size.y};
-      vertices[vertex_offset + 4].position = (vector2_t){position.x, position.y};
-      vertices[vertex_offset + 5].position = (vector2_t){position.x, position.y + size.y};
-      vertices[vertex_offset + 6].position = (vector2_t){position.x + size.x, position.y};
-      vertices[vertex_offset + 7].position = (vector2_t){position.x + size.x, position.y + size.y};
+      vertices[vertex_offset + 0].position = (vector3_t){position.x, position.y, position.z};
+      vertices[vertex_offset + 1].position = (vector3_t){position.x, position.y + size.y, position.z};
+      vertices[vertex_offset + 2].position = (vector3_t){position.x + size.x, position.y, position.z};
+      vertices[vertex_offset + 3].position = (vector3_t){position.x + size.x, position.y + size.y, position.z};
+      vertices[vertex_offset + 4].position = (vector3_t){position.x, position.y, position.z + size.z};
+      vertices[vertex_offset + 5].position = (vector3_t){position.x, position.y + size.y, position.z + size.z};
+      vertices[vertex_offset + 6].position = (vector3_t){position.x + size.x, position.y, position.z + size.z};
+      vertices[vertex_offset + 7].position = (vector3_t){position.x + size.x, position.y + size.y, position.z + size.z};
 
       vertices[vertex_offset + 0].color = color;
       vertices[vertex_offset + 1].color = color;
@@ -661,9 +593,25 @@ void renderer_draw_debug_box(vector2_t position, vector2_t size, vector4_t color
       indices[index_offset + 5] = (debug_line_index_t)(vertex_offset + 2);
       indices[index_offset + 6] = (debug_line_index_t)(vertex_offset + 2);
       indices[index_offset + 7] = (debug_line_index_t)(vertex_offset + 0);
+      indices[index_offset + 8] = (debug_line_index_t)(vertex_offset + 4);
+      indices[index_offset + 9] = (debug_line_index_t)(vertex_offset + 5);
+      indices[index_offset + 10] = (debug_line_index_t)(vertex_offset + 5);
+      indices[index_offset + 11] = (debug_line_index_t)(vertex_offset + 7);
+      indices[index_offset + 12] = (debug_line_index_t)(vertex_offset + 7);
+      indices[index_offset + 13] = (debug_line_index_t)(vertex_offset + 6);
+      indices[index_offset + 14] = (debug_line_index_t)(vertex_offset + 6);
+      indices[index_offset + 15] = (debug_line_index_t)(vertex_offset + 4);
+      indices[index_offset + 16] = (debug_line_index_t)(vertex_offset + 0);
+      indices[index_offset + 17] = (debug_line_index_t)(vertex_offset + 4);
+      indices[index_offset + 18] = (debug_line_index_t)(vertex_offset + 1);
+      indices[index_offset + 19] = (debug_line_index_t)(vertex_offset + 5);
+      indices[index_offset + 20] = (debug_line_index_t)(vertex_offset + 2);
+      indices[index_offset + 21] = (debug_line_index_t)(vertex_offset + 6);
+      indices[index_offset + 22] = (debug_line_index_t)(vertex_offset + 3);
+      indices[index_offset + 23] = (debug_line_index_t)(vertex_offset + 7);
 
-      s_debug_line_vertex_offset += 4;
-      s_debug_line_index_offset += 8;
+      s_debug_line_vertex_offset += 8;
+      s_debug_line_index_offset += 24;
     }
   }
 }
@@ -696,7 +644,6 @@ static void renderer_create_coherent_buffer(void) {
   buffer_create(&s_time_info_buffer);
   buffer_create(&s_screen_info_buffer);
   buffer_create(&s_mouse_info_buffer);
-  buffer_create(&s_player_info_buffer);
   buffer_create(&s_camera_info_buffer);
   buffer_create(&s_cluster_info_buffer);
   buffer_create(&s_place_info_buffer);
@@ -705,7 +652,6 @@ static void renderer_create_coherent_buffer(void) {
   buffer_map(&s_time_info_buffer);
   buffer_map(&s_screen_info_buffer);
   buffer_map(&s_mouse_info_buffer);
-  buffer_map(&s_player_info_buffer);
   buffer_map(&s_camera_info_buffer);
   buffer_map(&s_cluster_info_buffer);
   buffer_map(&s_place_info_buffer);
@@ -714,10 +660,10 @@ static void renderer_create_coherent_buffer(void) {
   g_renderer.time_info = (time_info_t *)s_time_info_buffer.device_data;
   g_renderer.screen_info = (screen_info_t *)s_screen_info_buffer.device_data;
   g_renderer.mouse_info = (mouse_info_t *)s_mouse_info_buffer.device_data;
-  g_renderer.player_info = (player_info_t *)s_player_info_buffer.device_data;
   g_renderer.camera_info = (camera_info_t *)s_camera_info_buffer.device_data;
   g_renderer.cluster_info = (cluster_info_t *)s_cluster_info_buffer.device_data;
   g_renderer.place_info = (place_info_t *)s_place_info_buffer.device_data;
+  g_renderer.place_result = (place_result_t *)s_place_result_buffer.device_data;
 
   s_time_info_descriptor_buffer_info.offset = 0;
   s_time_info_descriptor_buffer_info.buffer = s_time_info_buffer.buffer_handle;
@@ -730,10 +676,6 @@ static void renderer_create_coherent_buffer(void) {
   s_mouse_info_descriptor_buffer_info.offset = 0;
   s_mouse_info_descriptor_buffer_info.buffer = s_mouse_info_buffer.buffer_handle;
   s_mouse_info_descriptor_buffer_info.range = VK_WHOLE_SIZE;
-
-  s_player_info_descriptor_buffer_info.offset = 0;
-  s_player_info_descriptor_buffer_info.buffer = s_player_info_buffer.buffer_handle;
-  s_player_info_descriptor_buffer_info.range = VK_WHOLE_SIZE;
 
   s_camera_info_descriptor_buffer_info.offset = 0;
   s_camera_info_descriptor_buffer_info.buffer = s_camera_info_buffer.buffer_handle;
@@ -788,13 +730,6 @@ static void renderer_create_chunk_info_buffer(void) {
   s_chunk_info_descriptor_buffer_info.buffer = s_chunk_info_buffer.buffer_handle;
   s_chunk_info_descriptor_buffer_info.range = VK_WHOLE_SIZE;
 }
-static void renderer_create_tile_lut_buffer(void) {
-  buffer_create(&s_tile_lut_buffer);
-
-  s_tile_lut_descriptor_buffer_info.offset = 0;
-  s_tile_lut_descriptor_buffer_info.buffer = s_tile_lut_buffer.buffer_handle;
-  s_tile_lut_descriptor_buffer_info.range = VK_WHOLE_SIZE;
-}
 
 static void renderer_create_chunk_data_image(void) {
   s_chunk_data_image = (image_t *)HEAP_ALLOC(sizeof(image_t) * CHUNK_COUNT, 1, 0);
@@ -827,28 +762,13 @@ static void renderer_create_chunk_data_image(void) {
     chunk_index++;
   }
 }
-static void renderer_create_tile_atlas_image(void) {
-  uint8_t *image = imgutil_load_image_from_file(0, 0, 0, ROOT_DIR "/asset/terrain.png");
 
-  s_tile_atlas_image.host_data = image;
-
-  image_create(&s_tile_atlas_image);
-
-  s_tile_atlas_image.host_data = 0;
-
-  imgutil_free_image(image);
-
-  s_tile_atlas_descriptor_image_info.sampler = s_tile_atlas_image.sampler;
-  s_tile_atlas_descriptor_image_info.imageView = s_tile_atlas_image.image_view;
-  s_tile_atlas_descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-}
-
-static void renderer_update_vdb_tile_placer_descriptor_set(void) {
+static void renderer_update_vdb_voxel_placer_descriptor_set(void) {
   VkWriteDescriptorSet write_descriptor_set[] = {
     {
       .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
       .pNext = 0,
-      .dstSet = s_vdb_tile_placer_pipeline.descriptor_set,
+      .dstSet = s_vdb_voxel_placer_pipeline.descriptor_set,
       .dstBinding = 0,
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -860,7 +780,7 @@ static void renderer_update_vdb_tile_placer_descriptor_set(void) {
     {
       .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
       .pNext = 0,
-      .dstSet = s_vdb_tile_placer_pipeline.descriptor_set,
+      .dstSet = s_vdb_voxel_placer_pipeline.descriptor_set,
       .dstBinding = 1,
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -872,7 +792,7 @@ static void renderer_update_vdb_tile_placer_descriptor_set(void) {
     {
       .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
       .pNext = 0,
-      .dstSet = s_vdb_tile_placer_pipeline.descriptor_set,
+      .dstSet = s_vdb_voxel_placer_pipeline.descriptor_set,
       .dstBinding = 2,
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
@@ -884,19 +804,7 @@ static void renderer_update_vdb_tile_placer_descriptor_set(void) {
     {
       .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
       .pNext = 0,
-      .dstSet = s_vdb_tile_placer_pipeline.descriptor_set,
-      .dstBinding = 3,
-      .dstArrayElement = 0,
-      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-      .descriptorCount = 1,
-      .pImageInfo = 0,
-      .pBufferInfo = &s_tile_lut_descriptor_buffer_info,
-      .pTexelBufferView = 0,
-    },
-    {
-      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-      .pNext = 0,
-      .dstSet = s_vdb_tile_placer_pipeline.descriptor_set,
+      .dstSet = s_vdb_voxel_placer_pipeline.descriptor_set,
       .dstBinding = 4,
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -951,66 +859,18 @@ static void renderer_update_vdb_world_generator_descriptor_set(void) {
 
   vkUpdateDescriptorSets(g_window.device, ARRAY_COUNT(write_descriptor_set), write_descriptor_set, 0, 0);
 }
-static void renderer_update_vdb_iso_renderer_descriptor_set(void) {
+static void renderer_update_vdb_chunk_renderer_descriptor_set(void) {
   VkWriteDescriptorSet write_descriptor_set[] = {
     {
       .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
       .pNext = 0,
-      .dstSet = s_vdb_iso_renderer_pipeline.descriptor_set,
+      .dstSet = s_vdb_chunk_renderer_pipeline.descriptor_set,
       .dstBinding = 0,
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
       .descriptorCount = 1,
       .pImageInfo = 0,
       .pBufferInfo = &s_camera_info_descriptor_buffer_info,
-      .pTexelBufferView = 0,
-    },
-    {
-      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-      .pNext = 0,
-      .dstSet = s_vdb_iso_renderer_pipeline.descriptor_set,
-      .dstBinding = 1,
-      .dstArrayElement = 0,
-      .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-      .descriptorCount = 1,
-      .pImageInfo = 0,
-      .pBufferInfo = &s_screen_info_descriptor_buffer_info,
-      .pTexelBufferView = 0,
-    },
-    {
-      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-      .pNext = 0,
-      .dstSet = s_vdb_iso_renderer_pipeline.descriptor_set,
-      .dstBinding = 2,
-      .dstArrayElement = 0,
-      .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-      .descriptorCount = CHUNK_COUNT,
-      .pImageInfo = s_chunk_data_descriptor_image_info,
-      .pBufferInfo = 0,
-      .pTexelBufferView = 0,
-    },
-    {
-      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-      .pNext = 0,
-      .dstSet = s_vdb_iso_renderer_pipeline.descriptor_set,
-      .dstBinding = 3,
-      .dstArrayElement = 0,
-      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-      .descriptorCount = 1,
-      .pImageInfo = 0,
-      .pBufferInfo = &s_tile_lut_descriptor_buffer_info,
-      .pTexelBufferView = 0,
-    },
-    {
-      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-      .pNext = 0,
-      .dstSet = s_vdb_iso_renderer_pipeline.descriptor_set,
-      .dstBinding = 4,
-      .dstArrayElement = 0,
-      .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-      .descriptorCount = 1,
-      .pImageInfo = &s_tile_atlas_descriptor_image_info,
-      .pBufferInfo = 0,
       .pTexelBufferView = 0,
     },
   };
@@ -1028,7 +888,7 @@ static void renderer_update_debug_line_descriptor_set(void) {
       .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
       .descriptorCount = 1,
       .pImageInfo = 0,
-      .pBufferInfo = &s_screen_info_descriptor_buffer_info,
+      .pBufferInfo = &s_camera_info_descriptor_buffer_info,
       .pTexelBufferView = 0,
     },
   };
@@ -1044,15 +904,16 @@ static void renderer_update_coherent_buffer(void) {
 
   g_renderer.mouse_info->position = (ivector2_t){g_window.mouse_position_x, g_window.mouse_position_y};
 
-  g_renderer.player_info->position = g_player.position;
-
-  // g_renderer.camera_info->position = ; // TODO
-  g_renderer.camera_info->zoom = g_player.camera_zoom;
+  g_renderer.camera_info->position = g_player.transform.world_position;
+  g_renderer.camera_info->view = g_player.camera.view;
+  g_renderer.camera_info->projection = g_player.camera.projection;
+  g_renderer.camera_info->view_projection = g_player.camera.view_projection;
+  g_renderer.camera_info->view_projection_inv = g_player.camera.view_projection_inv;
 
   g_renderer.cluster_info->dimension = (ivector2_t){CLUSTER_DIM_X, CLUSTER_DIM_Y};
 
-  g_renderer.place_info->tile_position = g_player.tile_position;
-  g_renderer.place_info->tile_id = g_player.tile_id;
+  g_renderer.place_info->voxel_position = (ivector3_t){0, 0, 0};
+  g_renderer.place_info->voxel_id = 0;
 }
 
 static void renderer_generate_world(void) {
@@ -1144,11 +1005,11 @@ static void renderer_generate_world(void) {
     chunk_index++;
   }
 }
-static void renderer_place_tile(void) {
+static void renderer_place_voxel(void) {
   int32_t group_count = 1;
 
-  vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_vdb_tile_placer_pipeline.pipeline_handle);
-  vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_vdb_tile_placer_pipeline.pipeline_layout, 0, 1, &s_vdb_tile_placer_pipeline.descriptor_set, 0, 0);
+  vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_vdb_voxel_placer_pipeline.pipeline_handle);
+  vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_vdb_voxel_placer_pipeline.pipeline_layout, 0, 1, &s_vdb_voxel_placer_pipeline.descriptor_set, 0, 0);
   vkCmdDispatch(g_window.command_buffer, group_count, group_count, group_count);
 
   VkImageMemoryBarrier image_memory_barrier = {
@@ -1192,11 +1053,9 @@ static void renderer_record_compute_pass(void) {
 
   if (window_is_mouse_key_held(MOUSE_KEY_RIGHT)) {
 
-    renderer_place_tile();
+    renderer_place_voxel();
 
-    place_result_t *place_result = (place_result_t *)s_place_result_buffer.device_data;
-
-    printf("[%d, %d, %d] Obstructed %d\n", g_player.tile_position.x, g_player.tile_position.y, g_player.tile_position.z, place_result->is_obstructed);
+    // printf("[%d, %d, %d] Obstructed %d\n", g_player.voxel_position.x, g_player.voxel_position.y, g_player.voxel_position.z, place_result->is_obstructed);
   }
 }
 static void renderer_record_main_pass(void) {
@@ -1262,24 +1121,11 @@ static void renderer_record_main_pass(void) {
   vkCmdSetScissor(g_window.command_buffer, 0, 1, &scissor);
 
   {
-    int32_t group_count = 1;
+    // TODO: make loop over all chunks..
 
-    iso_renderer_push_constant_t iso_renderer_push_constant = {
-      .vertex_offset_0 = g_renderer.vertex_offset_0,
-      .vertex_offset_1 = g_renderer.vertex_offset_1,
-      .vertex_offset_2 = g_renderer.vertex_offset_2,
-      .vertex_offset_3 = g_renderer.vertex_offset_3,
-      .rotation = g_renderer.rotation,
-      .tile_size = g_renderer.tile_size,
-      .tile_height = g_renderer.tile_height,
-      .inner_scale = g_renderer.inner_scale,
-      .outer_scale = g_renderer.outer_scale,
-    };
-
-    vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_vdb_iso_renderer_pipeline.pipeline_handle);
-    vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_vdb_iso_renderer_pipeline.pipeline_layout, 0, 1, &s_vdb_iso_renderer_pipeline.descriptor_set, 0, 0);
-    vkCmdPushConstants(g_window.command_buffer, s_vdb_iso_renderer_pipeline.pipeline_layout, VK_SHADER_STAGE_MESH_BIT_EXT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(iso_renderer_push_constant_t), &iso_renderer_push_constant);
-    vkCmdDrawMeshTasks(g_window.command_buffer, group_count, group_count, group_count);
+    vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_vdb_chunk_renderer_pipeline.pipeline_handle);
+    vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_vdb_chunk_renderer_pipeline.pipeline_layout, 0, 1, &s_vdb_chunk_renderer_pipeline.descriptor_set, 0, 0);
+    // vkCmdDrawIndexed(g_window.command_buffer, s_debug_line_index_offset, 1, 0, 0, 0);
   }
 
   if (g_renderer.is_debug_enabled) {
@@ -1324,13 +1170,11 @@ static void renderer_destroy_buffer(void) {
   buffer_destroy(&s_time_info_buffer);
   buffer_destroy(&s_screen_info_buffer);
   buffer_destroy(&s_mouse_info_buffer);
-  buffer_destroy(&s_player_info_buffer);
   buffer_destroy(&s_camera_info_buffer);
   buffer_destroy(&s_cluster_info_buffer);
   buffer_destroy(&s_place_info_buffer);
   buffer_destroy(&s_place_result_buffer);
   buffer_destroy(&s_chunk_info_buffer);
-  buffer_destroy(&s_tile_lut_buffer);
 }
 static void renderer_destroy_image(void) {
   int32_t chunk_index = 0;
@@ -1345,6 +1189,4 @@ static void renderer_destroy_image(void) {
 
   HEAP_FREE(s_chunk_data_image);
   HEAP_FREE(s_chunk_data_descriptor_image_info);
-
-  image_destroy(&s_tile_atlas_image);
 }

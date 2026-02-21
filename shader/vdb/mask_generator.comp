@@ -1,0 +1,112 @@
+#version 460 core
+
+#extension GL_ARB_shading_language_include : require
+#extension GL_EXT_nonuniform_qualifier : require
+
+#include "../noise/cellular.glsl"
+#include "../noise/curl.glsl"
+#include "../noise/fbm.glsl"
+#include "../noise/gradient.glsl"
+#include "../noise/perlin.glsl"
+#include "../noise/simplex.glsl"
+
+#include "../vdb/common.glsl"
+
+layout (
+	local_size_x = 8,
+	local_size_y = 8,
+	local_size_z = 8
+) in;
+
+layout (binding = 1) writeonly buffer chunk_mask_buffer_t {
+	chunk_mask_t chunk_mask[];
+} chunk_mask_buffer;
+
+layout (push_constant) uniform push_constant_t {
+	ivec3 chunk_position;
+	uint chunk_index;
+} pc;
+
+float default_terrain_density(vec3 sample_position, float ground_level, float cluster_height) {
+	float density = 0.0;
+
+	density += noise_cellular_t1((sample_position + vec3(131.0, 11.0, 141.0)) * 0.115, 2.9, 0.3) * 2.44;
+	density += noise_curl_t1((sample_position + vec3(887.0, 358.0, 262.0)) * 0.006).x * 14.13;
+	density += noise_curl_t1((sample_position + vec3(32.0, 288.0, 204.0)) * 0.045).x * 2.04;
+
+	float norm_y = sample_position.y / cluster_height;
+	float height_thresh = ground_level / cluster_height;
+
+	float blend = 1.0 - smoothstep(height_thresh - 0.4, height_thresh + 0.2, norm_y);
+
+	density *= blend;
+
+	//density = soft_terrace(density, 5, 10.0);
+
+	return density;
+}
+
+void main() {
+	ivec3 chunk_position = pc.chunk_position;
+	ivec3 voxel_position = ivec3(gl_GlobalInvocationID) - ivec3(1);
+
+	if (any(lessThan(voxel_position, ivec3(-1))) || any(greaterThan(voxel_position, ivec3(CHUNK_SIZE)))) { // TODO: greater or equal..?
+		return;
+	}
+
+	ivec3 sample_position = chunk_position + voxel_position;
+
+	float cluster_height = float(CHUNK_SIZE);
+	float ground_level = cluster_height / 2;
+
+	float d  = default_terrain_density(sample_position, ground_level, cluster_height);
+
+	if (d <= SURFACE_THRESHOLD) {
+		return;
+	}
+
+	float dxp = default_terrain_density(sample_position + vec3(1,0,0), ground_level, cluster_height);
+	float dxn = default_terrain_density(sample_position + vec3(-1,0,0), ground_level, cluster_height);
+	float dyp = default_terrain_density(sample_position + vec3(0,1,0), ground_level, cluster_height);
+	float dyn = default_terrain_density(sample_position + vec3(0,-1,0), ground_level, cluster_height);
+	float dzp = default_terrain_density(sample_position + vec3(0,0,1), ground_level, cluster_height);
+	float dzn = default_terrain_density(sample_position + vec3(0,0,-1), ground_level, cluster_height);
+
+	uint x = uint(clamp(voxel_position.x, 0, CHUNK_SIZE - 1));
+	uint y = uint(clamp(voxel_position.y, 0, CHUNK_SIZE - 1));
+	uint z = uint(clamp(voxel_position.z, 0, CHUNK_SIZE - 1));
+
+	uint idx_yz = 1u + y + z * CHUNK_SIZE;
+	uint idx_xz = 1u + x + z * CHUNK_SIZE;
+	uint idx_xy = 1u + x + y * CHUNK_SIZE;
+
+	if (dxp <= SURFACE_THRESHOLD) {
+		atomicOr(chunk_mask_buffer.chunk_mask[0].px_mask[idx_yz], 1u << x);
+		atomicOr(chunk_mask_buffer.chunk_mask[0].any_px_faces, 1u << x);
+	}
+
+	if (dxn <= SURFACE_THRESHOLD) {
+		atomicOr(chunk_mask_buffer.chunk_mask[0].nx_mask[idx_yz], 1u << x);
+		atomicOr(chunk_mask_buffer.chunk_mask[0].any_nx_faces, 1u << x);
+	}
+
+	if (dyp <= SURFACE_THRESHOLD) {
+		atomicOr(chunk_mask_buffer.chunk_mask[0].py_mask[idx_xz], 1u << y);
+		atomicOr(chunk_mask_buffer.chunk_mask[0].any_py_faces, 1u << y);
+	}
+
+	if (dyn <= SURFACE_THRESHOLD) {
+		atomicOr(chunk_mask_buffer.chunk_mask[0].ny_mask[idx_xz], 1u << y);
+		atomicOr(chunk_mask_buffer.chunk_mask[0].any_ny_faces, 1u << y);
+	}
+
+	if (dzp <= SURFACE_THRESHOLD) {
+		atomicOr(chunk_mask_buffer.chunk_mask[0].pz_mask[idx_xy], 1u << z);
+		atomicOr(chunk_mask_buffer.chunk_mask[0].any_pz_faces, 1u << z);
+	}
+
+	if (dzn <= SURFACE_THRESHOLD) {
+		atomicOr(chunk_mask_buffer.chunk_mask[0].nz_mask[idx_xy], 1u << z);
+		atomicOr(chunk_mask_buffer.chunk_mask[0].any_nz_faces, 1u << z);
+	}
+}
