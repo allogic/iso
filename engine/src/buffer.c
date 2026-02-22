@@ -80,6 +80,11 @@ void buffer_create(buffer_t *buffer) {
 
   VK_CHECK(vkBeginCommandBuffer(g_window.command_buffer, &command_buffer_begin_info));
 
+  if (buffer->zero_data) {
+
+    vkCmdFillBuffer(g_window.command_buffer, buffer->buffer_handle, 0, buffer->size, 0);
+  }
+
   VkBufferCopy buffer_copy = {
     .srcOffset = 0,
     .dstOffset = 0,

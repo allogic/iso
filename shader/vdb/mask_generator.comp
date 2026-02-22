@@ -3,19 +3,12 @@
 #extension GL_ARB_shading_language_include : require
 #extension GL_EXT_nonuniform_qualifier : require
 
-#include "../noise/cellular.glsl"
-#include "../noise/curl.glsl"
-#include "../noise/fbm.glsl"
-#include "../noise/gradient.glsl"
-#include "../noise/perlin.glsl"
-#include "../noise/simplex.glsl"
-
 #include "../vdb/common.glsl"
 
 layout (
-	local_size_x = 8,
-	local_size_y = 8,
-	local_size_z = 8
+	local_size_x = 1,
+	local_size_y = 1,
+	local_size_z = 1
 ) in;
 
 layout (binding = 0, r32ui) uniform uimage3D chunk_data[];
@@ -30,21 +23,6 @@ layout (push_constant) uniform push_constant_t {
 
 uint get_voxel(ivec3 chunk_position, ivec3 voxel_position) {
 	uint voxel = EMPTY_VOXEL;
-
-	if (voxel_position.x < 0) {
-		chunk_position.x--;
-		voxel_position.x = CHUNK_SIZE - 1;
-	}
-
-	if (voxel_position.y < 0) {
-		chunk_position.y--;
-		voxel_position.y = CHUNK_SIZE - 1;
-	}
-
-	if (voxel_position.z < 0) {
-		chunk_position.z--;
-		voxel_position.z = CHUNK_SIZE - 1;
-	}
 
 	if (voxel_position.x >= CHUNK_SIZE) {
 		chunk_position.x++;
@@ -61,7 +39,7 @@ uint get_voxel(ivec3 chunk_position, ivec3 voxel_position) {
 		voxel_position.z = 0;
 	}
 
-	if (all(greaterThanEqual(chunk_position, ivec3(0))) && all(lessThan(chunk_position, ivec3(CLUSTER_DIM_X, CLUSTER_DIM_Y, CLUSTER_DIM_Z)))) {
+	if (all(lessThan(chunk_position, CLUSTER_SIZE))) {
 		
 		uint chunk_index = (chunk_position.x) + (chunk_position.y * CLUSTER_DIM_X) + (chunk_position.z * CLUSTER_DIM_X * CLUSTER_DIM_Y);
 
@@ -72,67 +50,44 @@ uint get_voxel(ivec3 chunk_position, ivec3 voxel_position) {
 }
 
 void main() {
-	ivec3 chunk_position = pc.chunk_position;
-	ivec3 voxel_position = ivec3(gl_GlobalInvocationID) - ivec3(1);
+	uint slice = gl_GlobalInvocationID.x;
+	uint row = gl_GlobalInvocationID.y;
+	uint face = gl_GlobalInvocationID.z;
 
-	if (any(lessThan(voxel_position, ivec3(-1))) || any(greaterThan(voxel_position, ivec3(CHUNK_SIZE)))) {
-		return;
+	uint mask = 0u;
+
+	for (uint bit = 0; bit < CHUNK_SIZE; bit++) {
+
+		ivec3 p, n;
+
+		switch (face) {
+			case FACE_X:
+				p = ivec3(slice, row, bit);
+				n = p + ivec3(1, 0, 0);
+				break;
+			case FACE_Y:
+				p = ivec3(row, slice, bit);
+				n = p + ivec3(0, 1, 0);
+				break;
+			case FACE_Z:
+				p = ivec3(row, bit, slice);
+				n = p + ivec3(0, 0, 1);
+				break;
+		}
+
+		uint v = get_voxel(pc.chunk_position, p);
+		uint vn = get_voxel(pc.chunk_position, n);
+
+		if (VOXEL_IS_SOLID(v) && VOXEL_IS_EMPTY(vn)) {
+			mask |= (1u << bit);
+		}
 	}
 
-	uint v = get_voxel(chunk_position, voxel_position);
+	uint idx = slice * CHUNK_PAD + row;
 
-	if (VOXEL_IS_SOLID(v)) {
-		return;
-	}
-
-	uint vpx = get_voxel(chunk_position, voxel_position + ivec3(1,0,0));
-	uint vnx = get_voxel(chunk_position, voxel_position + ivec3(-1,0,0));
-	uint vpy = get_voxel(chunk_position, voxel_position + ivec3(0,1,0));
-	uint vny = get_voxel(chunk_position, voxel_position + ivec3(0,-1,0));
-	uint vpz = get_voxel(chunk_position, voxel_position + ivec3(0,0,1));
-	uint vnz = get_voxel(chunk_position, voxel_position + ivec3(0,0,-1));
-
-	uint x = uint(voxel_position.x + 1);
-	uint y = uint(voxel_position.y + 1);
-	uint z = uint(voxel_position.z + 1);
-
-	if (x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE) {
-		return;
-	}
-
-	if (VOXEL_IS_SOLID(vpx)) {
-		uint idx = x * CHUNK_PAD + y;
-		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].px_mask[idx], 1u << z);
-		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].any_px_faces, 1u << x);
-	}
-
-	if (VOXEL_IS_SOLID(vnx)) {
-		uint idx = x * CHUNK_PAD + y;
-		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].nx_mask[idx], 1u << z);
-		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].any_nx_faces, 1u << x);
-	}
-
-	if (VOXEL_IS_SOLID(vpy)) {
-		uint idx = y * CHUNK_PAD + x;
-		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].py_mask[idx], 1u << z);
-		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].any_py_faces, 1u << y);
-	}
-
-	if (VOXEL_IS_SOLID(vny)) {
-		uint idx = y * CHUNK_PAD + x;
-		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].ny_mask[idx], 1u << z);
-		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].any_ny_faces, 1u << y);
-	}
-
-	if (VOXEL_IS_SOLID(vpz)) {
-		uint idx = z * CHUNK_PAD + x;
-		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].pz_mask[idx], 1u << y);
-		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].any_pz_faces, 1u << z);
-	}
-
-	if (VOXEL_IS_SOLID(vnz)) {
-		uint idx = z * CHUNK_PAD + x;
-		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].nz_mask[idx], 1u << y);
-		atomicOr(chunk_mask_buffer.chunk_mask[pc.chunk_index].any_nz_faces, 1u << z);
+	switch (face) {
+		case FACE_X: chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_x_mask[idx] = mask; break;
+		case FACE_Y: chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_y_mask[idx] = mask; break;
+		case FACE_Z: chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_z_mask[idx] = mask; break;
 	}
 }

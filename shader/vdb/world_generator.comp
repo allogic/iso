@@ -50,15 +50,15 @@ float default_terrain_density(vec3 sample_position, float ground_level, float cl
 	//	density = 1;
 	//}
 
-	if (sample_position.y < 2) {
+	if (sample_position.y == 0) {
 		density = 1;
 	}
 
-	if (sample_position.x == 10) {
+	if (sample_position.x == 3) {
 		density = 1;
 	}
 
-	if (sample_position.z == 10) {
+	if (sample_position.z == 3) {
 		density = 1;
 	}
 
@@ -72,7 +72,7 @@ float default_terrain_density(vec3 sample_position, float ground_level, float cl
 
 	//density = soft_terrace(density, 5, 10.0);
 
-	return 1 - density;
+	return density;
 }
 
 void stage_0(ivec3 voxel_position) {

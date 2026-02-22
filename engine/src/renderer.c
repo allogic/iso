@@ -1269,7 +1269,6 @@ static void renderer_generate_mask(void) {
 
   mask_generator_push_constant_t mask_generator_push_constant = {0};
 
-  int32_t group_count = MAKE_GROUP_COUNT(CHUNK_PAD, 8);
   int32_t chunk_index = 0;
   int32_t chunk_count = CHUNK_COUNT;
 
@@ -1279,7 +1278,7 @@ static void renderer_generate_mask(void) {
     mask_generator_push_constant.chunk_index = 0;
 
     vkCmdPushConstants(g_window.command_buffer, s_vdb_mask_generator_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(mask_generator_push_constant_t), &mask_generator_push_constant);
-    vkCmdDispatch(g_window.command_buffer, group_count, group_count, group_count);
+    vkCmdDispatch(g_window.command_buffer, CHUNK_SIZE, CHUNK_SIZE, 3);
 
     VkBufferMemoryBarrier buffer_memory_barrier = {
       .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
@@ -1326,7 +1325,7 @@ static void renderer_greedy_mesh(void) {
     greedy_mesher_push_constant.chunk_index = 0;
 
     vkCmdPushConstants(g_window.command_buffer, s_vdb_greedy_mesher_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(greedy_mesher_push_constant_t), &greedy_mesher_push_constant);
-    vkCmdDispatch(g_window.command_buffer, 32, 1, 6); // TODO
+    vkCmdDispatch(g_window.command_buffer, CHUNK_SIZE, 1, 3);
 
     VkBufferMemoryBarrier buffer_memory_barrier[] = {
       {

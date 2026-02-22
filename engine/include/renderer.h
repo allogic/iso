@@ -34,18 +34,12 @@ typedef struct chunk_info_t {
   uint32_t index_count;
 } chunk_info_t;
 typedef struct chunk_mask_t {
-  uint32_t any_px_faces;
-  uint32_t any_nx_faces;
-  uint32_t any_py_faces;
-  uint32_t any_ny_faces;
-  uint32_t any_pz_faces;
-  uint32_t any_nz_faces;
-  uint32_t nx_mask[CHUNK_PAD * CHUNK_PAD];
-  uint32_t px_mask[CHUNK_PAD * CHUNK_PAD];
-  uint32_t py_mask[CHUNK_PAD * CHUNK_PAD];
-  uint32_t ny_mask[CHUNK_PAD * CHUNK_PAD];
-  uint32_t pz_mask[CHUNK_PAD * CHUNK_PAD];
-  uint32_t nz_mask[CHUNK_PAD * CHUNK_PAD];
+  uint32_t any_x_faces;
+  uint32_t any_y_faces;
+  uint32_t any_z_faces;
+  uint32_t opaque_x_mask[CHUNK_PAD * CHUNK_PAD];
+  uint32_t opaque_y_mask[CHUNK_PAD * CHUNK_PAD];
+  uint32_t opaque_z_mask[CHUNK_PAD * CHUNK_PAD];
 } chunk_mask_t;
 typedef struct place_result_t {
   uint32_t is_obstructed;
