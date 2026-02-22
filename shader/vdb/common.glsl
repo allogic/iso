@@ -45,9 +45,9 @@ struct chunk_mask_t {
 	uint any_x_faces; // TODO: implement these..
 	uint any_y_faces;
 	uint any_z_faces;
-	uint opaque_x_mask[CHUNK_PAD * CHUNK_PAD];
-	uint opaque_y_mask[CHUNK_PAD * CHUNK_PAD];
-	uint opaque_z_mask[CHUNK_PAD * CHUNK_PAD];
+	uint opaque_x_mask[CHUNK_SIZE * CHUNK_SIZE];
+	uint opaque_y_mask[CHUNK_SIZE * CHUNK_SIZE];
+	uint opaque_z_mask[CHUNK_SIZE * CHUNK_SIZE];
 };
 
 struct chunk_vertex_t {

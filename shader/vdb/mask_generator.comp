@@ -83,7 +83,7 @@ void main() {
 		}
 	}
 
-	uint idx = (slice + 1) * CHUNK_PAD + row; // TODO: +1
+	uint idx = slice * CHUNK_SIZE + row;
 
 	switch (face) {
 		case FACE_X: chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_x_mask[idx] = mask; break;

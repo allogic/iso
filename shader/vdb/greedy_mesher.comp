@@ -120,7 +120,7 @@ void emit_quad(ivec3 p0, ivec3 p1, ivec3 p2, ivec3 p3, uint face) {
 }
 
 uint load_mask(uint face, uint slice, uint row) {
-	uint idx = (slice + 1) * CHUNK_PAD + row; // TODO: +1
+	uint idx = slice * CHUNK_SIZE + row;
 
 	switch (face) {
 		case FACE_X: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_x_mask[idx];
@@ -142,9 +142,9 @@ ivec3 logical_to_world(uint face, uint slice, uint y, uint z) {
 }
 
 void greedy_merge(uint face, uint slice) {
-	uint rows[CHUNK_PAD];
+	uint rows[CHUNK_SIZE];
 
-	for (uint y = 0; y < CHUNK_PAD; y++) {
+	for (uint y = 0; y < CHUNK_SIZE; y++) {
 		rows[y] = load_mask(face, slice, y);
 	}
 
@@ -152,25 +152,19 @@ void greedy_merge(uint face, uint slice) {
 
 		uint row = rows[y];
 
-		//if (face == FACE_PZ) {
-		//	row |= (1u << 0);                 // clear boundary at 0
-		//	row |= (1u << (CHUNK_SIZE-1));    // clear boundary at CHUNK_SIZE
-		//}
-
-		//row &= ~(1u << 0);                 // clear boundary at 0
-		//row &= ~(1u << (CHUNK_SIZE-1));    // clear boundary at CHUNK_SIZE
-
 		while (row != 0) {
 
 			uint z0 = findLSB(row);
 
 			uint z1 = z0;
-			while (z1 + 1 <= CHUNK_SIZE && ((row >> (z1 + 1)) & 1u) == 1u) {
+			while (z1 + 1 < CHUNK_SIZE && ((row >> (z1 + 1)) & 1u) == 1u) {
 				z1++;
 			}
 
 			uint width = z1 - z0 + 1;
-			uint width_mask = ((1u << width) - 1u) << z0;
+			uint width_mask = (width == 32)
+				? 0xFFFFFFFFu
+				: ((1u << width) - 1u) << z0;
 
 			uint y1 = y;
 			while (y1 + 1 < CHUNK_SIZE && (rows[y1 + 1] & width_mask) == width_mask) {
