@@ -164,6 +164,11 @@ void window_run(void) {
       (vector4_t){1.0F, 1.0F, 1.0F, 1.0F});
 
     renderer_draw_debug_box(
+      (vector3_t){0.0F, 0.0F, 0.0F},
+      (vector3_t){(float)CHUNK_SIZE * CLUSTER_DIM_X, (float)CHUNK_SIZE * CLUSTER_DIM_Y, (float)CHUNK_SIZE * CLUSTER_DIM_Z},
+      (vector4_t){1.0F, 1.0F, 1.0F, 1.0F});
+
+    renderer_draw_debug_box(
       (vector3_t){0.0F, 1.0F, 0.0F},
       (vector3_t){(float)CHUNK_SIZE, 0.0F, (float)CHUNK_SIZE},
       (vector4_t){1.0F, 1.0F, 1.0F, 1.0F});

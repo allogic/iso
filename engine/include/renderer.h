@@ -87,6 +87,10 @@ typedef struct greedy_mesher_push_constant_t {
   ivector3_t chunk_position;
   uint32_t chunk_index;
 } greedy_mesher_push_constant_t;
+typedef struct chunk_renderer_push_constant_t {
+  ivector3_t chunk_position;
+  uint32_t chunk_index;
+} chunk_renderer_push_constant_t;
 
 STATIC_ASSERT(ALIGNOF(world_generator_push_constant_t) == 4);
 STATIC_ASSERT(ALIGNOF(mask_generator_push_constant_t) == 4);

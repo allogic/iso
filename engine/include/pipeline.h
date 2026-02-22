@@ -22,8 +22,10 @@ typedef struct pipeline_t {
   uint32_t push_constant_range_count;
   uint32_t descriptor_pool_size_count;
   uint32_t descriptor_set_layout_binding_count;
+  uint32_t descriptor_set_count;
   VkPrimitiveTopology primitive_topology;
   VkPolygonMode polygon_mode;
+  VkCullModeFlags cull_mode;
   VkVertexInputBindingDescription const *vertex_input_binding_description;
   VkVertexInputAttributeDescription const *vertex_input_attribute_description;
   VkPushConstantRange const *push_constant_range;
@@ -31,8 +33,9 @@ typedef struct pipeline_t {
   VkDescriptorSetLayoutBinding const *descriptor_set_layout_binding;
   VkRenderPass *render_pass;
   VkDescriptorPool descriptor_pool;
-  VkDescriptorSetLayout descriptor_set_layout;
-  VkDescriptorSet descriptor_set;
+  VkDescriptorSetLayout descriptor_set_layout_base;
+  VkDescriptorSetLayout *descriptor_set_layout;
+  VkDescriptorSet *descriptor_set;
   VkPipelineLayout pipeline_layout;
   VkPipeline pipeline_handle;
 } pipeline_t;

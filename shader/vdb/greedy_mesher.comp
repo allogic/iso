@@ -120,7 +120,7 @@ void emit_quad(ivec3 p0, ivec3 p1, ivec3 p2, ivec3 p3, uint face) {
 }
 
 uint load_mask(uint face, uint slice, uint row) {
-	uint idx = slice * CHUNK_PAD + row;
+	uint idx = (slice + 1) * CHUNK_PAD + row; // TODO: +1
 
 	switch (face) {
 		case FACE_X: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_x_mask[idx];
@@ -141,14 +141,14 @@ ivec3 logical_to_world(uint face, uint slice, uint y, uint z) {
 	return ivec3(0);
 }
 
-void greedy_mesh(uint face, uint slice) {
+void greedy_merge(uint face, uint slice) {
 	uint rows[CHUNK_PAD];
 
 	for (uint y = 0; y < CHUNK_PAD; y++) {
 		rows[y] = load_mask(face, slice, y);
 	}
 
-	for (uint y = 0; y < CHUNK_PAD; y++) {
+	for (uint y = 0; y < CHUNK_SIZE; y++) {
 
 		uint row = rows[y];
 
@@ -157,15 +157,15 @@ void greedy_mesh(uint face, uint slice) {
 		//	row |= (1u << (CHUNK_SIZE-1));    // clear boundary at CHUNK_SIZE
 		//}
 
-		row &= ~(1u << 0);                 // clear boundary at 0
-		row &= ~(1u << (CHUNK_SIZE-1));    // clear boundary at CHUNK_SIZE
+		//row &= ~(1u << 0);                 // clear boundary at 0
+		//row &= ~(1u << (CHUNK_SIZE-1));    // clear boundary at CHUNK_SIZE
 
 		while (row != 0) {
 
 			uint z0 = findLSB(row);
 
 			uint z1 = z0;
-			while (z1 + 1 < CHUNK_SIZE && ((row >> (z1 + 1)) & 1u) == 1u) {
+			while (z1 + 1 <= CHUNK_SIZE && ((row >> (z1 + 1)) & 1u) == 1u) {
 				z1++;
 			}
 
@@ -183,14 +183,14 @@ void greedy_mesh(uint face, uint slice) {
 				rows[yy] &= ~width_mask;
 			}
 
+			row = rows[y];
+
 			ivec3 p0 = logical_to_world(face, slice, y, z0);
 			ivec3 p1 = logical_to_world(face, slice, y, z0 + width);
 			ivec3 p2 = logical_to_world(face, slice, y + height, z0 + width);
 			ivec3 p3 = logical_to_world(face, slice, y + height, z0);
 
-			emit_quad(p0, p1, p2, p3, face);
-
-			row = rows[y];
+			emit_quad(p0, p1, p2, p3, face);			
 		}
 	}
 }
@@ -199,5 +199,5 @@ void main() {
 	uint slice = gl_GlobalInvocationID.x;
 	uint face = gl_GlobalInvocationID.z;
 
-	greedy_mesh(face, slice);
+	greedy_merge(face, slice);
 }

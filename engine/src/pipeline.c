@@ -10,6 +10,9 @@ static void pipeline_create_tmf(pipeline_t *pipeline);
 static void pipeline_create_c(pipeline_t *pipeline);
 
 void pipeline_create(pipeline_t *pipeline) {
+  pipeline->descriptor_set_layout = (VkDescriptorSetLayout *)HEAP_ALLOC(sizeof(VkDescriptorSetLayout) * pipeline->descriptor_set_count, 0, 0);
+  pipeline->descriptor_set = (VkDescriptorSet *)HEAP_ALLOC(sizeof(VkDescriptorSet) * pipeline->descriptor_set_count, 0, 0);
+
   pipeline_create_descriptor_pool(pipeline);
   pipeline_create_descriptor_set_layout(pipeline);
   pipeline_create_descriptor_set(pipeline);
@@ -38,9 +41,12 @@ void pipeline_create(pipeline_t *pipeline) {
 }
 void pipeline_destroy(pipeline_t *pipeline) {
   vkDestroyDescriptorPool(g_window.device, pipeline->descriptor_pool, 0);
-  vkDestroyDescriptorSetLayout(g_window.device, pipeline->descriptor_set_layout, 0);
+  vkDestroyDescriptorSetLayout(g_window.device, pipeline->descriptor_set_layout_base, 0);
   vkDestroyPipelineLayout(g_window.device, pipeline->pipeline_layout, 0);
   vkDestroyPipeline(g_window.device, pipeline->pipeline_handle, 0);
+
+  HEAP_FREE(pipeline->descriptor_set_layout);
+  HEAP_FREE(pipeline->descriptor_set);
 }
 
 static void pipeline_create_descriptor_pool(pipeline_t *pipeline) {
@@ -48,7 +54,7 @@ static void pipeline_create_descriptor_pool(pipeline_t *pipeline) {
     .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
     .pPoolSizes = pipeline->descriptor_pool_size,
     .poolSizeCount = pipeline->descriptor_pool_size_count,
-    .maxSets = 1,
+    .maxSets = pipeline->descriptor_set_count,
   };
 
   VK_CHECK(vkCreateDescriptorPool(g_window.device, &descriptor_pool_create_info, 0, &pipeline->descriptor_pool));
@@ -61,23 +67,33 @@ static void pipeline_create_descriptor_set_layout(pipeline_t *pipeline) {
     .pNext = 0,
   };
 
-  VK_CHECK(vkCreateDescriptorSetLayout(g_window.device, &descriptor_set_layout_create_info, 0, &pipeline->descriptor_set_layout));
+  VK_CHECK(vkCreateDescriptorSetLayout(g_window.device, &descriptor_set_layout_create_info, 0, &pipeline->descriptor_set_layout_base));
 }
 static void pipeline_create_descriptor_set(pipeline_t *pipeline) {
+  int32_t descriptor_set_index = 0;
+  int32_t descriptor_set_count = pipeline->descriptor_set_count;
+
+  while (descriptor_set_index < descriptor_set_count) {
+
+    pipeline->descriptor_set_layout[descriptor_set_index] = pipeline->descriptor_set_layout_base;
+
+    descriptor_set_index++;
+  }
+
   VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {
     .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-    .descriptorSetCount = 1,
+    .descriptorSetCount = pipeline->descriptor_set_count,
     .descriptorPool = pipeline->descriptor_pool,
-    .pSetLayouts = &pipeline->descriptor_set_layout,
+    .pSetLayouts = pipeline->descriptor_set_layout,
   };
 
-  VK_CHECK(vkAllocateDescriptorSets(g_window.device, &descriptor_set_allocate_info, &pipeline->descriptor_set));
+  VK_CHECK(vkAllocateDescriptorSets(g_window.device, &descriptor_set_allocate_info, pipeline->descriptor_set));
 }
 static void pipeline_create_pipeline_layout(pipeline_t *pipeline) {
   VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
     .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-    .setLayoutCount = 1,
-    .pSetLayouts = &pipeline->descriptor_set_layout,
+    .setLayoutCount = pipeline->descriptor_set_count,
+    .pSetLayouts = pipeline->descriptor_set_layout,
     .pPushConstantRanges = pipeline->push_constant_range,
     .pushConstantRangeCount = pipeline->push_constant_range_count,
   };
@@ -184,7 +200,7 @@ static void pipeline_create_vf(pipeline_t *pipeline) {
     .rasterizerDiscardEnable = 0,
     .polygonMode = pipeline->polygon_mode,
     .lineWidth = 1.0F,
-    .cullMode = VK_CULL_MODE_BACK_BIT,
+    .cullMode = pipeline->cull_mode,
     .frontFace = VK_FRONT_FACE_CLOCKWISE,
     .depthBiasEnable = 0,
     .depthBiasConstantFactor = 0.0F,
@@ -379,7 +395,7 @@ static void pipeline_create_tmf(pipeline_t *pipeline) {
     .rasterizerDiscardEnable = 0,
     .polygonMode = pipeline->polygon_mode,
     .lineWidth = 1.0F,
-    .cullMode = VK_CULL_MODE_BACK_BIT,
+    .cullMode = pipeline->cull_mode,
     .frontFace = VK_FRONT_FACE_CLOCKWISE,
     .depthBiasEnable = 0,
     .depthBiasConstantFactor = 0.0F,
