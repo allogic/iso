@@ -36,86 +36,68 @@ void emit_quad(ivec3 p0, ivec3 p1, ivec3 p2, ivec3 p3, uint face) {
 	vec3 normal = vec3(0);
 
 	switch (face) {
-		case FACE_X: normal = vec3(0.5, 0, 0); break;
-		//case FACE_NX: normal = vec3(0.5, 0.5, 0); break;
-		case FACE_Y: normal = vec3(0, 0.5, 0); break;
-		//case FACE_NY: normal = vec3(0, 0.5, 0.5); break;
-		case FACE_Z: normal = vec3(0, 0, 0.5); break;
-		//case FACE_NZ: normal = vec3(0.5, 0, 0.5); break;
+		case FACE_PX: normal = vec3(0.5, 0, 0); break;
+		case FACE_PY: normal = vec3(0, 0.5, 0); break;
+		case FACE_PZ: normal = vec3(0, 0, 0.5); break;
+		case FACE_NX: normal = vec3(0.5, 0.5, 0); break;
+		case FACE_NY: normal = vec3(0, 0.5, 0.5); break;
+		case FACE_NZ: normal = vec3(0.5, 0, 0.5); break;
 	}
 
-	chunk_vertex_buffer.chunk_vertex[v + 0] = chunk_vertex_t(vec4(p0, 1), vec4(normal, 1)); // TODO: add face back in..
-	chunk_vertex_buffer.chunk_vertex[v + 1] = chunk_vertex_t(vec4(p1, 1), vec4(normal, 1)); // TODO: add face back in..
-	chunk_vertex_buffer.chunk_vertex[v + 2] = chunk_vertex_t(vec4(p2, 1), vec4(normal, 1)); // TODO: add face back in..
-	chunk_vertex_buffer.chunk_vertex[v + 3] = chunk_vertex_t(vec4(p3, 1), vec4(normal, 1)); // TODO: add face back in..
+	chunk_vertex_buffer.chunk_vertex[v + 0] = chunk_vertex_t(vec4(p0, 1), vec4(normal, 1));
+	chunk_vertex_buffer.chunk_vertex[v + 1] = chunk_vertex_t(vec4(p1, 1), vec4(normal, 1));
+	chunk_vertex_buffer.chunk_vertex[v + 2] = chunk_vertex_t(vec4(p2, 1), vec4(normal, 1));
+	chunk_vertex_buffer.chunk_vertex[v + 3] = chunk_vertex_t(vec4(p3, 1), vec4(normal, 1));
 
 	switch (face) {
-		case FACE_X: {
-
+		case FACE_PX:
 			chunk_index_buffer.chunk_index[i + 0] = v + 0;
 			chunk_index_buffer.chunk_index[i + 1] = v + 2;
 			chunk_index_buffer.chunk_index[i + 2] = v + 1;
 			chunk_index_buffer.chunk_index[i + 3] = v + 0;
 			chunk_index_buffer.chunk_index[i + 4] = v + 3;
 			chunk_index_buffer.chunk_index[i + 5] = v + 2;
-
 			break;
-		}
-		//case FACE_NX: {
-		//
-		//	chunk_index_buffer.chunk_index[i + 0] = v + 0;
-		//	chunk_index_buffer.chunk_index[i + 1] = v + 1;
-		//	chunk_index_buffer.chunk_index[i + 2] = v + 2;
-		//	chunk_index_buffer.chunk_index[i + 3] = v + 0;
-		//	chunk_index_buffer.chunk_index[i + 4] = v + 2;
-		//	chunk_index_buffer.chunk_index[i + 5] = v + 3;
-		//
-		//	break;
-		//}
-		case FACE_Y: {
-
+		case FACE_PY:
 			chunk_index_buffer.chunk_index[i + 0] = v + 0;
 			chunk_index_buffer.chunk_index[i + 1] = v + 1;
 			chunk_index_buffer.chunk_index[i + 2] = v + 2;
 			chunk_index_buffer.chunk_index[i + 3] = v + 0;
 			chunk_index_buffer.chunk_index[i + 4] = v + 2;
 			chunk_index_buffer.chunk_index[i + 5] = v + 3;
-
 			break;
-		}
-		//case FACE_NY: {
-		//
-		//	chunk_index_buffer.chunk_index[i + 0] = v + 0;
-		//	chunk_index_buffer.chunk_index[i + 1] = v + 2;
-		//	chunk_index_buffer.chunk_index[i + 2] = v + 1;
-		//	chunk_index_buffer.chunk_index[i + 3] = v + 0;
-		//	chunk_index_buffer.chunk_index[i + 4] = v + 3;
-		//	chunk_index_buffer.chunk_index[i + 5] = v + 2;
-		//
-		//	break;
-		//}
-		case FACE_Z: {
-
+		case FACE_PZ:
 			chunk_index_buffer.chunk_index[i + 0] = v + 0;
 			chunk_index_buffer.chunk_index[i + 1] = v + 2;
 			chunk_index_buffer.chunk_index[i + 2] = v + 1;
 			chunk_index_buffer.chunk_index[i + 3] = v + 0;
 			chunk_index_buffer.chunk_index[i + 4] = v + 3;
 			chunk_index_buffer.chunk_index[i + 5] = v + 2;
-
 			break;
-		}
-		//case FACE_NZ: {
-		//
-		//	chunk_index_buffer.chunk_index[i + 0] = v + 0;
-		//	chunk_index_buffer.chunk_index[i + 1] = v + 1;
-		//	chunk_index_buffer.chunk_index[i + 2] = v + 2;
-		//	chunk_index_buffer.chunk_index[i + 3] = v + 0;
-		//	chunk_index_buffer.chunk_index[i + 4] = v + 2;
-		//	chunk_index_buffer.chunk_index[i + 5] = v + 3;
-		//
-		//	break;
-		//}
+		case FACE_NX:
+			chunk_index_buffer.chunk_index[i + 0] = v + 0;
+			chunk_index_buffer.chunk_index[i + 1] = v + 1;
+			chunk_index_buffer.chunk_index[i + 2] = v + 2;
+			chunk_index_buffer.chunk_index[i + 3] = v + 0;
+			chunk_index_buffer.chunk_index[i + 4] = v + 2;
+			chunk_index_buffer.chunk_index[i + 5] = v + 3;
+			break;
+		case FACE_NY:
+			chunk_index_buffer.chunk_index[i + 0] = v + 0;
+			chunk_index_buffer.chunk_index[i + 1] = v + 2;
+			chunk_index_buffer.chunk_index[i + 2] = v + 1;
+			chunk_index_buffer.chunk_index[i + 3] = v + 0;
+			chunk_index_buffer.chunk_index[i + 4] = v + 3;
+			chunk_index_buffer.chunk_index[i + 5] = v + 2;
+			break;
+		case FACE_NZ:
+			chunk_index_buffer.chunk_index[i + 0] = v + 0;
+			chunk_index_buffer.chunk_index[i + 1] = v + 1;
+			chunk_index_buffer.chunk_index[i + 2] = v + 2;
+			chunk_index_buffer.chunk_index[i + 3] = v + 0;
+			chunk_index_buffer.chunk_index[i + 4] = v + 2;
+			chunk_index_buffer.chunk_index[i + 5] = v + 3;
+			break;
 	}
 }
 
@@ -123,9 +105,12 @@ uint load_mask(uint face, uint slice, uint row) {
 	uint idx = slice * CHUNK_SIZE + row;
 
 	switch (face) {
-		case FACE_X: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_x_mask[idx];
-		case FACE_Y: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_y_mask[idx];
-		case FACE_Z: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_z_mask[idx];
+		case FACE_PX: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_px_mask[idx];
+		case FACE_PY: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_py_mask[idx];
+		case FACE_PZ: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_pz_mask[idx];
+		case FACE_NX: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_nx_mask[idx];
+		case FACE_NY: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_ny_mask[idx];
+		case FACE_NZ: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_nz_mask[idx];
 	}
 
 	return 0;
@@ -133,9 +118,12 @@ uint load_mask(uint face, uint slice, uint row) {
 
 ivec3 logical_to_world(uint face, uint slice, uint y, uint z) {
 	switch (face) {
-		case FACE_X: return ivec3(slice + 1, y, z);
-		case FACE_Y: return ivec3(y, slice + 1, z);
-		case FACE_Z: return ivec3(y, z, slice + 1);
+		case FACE_PX: return ivec3(slice + 1, y, z);
+		case FACE_PY: return ivec3(y, slice + 1, z);
+		case FACE_PZ: return ivec3(y, z, slice + 1);
+		case FACE_NX: return ivec3(slice, y, z);
+		case FACE_NY: return ivec3(y, slice, z);
+		case FACE_NZ: return ivec3(y, z, slice);
 	}
 
 	return ivec3(0);

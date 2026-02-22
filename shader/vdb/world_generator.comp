@@ -50,7 +50,7 @@ float default_terrain_density(vec3 sample_position, float ground_level, float cl
 	//	density = 1;
 	//}
 
-	if (sample_position.y == 0) {
+	if (sample_position.y == 3) {
 		density = 1;
 	}
 

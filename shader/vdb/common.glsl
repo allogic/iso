@@ -23,16 +23,18 @@ const uint CLUSTER_DIM_Z = 2;
 const ivec3 CLUSTER_SIZE = ivec3(CLUSTER_DIM_X, CLUSTER_DIM_Y, CLUSTER_DIM_Z);
 
 const uint CHUNK_SIZE = 32;
-const uint CHUNK_PAD = 34;
 const uint CHUNK_COUNT = CLUSTER_DIM_X * CLUSTER_DIM_Y * CLUSTER_DIM_Z;
 
 const uint VOXEL_IS_SOLID_BIT = 0x1;
 
 const uint EMPTY_VOXEL = 0;
 
-const uint FACE_X = 0;
-const uint FACE_Y = 1;
-const uint FACE_Z = 2;
+const uint FACE_PX = 0;
+const uint FACE_PY = 1;
+const uint FACE_PZ = 2;
+const uint FACE_NX = 3;
+const uint FACE_NY = 4;
+const uint FACE_NZ = 5;
 
 const float SURFACE_THRESHOLD = 0.5;
 
@@ -42,12 +44,18 @@ struct chunk_info_t {
 };
 
 struct chunk_mask_t {
-	uint any_x_faces; // TODO: implement these..
-	uint any_y_faces;
-	uint any_z_faces;
-	uint opaque_x_mask[CHUNK_SIZE * CHUNK_SIZE];
-	uint opaque_y_mask[CHUNK_SIZE * CHUNK_SIZE];
-	uint opaque_z_mask[CHUNK_SIZE * CHUNK_SIZE];
+	uint any_px_faces; // TODO: implement these..
+	uint any_py_faces;
+	uint any_pz_faces;
+	uint any_nx_faces; // TODO: implement these..
+	uint any_ny_faces;
+	uint any_nz_faces;
+	uint opaque_px_mask[CHUNK_SIZE * CHUNK_SIZE];
+	uint opaque_py_mask[CHUNK_SIZE * CHUNK_SIZE];
+	uint opaque_pz_mask[CHUNK_SIZE * CHUNK_SIZE];
+	uint opaque_nx_mask[CHUNK_SIZE * CHUNK_SIZE];
+	uint opaque_ny_mask[CHUNK_SIZE * CHUNK_SIZE];
+	uint opaque_nz_mask[CHUNK_SIZE * CHUNK_SIZE];
 };
 
 struct chunk_vertex_t {

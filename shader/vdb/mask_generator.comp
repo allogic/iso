@@ -39,7 +39,22 @@ uint get_voxel(ivec3 chunk_position, ivec3 voxel_position) {
 		voxel_position.z = 0;
 	}
 
-	if (all(lessThan(chunk_position, CLUSTER_SIZE))) {
+	if (voxel_position.x < 0) {
+		chunk_position.x--;
+		voxel_position.x = int(CHUNK_SIZE - 1);
+	}
+
+	if (voxel_position.y < 0) {
+		chunk_position.y--;
+		voxel_position.y = int(CHUNK_SIZE - 1);
+	}
+
+	if (voxel_position.z < 0) {
+		chunk_position.z--;
+		voxel_position.z = int(CHUNK_SIZE - 1);
+	}
+
+	if (all(greaterThanEqual(chunk_position, ivec3(0))) && all(lessThan(chunk_position, CLUSTER_SIZE))) {
 		
 		uint chunk_index = (chunk_position.x) + (chunk_position.y * CLUSTER_DIM_X) + (chunk_position.z * CLUSTER_DIM_X * CLUSTER_DIM_Y);
 
@@ -61,17 +76,29 @@ void main() {
 		ivec3 p, n;
 
 		switch (face) {
-			case FACE_X:
+			case FACE_PX:
 				p = ivec3(slice, row, bit);
 				n = p + ivec3(1, 0, 0);
 				break;
-			case FACE_Y:
+			case FACE_PY:
 				p = ivec3(row, slice, bit);
 				n = p + ivec3(0, 1, 0);
 				break;
-			case FACE_Z:
+			case FACE_PZ:
 				p = ivec3(row, bit, slice);
 				n = p + ivec3(0, 0, 1);
+				break;
+			case FACE_NX:
+				p = ivec3(slice, row, bit);
+				n = p + ivec3(-1, 0, 0);
+				break;
+			case FACE_NY:
+				p = ivec3(row, slice, bit);
+				n = p + ivec3(0, -1, 0);
+				break;
+			case FACE_NZ:
+				p = ivec3(row, bit, slice);
+				n = p + ivec3(0, 0, -1);
 				break;
 		}
 
@@ -86,8 +113,11 @@ void main() {
 	uint idx = slice * CHUNK_SIZE + row;
 
 	switch (face) {
-		case FACE_X: chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_x_mask[idx] = mask; break;
-		case FACE_Y: chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_y_mask[idx] = mask; break;
-		case FACE_Z: chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_z_mask[idx] = mask; break;
+		case FACE_PX: chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_px_mask[idx] = mask; break;
+		case FACE_PY: chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_py_mask[idx] = mask; break;
+		case FACE_PZ: chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_pz_mask[idx] = mask; break;
+		case FACE_NX: chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_nx_mask[idx] = mask; break;
+		case FACE_NY: chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_ny_mask[idx] = mask; break;
+		case FACE_NZ: chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_nz_mask[idx] = mask; break;
 	}
 }

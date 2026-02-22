@@ -6,7 +6,6 @@
 #define CLUSTER_DIM_Z (2)
 
 #define CHUNK_SIZE (32)
-#define CHUNK_PAD (34)
 #define CHUNK_COUNT (8)
 
 #ifdef __cplusplus

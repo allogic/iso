@@ -387,7 +387,7 @@ static pipeline_t s_vdb_chunk_renderer_pipeline = {
   .enable_depth_write = 1,
   .primitive_topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
   .polygon_mode = VK_POLYGON_MODE_FILL,
-  .cull_mode = VK_CULL_MODE_NONE,
+  .cull_mode = VK_CULL_MODE_BACK_BIT,
   .vertex_input_binding_description = s_vdb_chunk_vertex_input_binding_description,
   .vertex_input_binding_description_count = ARRAY_COUNT(s_vdb_chunk_vertex_input_binding_description),
   .vertex_input_attribute_description = s_vdb_chunk_vertex_input_attribute_description,
@@ -1310,7 +1310,7 @@ static void renderer_generate_mask(void) {
     mask_generator_push_constant.chunk_index = chunk_index;
 
     vkCmdPushConstants(g_window.command_buffer, s_vdb_mask_generator_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(mask_generator_push_constant_t), &mask_generator_push_constant);
-    vkCmdDispatch(g_window.command_buffer, CHUNK_SIZE, CHUNK_SIZE, 3);
+    vkCmdDispatch(g_window.command_buffer, CHUNK_SIZE, CHUNK_SIZE, 6);
 
     VkBufferMemoryBarrier buffer_memory_barrier = {
       .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
@@ -1357,7 +1357,7 @@ static void renderer_greedy_mesh(void) {
 
     vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_vdb_greedy_mesher_pipeline.pipeline_layout, 0, 1, &s_vdb_greedy_mesher_pipeline.descriptor_set[chunk_index], 0, 0);
     vkCmdPushConstants(g_window.command_buffer, s_vdb_greedy_mesher_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(greedy_mesher_push_constant_t), &greedy_mesher_push_constant);
-    vkCmdDispatch(g_window.command_buffer, CHUNK_SIZE, 1, 3);
+    vkCmdDispatch(g_window.command_buffer, CHUNK_SIZE, 1, 6);
 
     VkBufferMemoryBarrier buffer_memory_barrier[] = {
       {
