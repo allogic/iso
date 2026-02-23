@@ -89,20 +89,18 @@ void stage_0(ivec3 voxel_position) {
 	if (density > SURFACE_THRESHOLD) {
 
 		voxel = VOXEL_SET_SOLID(voxel);
-		voxel = VOXEL_SET_ATLAS_ID(voxel, 0);
+		voxel = VOXEL_SET_BLOCK_TYPE(voxel, BLOCK_TYPE_DIRT);
 	}
 
 	set_voxel(pc.chunk_position, voxel_position, voxel);
 }
 void stage_1(ivec3 voxel_position) {
-	// TODO: figure out why it's flipped..
-
 	uint voxel = get_voxel(pc.chunk_position, voxel_position);
 	uint voxel_above = get_voxel_safe(pc.chunk_position, voxel_position + ivec3(0, 1, 0));
 
 	if (VOXEL_IS_SOLID(voxel) && VOXEL_IS_EMPTY(voxel_above)) {
 
-		voxel = VOXEL_SET_ATLAS_ID(voxel, 1);
+		voxel = VOXEL_SET_BLOCK_TYPE(voxel, BLOCK_TYPE_GRASSY_DIRT);
 
 		set_voxel(pc.chunk_position, voxel_position, voxel);
 	}

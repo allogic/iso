@@ -43,6 +43,7 @@
 #include <transform.h>
 #include <camera.h>
 
+#include <block.h>
 #include <vdb.h>
 #include <structure.h>
 #include <pipeline.h>

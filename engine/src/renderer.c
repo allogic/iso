@@ -20,6 +20,7 @@ static void renderer_create_full_screen_buffer(void);
 static void renderer_create_chunk_mask_buffer(void);
 static void renderer_create_chunk_vertex_buffer(void);
 static void renderer_create_chunk_index_buffer(void);
+static void renderer_create_block_buffer(void);
 
 static void renderer_create_chunk_data_image(void);
 static void renderer_create_block_atlas_image(void);
@@ -179,7 +180,7 @@ static VkDescriptorPoolSize const s_vdb_mask_generator_descriptor_pool_size[] = 
 static VkDescriptorPoolSize const s_vdb_greedy_mesher_descriptor_pool_size[] = {
   {
     .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-    .descriptorCount = 4,
+    .descriptorCount = 5,
   },
   {
     .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
@@ -310,6 +311,13 @@ static VkDescriptorSetLayoutBinding const s_vdb_greedy_mesher_descriptor_set_lay
   },
   {
     .binding = 4,
+    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    .descriptorCount = 1,
+    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+    .pImmutableSamplers = 0,
+  },
+  {
+    .binding = 5,
     .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
     .descriptorCount = 1,
     .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
@@ -525,6 +533,12 @@ static buffer_t s_chunk_mask_buffer = {
   .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
   .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 };
+static buffer_t s_block_buffer = {
+  .host_data = g_block,
+  .size = sizeof(g_block),
+  .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+  .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+};
 
 static buffer_t *s_chunk_vertex_buffer = 0;
 static buffer_t *s_chunk_index_buffer = 0;
@@ -555,6 +569,7 @@ static VkDescriptorBufferInfo s_chunk_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_place_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_place_result_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_chunk_mask_descriptor_buffer_info = {0};
+static VkDescriptorBufferInfo s_block_descriptor_buffer_info = {0};
 
 static VkDescriptorBufferInfo *s_chunk_vertex_descriptor_buffer_info = 0;
 static VkDescriptorBufferInfo *s_chunk_index_descriptor_buffer_info = 0;
@@ -574,6 +589,7 @@ void renderer_create(void) {
   renderer_create_chunk_mask_buffer();
   renderer_create_chunk_vertex_buffer();
   renderer_create_chunk_index_buffer();
+  renderer_create_block_buffer();
 
   renderer_create_chunk_data_image();
   renderer_create_block_atlas_image();
@@ -972,6 +988,13 @@ static void renderer_create_chunk_index_buffer(void) {
     chunk_index++;
   }
 }
+static void renderer_create_block_buffer(void) {
+  buffer_create(&s_block_buffer);
+
+  s_block_descriptor_buffer_info.offset = 0;
+  s_block_descriptor_buffer_info.buffer = s_block_buffer.buffer_handle;
+  s_block_descriptor_buffer_info.range = VK_WHOLE_SIZE;
+}
 
 static void renderer_create_chunk_data_image(void) {
   s_chunk_data_image = (image_t *)HEAP_ALLOC(sizeof(image_t) * CHUNK_COUNT, 1, 0);
@@ -1206,6 +1229,18 @@ static void renderer_update_vdb_greedy_mesher_descriptor_set(void) {
         .pNext = 0,
         .dstSet = s_vdb_greedy_mesher_pipeline.descriptor_set[chunk_index],
         .dstBinding = 4,
+        .dstArrayElement = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .descriptorCount = 1,
+        .pImageInfo = 0,
+        .pBufferInfo = &s_block_descriptor_buffer_info,
+        .pTexelBufferView = 0,
+      },
+      {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .pNext = 0,
+        .dstSet = s_vdb_greedy_mesher_pipeline.descriptor_set[chunk_index],
+        .dstBinding = 5,
         .dstArrayElement = 0,
         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
         .descriptorCount = 1,
@@ -1683,6 +1718,7 @@ static void renderer_destroy_buffer(void) {
   buffer_destroy(&s_place_info_buffer);
   buffer_destroy(&s_place_result_buffer);
   buffer_destroy(&s_chunk_mask_buffer);
+  buffer_destroy(&s_block_buffer);
 
   int32_t chunk_index = 0;
   int32_t chunk_count = CHUNK_COUNT;

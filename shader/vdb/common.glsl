@@ -7,18 +7,18 @@
 #define VOXEL_IS_EMPTY(VOXEL) \
 	((VOXEL & VOXEL_IS_SOLID_BIT) != VOXEL_IS_SOLID_BIT)
 
-#define VOXEL_GET_ATLAS_ID(VOXEL) \
+#define VOXEL_GET_BLOCK_TYPE(VOXEL) \
 	((VOXEL >> 8) & 0xFF)
 
 #define VOXEL_SET_SOLID(VOXEL) \
 	(VOXEL | VOXEL_IS_SOLID_BIT)
 
-#define VOXEL_SET_ATLAS_ID(VOXEL, ATLAS_ID) \
-	((VOXEL & ~(0xFF << 8)) | ((ATLAS_ID & 0xFF) << 8))
+#define VOXEL_SET_BLOCK_TYPE(VOXEL, BLOCK_TYPE) \
+	((VOXEL & ~(0xFF << 8)) | ((BLOCK_TYPE & 0xFF) << 8))
 
-const uint CLUSTER_DIM_X = 10;
+const uint CLUSTER_DIM_X = 3;
 const uint CLUSTER_DIM_Y = 3;
-const uint CLUSTER_DIM_Z = 10;
+const uint CLUSTER_DIM_Z = 3;
 
 const ivec3 CLUSTER_DIMS = ivec3(CLUSTER_DIM_X, CLUSTER_DIM_Y, CLUSTER_DIM_Z);
 
@@ -37,6 +37,20 @@ const uint FACE_NY = 4;
 const uint FACE_NZ = 5;
 
 const float SURFACE_THRESHOLD = 0.5;
+
+const uint BLOCK_TYPE_DIRT = 0;
+const uint BLOCK_TYPE_GRASS = 1;
+const uint BLOCK_TYPE_GRASSY_DIRT = 2;
+const uint BLOCK_TYPE_STONE = 3;
+const uint BLOCK_TYPE_COUNT = 4;
+
+const uint BLOCK_FACE_NORTH = 0;
+const uint BLOCK_FACE_SOUTH = 1;
+const uint BLOCK_FACE_WEST = 2;
+const uint BLOCK_FACE_EAST = 3;
+const uint BLOCK_FACE_TOP = 4;
+const uint BLOCK_FACE_BOTTOM = 5;
+const uint BLOCK_FACE_COUNT = 6;
 
 struct chunk_info_t {
 	uint vertex_count;
@@ -66,6 +80,11 @@ struct chunk_vertex_t {
 	uint reverved0;
 	uint reverved1;
 	uint reverved2;
+};
+
+struct block_t {
+	uint block_type;
+	uint block_face_atlas_id[BLOCK_FACE_COUNT];
 };
 
 #endif // VDB_COMMON_H
