@@ -30,6 +30,8 @@ layout (push_constant) uniform push_constant_t {
 	uint chunk_index;
 } pc;
 
+#include "../vdb/voxel_mod_single.glsl"
+
 ivec3 face_world_position(uint face, uint slice, uint y, uint z) {
 	switch (face) {
 		case FACE_PX: return ivec3(slice + 1, y, z);
@@ -52,9 +54,6 @@ ivec3 face_voxel_position(uint face, uint slice, uint y, uint z) {
 	return ivec3(0);
 }
 
-uint get_voxel(ivec3 voxel_position) {
-	return uint(imageLoad(chunk_data, voxel_position).r);
-}
 uint get_atlas_id(uint face, uint slice, uint y, uint z) {
 	ivec3 voxel_position = face_voxel_position(face, slice, y, z);
 	uint voxel = get_voxel(voxel_position);

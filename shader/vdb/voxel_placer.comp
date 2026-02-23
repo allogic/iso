@@ -23,12 +23,7 @@ layout (binding = 4, std430) writeonly buffer place_result_buffer_t {
 	uint is_obstructed;
 } place_result_buffer;
 
-uint get_voxel(ivec3 voxel_position) {
-	return uint(imageLoad(chunk_data[0], voxel_position).r);
-}
-void set_voxel(ivec3 voxel_position, uint voxel) {
-	imageStore(chunk_data[0], voxel_position, uvec4(voxel, 0, 0, 0));
-}
+#include "../vdb/voxel_mod_multi.glsl"
 
 // TODO: globally remove "voxel" naming..
 

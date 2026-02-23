@@ -37,12 +37,7 @@ layout (binding = 5, std430) writeonly buffer trace_result_buffer_t {
 	int intersection;
 } trace_result_buffer;
 
-uint get_voxel(ivec3 voxel_position) {
-	return uint(imageLoad(chunk_data[0], voxel_position).r);
-}
-void set_voxel(ivec3 voxel_position, uint voxel) {
-	imageStore(chunk_data[0], voxel_position, uvec4(voxel, 0, 0, 0));
-}
+#include "../vdb/voxel_mod_multi.glsl"
 
 void dda_trace(vec3 ray_origin, vec3 ray_direction, inout vec3 hit_voxel, inout bool intersection) {
 	vec3 ray_direction_inv = 1.0 / ray_direction;
@@ -55,7 +50,7 @@ void dda_trace(vec3 ray_origin, vec3 ray_direction, inout vec3 hit_voxel, inout 
 
 	while (ray_step_index < MAX_RAY_STEPS)
 	{
-		uint voxel = get_voxel(ivec3(sample_position));
+		uint voxel = get_voxel(ivec3(0), ivec3(sample_position)); // TODO
 
 		if (VOXEL_IS_SOLID(voxel))
 		{

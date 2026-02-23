@@ -21,48 +21,7 @@ layout (push_constant) uniform push_constant_t {
 	uint chunk_index;
 } pc;
 
-uint get_voxel(ivec3 chunk_position, ivec3 voxel_position) {
-	uint voxel = EMPTY_VOXEL;
-
-	if (voxel_position.x >= CHUNK_SIZE) {
-		chunk_position.x++;
-		voxel_position.x = 0;
-	}
-
-	if (voxel_position.y >= CHUNK_SIZE) {
-		chunk_position.y++;
-		voxel_position.y = 0;
-	}
-
-	if (voxel_position.z >= CHUNK_SIZE) {
-		chunk_position.z++;
-		voxel_position.z = 0;
-	}
-
-	if (voxel_position.x < 0) {
-		chunk_position.x--;
-		voxel_position.x = int(CHUNK_SIZE - 1);
-	}
-
-	if (voxel_position.y < 0) {
-		chunk_position.y--;
-		voxel_position.y = int(CHUNK_SIZE - 1);
-	}
-
-	if (voxel_position.z < 0) {
-		chunk_position.z--;
-		voxel_position.z = int(CHUNK_SIZE - 1);
-	}
-
-	if (all(greaterThanEqual(chunk_position, ivec3(0))) && all(lessThan(chunk_position, CLUSTER_SIZE))) {
-		
-		uint chunk_index = (chunk_position.x) + (chunk_position.y * CLUSTER_DIM_X) + (chunk_position.z * CLUSTER_DIM_X * CLUSTER_DIM_Y);
-
-		voxel = uint(imageLoad(chunk_data[chunk_index], voxel_position).r);
-	}
-
-	return voxel;
-}
+#include "../vdb/voxel_mod_multi.glsl"
 
 void main() {
 	uint slice = gl_GlobalInvocationID.x;
@@ -103,7 +62,7 @@ void main() {
 		}
 
 		uint v = get_voxel(pc.chunk_position, p);
-		uint vn = get_voxel(pc.chunk_position, n);
+		uint vn = get_voxel_safe(pc.chunk_position, n);
 
 		if (VOXEL_IS_SOLID(v) && VOXEL_IS_EMPTY(vn)) {
 			mask |= (1u << bit);

@@ -6,7 +6,7 @@
 #define CLUSTER_DIM_Z (10)
 
 #define CHUNK_SIZE (32)
-#define CHUNK_COUNT (100)
+#define CHUNK_COUNT (300)
 
 #ifdef __cplusplus
 extern "C" {
