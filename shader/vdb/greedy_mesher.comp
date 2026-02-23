@@ -30,7 +30,7 @@ layout (push_constant) uniform push_constant_t {
 	uint chunk_index;
 } pc;
 
-ivec3 logical_to_world(uint face, uint slice, uint y, uint z) {
+ivec3 face_world_position(uint face, uint slice, uint y, uint z) {
 	switch (face) {
 		case FACE_PX: return ivec3(slice + 1, y, z);
 		case FACE_PY: return ivec3(y, slice + 1, z);
@@ -76,7 +76,7 @@ uint get_mask(uint face, uint slice, uint row) {
 	return 0;
 }
 
-void compute_uvs(uint face, uint width, uint height, out vec2 uv0, out vec2 uv1, out vec2 uv2, out vec2 uv3) {
+void compute_uv(uint face, uint width, uint height, out vec2 uv0, out vec2 uv1, out vec2 uv2, out vec2 uv3) {
 	switch (face) {
 		case FACE_PX:
 		case FACE_NX:
@@ -122,12 +122,12 @@ void emit_quad(uint face, uint slice, uint y, uint z, uint width, uint height, u
 
 	vec2 uv0, uv1, uv2, uv3;
 
-	compute_uvs(face, width, height, uv0, uv1, uv2, uv3);
+	compute_uv(face, width, height, uv0, uv1, uv2, uv3);
 
-	ivec3 p0 = logical_to_world(face, slice, y, z);
-	ivec3 p1 = logical_to_world(face, slice, y, z + width);
-	ivec3 p2 = logical_to_world(face, slice, y + height, z + width);
-	ivec3 p3 = logical_to_world(face, slice, y + height, z);
+	ivec3 p0 = face_world_position(face, slice, y, z);
+	ivec3 p1 = face_world_position(face, slice, y, z + width);
+	ivec3 p2 = face_world_position(face, slice, y + height, z + width);
+	ivec3 p3 = face_world_position(face, slice, y + height, z);
 
 	chunk_vertex_buffer.chunk_vertex[v + 0] = chunk_vertex_t(vec4(p0, 1), vec4(normal, 0), vec4(uv0, 0, 0), atlas_id, 0, 0, 0);
 	chunk_vertex_buffer.chunk_vertex[v + 1] = chunk_vertex_t(vec4(p1, 1), vec4(normal, 0), vec4(uv1, 0, 0), atlas_id, 0, 0, 0);
@@ -214,11 +214,6 @@ void greedy_merge(uint face, uint slice) {
 			uint width_mask = (width == 32)
 				? 0xFFFFFFFFu
 				: ((1u << width) - 1u) << z;
-
-			//uint y1 = y;
-			//while (y1 + 1 < CHUNK_SIZE && (rows[y1 + 1] & width_mask) == width_mask) {
-			//	y1++;
-			//}
 
 			uint y1 = y;
 			while (y1 + 1 < CHUNK_SIZE) {

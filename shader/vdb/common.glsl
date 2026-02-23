@@ -16,9 +16,9 @@
 #define VOXEL_SET_ATLAS_ID(VOXEL, ATLAS_ID) \
 	((VOXEL & ~(0xFF << 8)) | ((ATLAS_ID & 0xFF) << 8))
 
-const uint CLUSTER_DIM_X = 2;
-const uint CLUSTER_DIM_Y = 2;
-const uint CLUSTER_DIM_Z = 2;
+const uint CLUSTER_DIM_X = 10;
+const uint CLUSTER_DIM_Y = 3;
+const uint CLUSTER_DIM_Z = 10;
 
 const ivec3 CLUSTER_SIZE = ivec3(CLUSTER_DIM_X, CLUSTER_DIM_Y, CLUSTER_DIM_Z);
 

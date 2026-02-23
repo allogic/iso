@@ -1,12 +1,12 @@
 #ifndef VDB_H
 #define VDB_H
 
-#define CLUSTER_DIM_X (2)
-#define CLUSTER_DIM_Y (2)
-#define CLUSTER_DIM_Z (2)
+#define CLUSTER_DIM_X (10)
+#define CLUSTER_DIM_Y (3)
+#define CLUSTER_DIM_Z (10)
 
 #define CHUNK_SIZE (32)
-#define CHUNK_COUNT (8)
+#define CHUNK_COUNT (100)
 
 #ifdef __cplusplus
 extern "C" {

@@ -89,6 +89,9 @@ typedef struct world_generator_push_constant_t {
   ivector3_t chunk_position;
   uint32_t chunk_index;
   uint32_t stage;
+  uint32_t reserved0;
+  uint32_t reserved1;
+  uint32_t reserved2;
 } world_generator_push_constant_t;
 typedef struct mask_generator_push_constant_t {
   ivector3_t chunk_position;

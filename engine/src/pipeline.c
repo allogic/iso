@@ -92,8 +92,8 @@ static void pipeline_create_descriptor_set(pipeline_t *pipeline) {
 static void pipeline_create_pipeline_layout(pipeline_t *pipeline) {
   VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
     .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-    .setLayoutCount = pipeline->descriptor_set_count,
-    .pSetLayouts = pipeline->descriptor_set_layout,
+    .setLayoutCount = 1,
+    .pSetLayouts = &pipeline->descriptor_set_layout_base,
     .pPushConstantRanges = pipeline->push_constant_range,
     .pushConstantRangeCount = pipeline->push_constant_range_count,
   };

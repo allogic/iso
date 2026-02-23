@@ -15,7 +15,7 @@ layout (location = 2) in flat uint input_atlas_id;
 
 layout (location = 0) out vec4 output_color;
 
-layout (binding = 1) uniform sampler2D texture_atlas;
+layout (binding = 1) uniform sampler2D block_atlas;
 
 void main() {
 	vec2 tile_uv = fract(input_uv / VOXELS_PER_TILE);
@@ -27,5 +27,5 @@ void main() {
 
 	vec2 atlas_uv = tile_origin + tile_uv / TILES_PER_ROW;
 
-	output_color = texture(texture_atlas, atlas_uv);
+	output_color = texture(block_atlas, atlas_uv);
 }
