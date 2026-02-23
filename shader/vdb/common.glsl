@@ -59,8 +59,13 @@ struct chunk_mask_t {
 };
 
 struct chunk_vertex_t {
-  vec4 position;
-  vec4 color;
+	vec4 position;
+	vec4 color;
+	vec4 uv;
+	uint atlas_id;
+	uint reverved0;
+	uint reverved1;
+	uint reverved2;
 };
 
 #endif // VDB_COMMON_H

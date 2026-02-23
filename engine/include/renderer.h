@@ -66,6 +66,11 @@ typedef struct full_screen_vertex_t {
 typedef struct vdb_chunk_vertex_t {
   vector4_t position;
   vector4_t color;
+  vector4_t uv;
+  uint32_t atlas_id;
+  uint32_t reserved0;
+  uint32_t reserved1;
+  uint32_t reserved2;
 } vdb_chunk_vertex_t;
 typedef struct debug_line_vertex_t {
   vector4_t position;

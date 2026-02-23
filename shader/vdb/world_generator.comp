@@ -50,21 +50,21 @@ float default_terrain_density(vec3 sample_position, float ground_level, float cl
 	//	density = 1;
 	//}
 
-	if (sample_position.y == 3) {
-		density = 1;
-	}
+	//if (sample_position.y == 3) {
+	//	density = 1;
+	//}
 
-	if (sample_position.x == 3) {
-		density = 1;
-	}
+	//if (sample_position.x == 3) {
+	//	density = 1;
+	//}
 
-	if (sample_position.z == 3) {
-		density = 1;
-	}
+	//if (sample_position.z == 3) {
+	//	density = 1;
+	//}
 
-	//density += noise_cellular_t1((sample_position + vec3(131.0, 11.0, 141.0)) * 0.115, 2.9, 0.3) * 2.44;
-	//density += noise_curl_t1((sample_position + vec3(887.0, 358.0, 262.0)) * 0.006).x * 14.13;
-	//density += noise_curl_t1((sample_position + vec3(32.0, 288.0, 204.0)) * 0.045).x * 2.04;
+	density += noise_cellular_t1((sample_position + vec3(131.0, 11.0, 141.0)) * 0.115, 2.9, 0.3) * 2.44;
+	density += noise_curl_t1((sample_position + vec3(887.0, 358.0, 262.0)) * 0.006).x * 14.13;
+	density += noise_curl_t1((sample_position + vec3(32.0, 288.0, 204.0)) * 0.045).x * 2.04;
 
 	//float blend = 1 - smoothstep(height_thresh + 0.1, height_thresh - 0.1, norm_y);
 
@@ -91,7 +91,7 @@ void stage_0(ivec3 voxel_position) {
 	if (density > SURFACE_THRESHOLD) {
 
 		voxel = VOXEL_SET_SOLID(voxel);
-		voxel = VOXEL_SET_ATLAS_ID(voxel, 1); // TODO
+		voxel = VOXEL_SET_ATLAS_ID(voxel, 0);
 	}
 
 	set_voxel(voxel_position, voxel);
@@ -101,11 +101,11 @@ void stage_1(ivec3 voxel_position) {
 
 	if (voxel_position.y > 0) {
 		uint voxel = get_voxel(voxel_position);
-		uint voxel_above = get_voxel(voxel_position + ivec3(0, -1, 0));
+		uint voxel_above = get_voxel(voxel_position + ivec3(0, 1, 0));
 
 		if (VOXEL_IS_SOLID(voxel) && VOXEL_IS_EMPTY(voxel_above)) {
 
-			voxel = VOXEL_SET_ATLAS_ID(voxel, 2); // TODO
+			voxel = VOXEL_SET_ATLAS_ID(voxel, 1);
 
 			set_voxel(voxel_position, voxel);
 		}

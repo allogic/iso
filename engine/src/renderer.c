@@ -22,6 +22,7 @@ static void renderer_create_chunk_vertex_buffer(void);
 static void renderer_create_chunk_index_buffer(void);
 
 static void renderer_create_chunk_data_image(void);
+static void renderer_create_texture_atlas_image(void);
 
 static void renderer_update_vdb_voxel_placer_descriptor_set(void);
 static void renderer_update_vdb_world_generator_descriptor_set(void);
@@ -113,6 +114,18 @@ static VkVertexInputAttributeDescription const s_vdb_chunk_vertex_input_attribut
     .format = VK_FORMAT_R32G32B32A32_SFLOAT,
     .offset = OFFSET_OF(vdb_chunk_vertex_t, color),
   },
+  {
+    .location = 2,
+    .binding = 0,
+    .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+    .offset = OFFSET_OF(vdb_chunk_vertex_t, uv),
+  },
+  {
+    .location = 3,
+    .binding = 0,
+    .format = VK_FORMAT_R32_UINT,
+    .offset = OFFSET_OF(vdb_chunk_vertex_t, atlas_id),
+  },
 };
 static VkVertexInputAttributeDescription const s_debug_line_vertex_input_attribute_description[] = {
   {
@@ -168,10 +181,18 @@ static VkDescriptorPoolSize const s_vdb_greedy_mesher_descriptor_pool_size[] = {
     .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
     .descriptorCount = 4,
   },
+  {
+    .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+    .descriptorCount = 1,
+  },
 };
 static VkDescriptorPoolSize const s_vdb_chunk_renderer_descriptor_pool_size[] = {
   {
     .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    .descriptorCount = 1,
+  },
+  {
+    .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
     .descriptorCount = 1,
   },
 };
@@ -287,6 +308,13 @@ static VkDescriptorSetLayoutBinding const s_vdb_greedy_mesher_descriptor_set_lay
     .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
     .pImmutableSamplers = 0,
   },
+  {
+    .binding = 4,
+    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+    .descriptorCount = 1,
+    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+    .pImmutableSamplers = 0,
+  },
 };
 static VkDescriptorSetLayoutBinding const s_vdb_chunk_renderer_descriptor_set_layout_binding[] = {
   {
@@ -294,6 +322,13 @@ static VkDescriptorSetLayoutBinding const s_vdb_chunk_renderer_descriptor_set_la
     .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
     .descriptorCount = 1,
     .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+    .pImmutableSamplers = 0,
+  },
+  {
+    .binding = 1,
+    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+    .descriptorCount = 1,
+    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
     .pImmutableSamplers = 0,
   },
 };
@@ -496,6 +531,21 @@ static buffer_t *s_chunk_index_buffer = 0;
 
 static image_t *s_chunk_data_image = 0;
 
+static image_t s_texture_atlas_image = {
+  .width = 512,
+  .height = 512,
+  .depth = 1,
+  .channel = 4,
+  .element_size = sizeof(uint8_t),
+  .format = VK_FORMAT_R8G8B8A8_UNORM,
+  .filter = VK_FILTER_NEAREST,
+  .image_usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT,
+  .image_type = VK_IMAGE_TYPE_2D,
+  .image_view_type = VK_IMAGE_VIEW_TYPE_2D,
+  .image_aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
+  .image_tiling = VK_IMAGE_TILING_OPTIMAL,
+};
+
 static VkDescriptorBufferInfo s_time_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_screen_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_mouse_info_descriptor_buffer_info = {0};
@@ -511,6 +561,8 @@ static VkDescriptorBufferInfo *s_chunk_index_descriptor_buffer_info = 0;
 
 static VkDescriptorImageInfo *s_chunk_data_descriptor_image_info = 0;
 
+static VkDescriptorImageInfo s_texture_atlas_descriptor_image_info = {0};
+
 void renderer_create(void) {
   g_renderer.is_debug_enabled = 1;
   g_renderer.rebuild_world = 1;
@@ -524,6 +576,7 @@ void renderer_create(void) {
   renderer_create_chunk_index_buffer();
 
   renderer_create_chunk_data_image();
+  renderer_create_texture_atlas_image();
 
   pipeline_create(&s_vdb_voxel_placer_pipeline);
   pipeline_create(&s_vdb_world_generator_pipeline);
@@ -951,6 +1004,21 @@ static void renderer_create_chunk_data_image(void) {
     chunk_index++;
   }
 }
+static void renderer_create_texture_atlas_image(void) {
+  uint8_t *image = imgutil_load_image_from_file(0, 0, 0, ROOT_DIR "/asset/texture_atlas.png");
+
+  s_texture_atlas_image.host_data = image;
+
+  image_create(&s_texture_atlas_image);
+
+  s_texture_atlas_image.host_data = 0;
+
+  imgutil_free_image(image);
+
+  s_texture_atlas_descriptor_image_info.sampler = s_texture_atlas_image.sampler;
+  s_texture_atlas_descriptor_image_info.imageView = s_texture_atlas_image.image_view;
+  s_texture_atlas_descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+}
 
 static void renderer_update_vdb_voxel_placer_descriptor_set(void) {
   VkWriteDescriptorSet write_descriptor_set[] = {
@@ -1133,6 +1201,18 @@ static void renderer_update_vdb_greedy_mesher_descriptor_set(void) {
         .pBufferInfo = &s_chunk_info_descriptor_buffer_info,
         .pTexelBufferView = 0,
       },
+      {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .pNext = 0,
+        .dstSet = s_vdb_greedy_mesher_pipeline.descriptor_set[chunk_index],
+        .dstBinding = 4,
+        .dstArrayElement = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+        .descriptorCount = 1,
+        .pImageInfo = &s_chunk_data_descriptor_image_info[chunk_index],
+        .pBufferInfo = 0,
+        .pTexelBufferView = 0,
+      },
     };
 
     vkUpdateDescriptorSets(g_window.device, ARRAY_COUNT(write_descriptor_set), write_descriptor_set, 0, 0);
@@ -1157,6 +1237,18 @@ static void renderer_update_vdb_chunk_renderer_descriptor_set(void) {
         .descriptorCount = 1,
         .pImageInfo = 0,
         .pBufferInfo = &s_camera_info_descriptor_buffer_info,
+        .pTexelBufferView = 0,
+      },
+      {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .pNext = 0,
+        .dstSet = s_vdb_chunk_renderer_pipeline.descriptor_set[chunk_index],
+        .dstBinding = 1,
+        .dstArrayElement = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount = 1,
+        .pImageInfo = &s_texture_atlas_descriptor_image_info,
+        .pBufferInfo = 0,
         .pTexelBufferView = 0,
       },
     };
@@ -1616,6 +1708,8 @@ static void renderer_destroy_image(void) {
 
     chunk_index++;
   }
+
+  image_destroy(&s_texture_atlas_image);
 
   HEAP_FREE(s_chunk_data_image);
   HEAP_FREE(s_chunk_data_descriptor_image_info);

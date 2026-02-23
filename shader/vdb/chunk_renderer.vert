@@ -7,8 +7,12 @@
 
 layout (location = 0) in vec4 vertex_position;
 layout (location = 1) in vec4 vertex_color;
+layout (location = 2) in vec4 vertex_uv;
+layout (location = 3) in uint vertex_atlas_id;
 
 layout (location = 0) out vec4 output_color;
+layout (location = 1) out vec2 output_uv;
+layout (location = 2) out uint output_atlas_id;
 
 layout (binding = 0) uniform camera_info_t {
 	vec3 position;
@@ -30,6 +34,8 @@ void main() {
 	vec4 clip_position = camera_info.view_projection * world_position;
 
 	output_color = vertex_color;
+	output_uv = vec2(vertex_uv.xy);
+	output_atlas_id = vertex_atlas_id;
 
 	gl_Position = clip_position;
 }

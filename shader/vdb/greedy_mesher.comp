@@ -20,34 +20,119 @@ layout (binding = 1, std430) writeonly buffer chunk_vertex_buffer_t {
 layout (binding = 2, std430) writeonly buffer chunk_index_buffer_t {
 	uint chunk_index[];
 } chunk_index_buffer;
-layout (binding = 3, std430) buffer chunk_info_buffer_t {
+layout (binding = 3, std430) writeonly buffer chunk_info_buffer_t {
 	chunk_info_t chunk_info[];
 } chunk_info_buffer;
+layout (binding = 4, r32ui) uniform uimage3D chunk_data;
 
 layout (push_constant) uniform push_constant_t {
 	ivec3 chunk_position;
 	uint chunk_index;
 } pc;
 
-void emit_quad(ivec3 p0, ivec3 p1, ivec3 p2, ivec3 p3, uint face) {
+ivec3 logical_to_world(uint face, uint slice, uint y, uint z) {
+	switch (face) {
+		case FACE_PX: return ivec3(slice + 1, y, z);
+		case FACE_PY: return ivec3(y, slice + 1, z);
+		case FACE_PZ: return ivec3(y, z, slice + 1);
+		case FACE_NX: return ivec3(slice, y, z);
+		case FACE_NY: return ivec3(y, slice, z);
+		case FACE_NZ: return ivec3(y, z, slice);
+	}
+
+	return ivec3(0);
+}
+ivec3 face_voxel_position(uint face, uint slice, uint y, uint z) {
+	switch (face) {
+		case FACE_PX: case FACE_NX: return ivec3(slice, y, z);
+		case FACE_PY: case FACE_NY: return ivec3(y, slice, z);
+		case FACE_PZ: case FACE_NZ: return ivec3(y, z, slice);
+	}
+
+	return ivec3(0);
+}
+
+uint get_voxel(ivec3 voxel_position) {
+	return uint(imageLoad(chunk_data, voxel_position).r);
+}
+uint get_atlas_id(uint face, uint slice, uint y, uint z) {
+	ivec3 voxel_position = face_voxel_position(face, slice, y, z);
+	uint voxel = get_voxel(voxel_position);
+
+	return VOXEL_GET_ATLAS_ID(voxel);
+}
+uint get_mask(uint face, uint slice, uint row) {
+	uint idx = slice * CHUNK_SIZE + row;
+
+	switch (face) {
+		case FACE_PX: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_px_mask[idx];
+		case FACE_PY: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_py_mask[idx];
+		case FACE_PZ: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_pz_mask[idx];
+		case FACE_NX: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_nx_mask[idx];
+		case FACE_NY: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_ny_mask[idx];
+		case FACE_NZ: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_nz_mask[idx];
+	}
+
+	return 0;
+}
+
+void compute_uvs(uint face, uint width, uint height, out vec2 uv0, out vec2 uv1, out vec2 uv2, out vec2 uv3) {
+	switch (face) {
+		case FACE_PX:
+		case FACE_NX:
+			uv0 = vec2(0, height);
+			uv1 = vec2(width, height);
+			uv2 = vec2(width, 0);
+			uv3 = vec2(0, 0);
+			break;
+		case FACE_PY:
+		case FACE_NY:
+			uv0 = vec2(0, height);
+			uv1 = vec2(width, height);
+			uv2 = vec2(width, 0);
+			uv3 = vec2(0, 0);
+			break;
+		case FACE_PZ:
+		case FACE_NZ:
+			uv0 = vec2(0, width);
+			uv1 = vec2(0, 0);
+			uv2 = vec2(height, 0);
+			uv3 = vec2(height, width);
+			break;
+	}
+}
+vec3 compute_normal(uint face) {
+	switch (face) {
+		case FACE_PX: return vec3(0.5, 0, 0); // TODO: normalize these..
+		case FACE_PY: return vec3(0, 0.5, 0);
+		case FACE_PZ: return vec3(0, 0, 0.5);
+		case FACE_NX: return vec3(0.5, 0.5, 0);
+		case FACE_NY: return vec3(0, 0.5, 0.5);
+		case FACE_NZ: return vec3(0.5, 0, 0.5);
+	}
+
+	return vec3(0);
+}
+
+void emit_quad(uint face, uint slice, uint y, uint z, uint width, uint height, uint atlas_id) {
 	uint v = atomicAdd(chunk_info_buffer.chunk_info[pc.chunk_index].vertex_count, 4);
 	uint i = atomicAdd(chunk_info_buffer.chunk_info[pc.chunk_index].index_count, 6);
 
-	vec3 normal = vec3(0);
+	vec3 normal = compute_normal(face);
 
-	switch (face) {
-		case FACE_PX: normal = vec3(0.5, 0, 0); break;
-		case FACE_PY: normal = vec3(0, 0.5, 0); break;
-		case FACE_PZ: normal = vec3(0, 0, 0.5); break;
-		case FACE_NX: normal = vec3(0.5, 0.5, 0); break;
-		case FACE_NY: normal = vec3(0, 0.5, 0.5); break;
-		case FACE_NZ: normal = vec3(0.5, 0, 0.5); break;
-	}
+	vec2 uv0, uv1, uv2, uv3;
 
-	chunk_vertex_buffer.chunk_vertex[v + 0] = chunk_vertex_t(vec4(p0, 1), vec4(normal, 1));
-	chunk_vertex_buffer.chunk_vertex[v + 1] = chunk_vertex_t(vec4(p1, 1), vec4(normal, 1));
-	chunk_vertex_buffer.chunk_vertex[v + 2] = chunk_vertex_t(vec4(p2, 1), vec4(normal, 1));
-	chunk_vertex_buffer.chunk_vertex[v + 3] = chunk_vertex_t(vec4(p3, 1), vec4(normal, 1));
+	compute_uvs(face, width, height, uv0, uv1, uv2, uv3);
+
+	ivec3 p0 = logical_to_world(face, slice, y, z);
+	ivec3 p1 = logical_to_world(face, slice, y, z + width);
+	ivec3 p2 = logical_to_world(face, slice, y + height, z + width);
+	ivec3 p3 = logical_to_world(face, slice, y + height, z);
+
+	chunk_vertex_buffer.chunk_vertex[v + 0] = chunk_vertex_t(vec4(p0, 1), vec4(normal, 0), vec4(uv0, 0, 0), atlas_id, 0, 0, 0);
+	chunk_vertex_buffer.chunk_vertex[v + 1] = chunk_vertex_t(vec4(p1, 1), vec4(normal, 0), vec4(uv1, 0, 0), atlas_id, 0, 0, 0);
+	chunk_vertex_buffer.chunk_vertex[v + 2] = chunk_vertex_t(vec4(p2, 1), vec4(normal, 0), vec4(uv2, 0, 0), atlas_id, 0, 0, 0);
+	chunk_vertex_buffer.chunk_vertex[v + 3] = chunk_vertex_t(vec4(p3, 1), vec4(normal, 0), vec4(uv3, 0, 0), atlas_id, 0, 0, 0);
 
 	switch (face) {
 		case FACE_PX:
@@ -101,39 +186,11 @@ void emit_quad(ivec3 p0, ivec3 p1, ivec3 p2, ivec3 p3, uint face) {
 	}
 }
 
-uint load_mask(uint face, uint slice, uint row) {
-	uint idx = slice * CHUNK_SIZE + row;
-
-	switch (face) {
-		case FACE_PX: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_px_mask[idx];
-		case FACE_PY: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_py_mask[idx];
-		case FACE_PZ: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_pz_mask[idx];
-		case FACE_NX: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_nx_mask[idx];
-		case FACE_NY: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_ny_mask[idx];
-		case FACE_NZ: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_nz_mask[idx];
-	}
-
-	return 0;
-}
-
-ivec3 logical_to_world(uint face, uint slice, uint y, uint z) {
-	switch (face) {
-		case FACE_PX: return ivec3(slice + 1, y, z);
-		case FACE_PY: return ivec3(y, slice + 1, z);
-		case FACE_PZ: return ivec3(y, z, slice + 1);
-		case FACE_NX: return ivec3(slice, y, z);
-		case FACE_NY: return ivec3(y, slice, z);
-		case FACE_NZ: return ivec3(y, z, slice);
-	}
-
-	return ivec3(0);
-}
-
 void greedy_merge(uint face, uint slice) {
 	uint rows[CHUNK_SIZE];
 
 	for (uint y = 0; y < CHUNK_SIZE; y++) {
-		rows[y] = load_mask(face, slice, y);
+		rows[y] = get_mask(face, slice, y);
 	}
 
 	for (uint y = 0; y < CHUNK_SIZE; y++) {
@@ -142,20 +199,46 @@ void greedy_merge(uint face, uint slice) {
 
 		while (row != 0) {
 
-			uint z0 = findLSB(row);
+			uint z = findLSB(row);
 
-			uint z1 = z0;
-			while (z1 + 1 < CHUNK_SIZE && ((row >> (z1 + 1)) & 1u) == 1u) {
+			uint atlas_id = get_atlas_id(face, slice, y, z);
+
+			uint z1 = z;
+			while (z1 + 1 < CHUNK_SIZE &&
+				((row >> (z1 + 1)) & 1u) == 1u &&
+				get_atlas_id(face, slice, y, z1 + 1) == atlas_id) {
 				z1++;
 			}
 
-			uint width = z1 - z0 + 1;
+			uint width = z1 - z + 1;
 			uint width_mask = (width == 32)
 				? 0xFFFFFFFFu
-				: ((1u << width) - 1u) << z0;
+				: ((1u << width) - 1u) << z;
+
+			//uint y1 = y;
+			//while (y1 + 1 < CHUNK_SIZE && (rows[y1 + 1] & width_mask) == width_mask) {
+			//	y1++;
+			//}
 
 			uint y1 = y;
-			while (y1 + 1 < CHUNK_SIZE && (rows[y1 + 1] & width_mask) == width_mask) {
+			while (y1 + 1 < CHUNK_SIZE) {
+
+				if ((rows[y1 + 1] & width_mask) != width_mask) {
+					break;
+				}
+
+				bool same = true;
+				for (uint zz = z; zz <= z1; zz++) {
+					if (get_atlas_id(face, slice, y1 + 1, zz) != atlas_id) {
+						same = false;
+						break;
+					}
+				}
+
+				if (!same) {
+					break;
+				}
+
 				y1++;
 			}
 
@@ -167,12 +250,7 @@ void greedy_merge(uint face, uint slice) {
 
 			row = rows[y];
 
-			ivec3 p0 = logical_to_world(face, slice, y, z0);
-			ivec3 p1 = logical_to_world(face, slice, y, z0 + width);
-			ivec3 p2 = logical_to_world(face, slice, y + height, z0 + width);
-			ivec3 p3 = logical_to_world(face, slice, y + height, z0);
-
-			emit_quad(p0, p1, p2, p3, face);			
+			emit_quad(face, slice, y, z, width, height, atlas_id);
 		}
 	}
 }
