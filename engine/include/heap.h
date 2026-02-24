@@ -30,9 +30,9 @@ extern "C" {
 #endif // __cplusplus
 
 #ifdef BUILD_DEBUG
-void *heap_alloc(char const *file_name, char const *function_name, uint64_t line_number, uint64_t block_size, uint8_t zero_block, void const *block_ref);
+void *heap_alloc(char const *file_name, char const *function_name, uint64_t line_number, uint64_t block_size, uint32_t zero_block, void const *block_ref);
 #else
-void *heap_alloc(uint64_t block_size, uint8_t zero_block, void const *block_ref);
+void *heap_alloc(uint64_t block_size, uint32_t zero_block, void const *block_ref);
 #endif // BUILD_DEBUG
 
 void heap_free(void *block);

@@ -4,10 +4,10 @@
 #include "../vdb/common.glsl"
 
 uint get_voxel(ivec3 voxel_position) {
-	return uint(imageLoad(chunk_data, voxel_position).r);
+	return uint(imageLoad(voxel_data, voxel_position).r);
 }
 void set_voxel(ivec3 voxel_position, uint voxel) {
-	imageStore(chunk_data, voxel_position, uvec4(voxel, 0, 0, 0));
+	imageStore(voxel_data, voxel_position, uvec4(voxel, 0, 0, 0));
 }
 
 #endif // VDB_VOXEL_MOD_SINGLE_H

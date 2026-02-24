@@ -2,7 +2,7 @@
 #define BUFFER_H
 
 typedef struct buffer_t {
-  int8_t zero_data;
+  uint32_t zero_data;
   void *host_data;
   void *device_data;
   uint64_t size;

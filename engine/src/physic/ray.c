@@ -1,6 +1,6 @@
 #include <pch.h>
 
-int8_t ray_intersect_aabb(ray_t ray, aabb_t aabb, float *t_enter, float *t_exit) {
+uint32_t ray_intersect_aabb(ray_t ray, aabb_t aabb, float *t_enter, float *t_exit) {
   float t_min = -FLT_MAX;
   float t_max = FLT_MAX;
 

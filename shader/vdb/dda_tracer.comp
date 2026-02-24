@@ -22,17 +22,14 @@ layout (binding = 0) uniform camera_info_t {
 	mat4 view_projection_inv;
 	vec4 frustum_plane[6];
 } camera_info;
-layout (binding = 1) uniform cluster_info_t {
-	ivec2 dimension;
-} cluster_info;
-layout (binding = 2) uniform screen_info_t {
+layout (binding = 1) uniform screen_info_t {
 	ivec2 resolution;
 } screen_info;
-layout (binding = 3) uniform mouse_info_t {
+layout (binding = 2) uniform mouse_info_t {
 	ivec2 position;
 } mouse_info;
-layout (binding = 4, r32ui) uniform uimage3D chunk_data[];
-layout (binding = 5, std430) writeonly buffer trace_result_buffer_t {
+layout (binding = 3, r32ui) uniform uimage3D voxel_data[];
+layout (binding = 4, std430) writeonly buffer trace_result_buffer_t {
 	ivec3 voxel_position;
 	int intersection;
 } trace_result_buffer;

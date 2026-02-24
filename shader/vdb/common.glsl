@@ -16,14 +16,14 @@
 #define VOXEL_SET_BLOCK_TYPE(VOXEL, BLOCK_TYPE) \
 	((VOXEL & ~(0xFF << 8)) | ((BLOCK_TYPE & 0xFF) << 8))
 
-const uint CLUSTER_DIM_X = 3;
-const uint CLUSTER_DIM_Y = 3;
-const uint CLUSTER_DIM_Z = 3;
+const uint STATIC_VDB_DIM_X = 3;
+const uint STATIC_VDB_DIM_Y = 3;
+const uint STATIC_VDB_DIM_Z = 3;
 
-const ivec3 CLUSTER_DIMS = ivec3(CLUSTER_DIM_X, CLUSTER_DIM_Y, CLUSTER_DIM_Z);
+const ivec3 STATIC_VDB_DIMS = ivec3(STATIC_VDB_DIM_X, STATIC_VDB_DIM_Y, STATIC_VDB_DIM_Z);
 
 const uint CHUNK_SIZE = 32;
-const uint CHUNK_COUNT = CLUSTER_DIM_X * CLUSTER_DIM_Y * CLUSTER_DIM_Z;
+const uint CHUNK_COUNT = STATIC_VDB_DIM_X * STATIC_VDB_DIM_Y * STATIC_VDB_DIM_Z;
 
 const uint VOXEL_IS_SOLID_BIT = 0x1;
 

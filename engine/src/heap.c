@@ -6,7 +6,7 @@ uint64_t g_heap_allocated_bytes = 0;
 #endif // BUILD_DEBUG
 
 #ifdef BUILD_DEBUG
-void *heap_alloc(char const *file_name, char const *function_name, uint64_t line_number, uint64_t block_size, uint8_t zero_block, void const *block_ref) {
+void *heap_alloc(char const *file_name, char const *function_name, uint64_t line_number, uint64_t block_size, uint32_t zero_block, void const *block_ref) {
   g_heap_allocated_blocks += 1;
   g_heap_allocated_bytes += sizeof(mem_block_t) + block_size;
 
@@ -39,7 +39,7 @@ void *heap_alloc(char const *file_name, char const *function_name, uint64_t line
   return mem_block;
 }
 #else
-void *heap_alloc(uint64_t block_size, uint8_t zero_block, void const *block_ref) {
+void *heap_alloc(uint64_t block_size, uint32_t zero_block, void const *block_ref) {
   void *block = malloc(block_size);
 
   if (zero_block) {

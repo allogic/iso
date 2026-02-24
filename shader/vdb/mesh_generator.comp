@@ -26,7 +26,7 @@ layout (binding = 3, std430) writeonly buffer chunk_info_buffer_t {
 layout (binding = 4, std430) readonly buffer block_buffer_t {
 	block_t block[];
 } block_buffer;
-layout (binding = 5, r32ui) uniform uimage3D chunk_data;
+layout (binding = 5, r32ui) uniform uimage3D voxel_data;
 
 layout (push_constant) uniform push_constant_t {
 	ivec3 chunk_position;

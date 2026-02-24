@@ -23,8 +23,8 @@ typedef enum frustum_corner_t {
 } frustum_corner_t;
 
 typedef struct camera_t {
-  int8_t is_debug_enabled;
-  int8_t is_orthographic;
+  uint32_t is_debug_enabled;
+  uint32_t is_orthographic;
   float fov;
   float zoom;
   float persp_near_z;

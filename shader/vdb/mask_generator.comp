@@ -11,7 +11,7 @@ layout (
 	local_size_z = 1
 ) in;
 
-layout (binding = 0, r32ui) uniform uimage3D chunk_data[];
+layout (binding = 0, r32ui) uniform uimage3D voxel_data[];
 layout (binding = 1, std430) writeonly buffer chunk_mask_buffer_t {
 	chunk_mask_t chunk_mask[];
 } chunk_mask_buffer;

@@ -49,8 +49,8 @@ typedef uint32_t full_screen_index_t;
 typedef uint32_t debug_line_index_t;
 
 typedef struct renderer_t {
-  int8_t is_debug_enabled;
-  int8_t rebuild_world;
+  uint32_t is_debug_enabled;
+  uint32_t rebuild_world;
   pipeline_t static_vdb_voxel_placer_pipeline;
   pipeline_t static_vdb_world_generator_pipeline;
   pipeline_t static_vdb_mask_generator_pipeline;

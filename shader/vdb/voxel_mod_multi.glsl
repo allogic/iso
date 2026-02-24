@@ -3,10 +3,14 @@
 
 #include "../vdb/common.glsl"
 
-uint get_voxel(ivec3 chunk_position, ivec3 voxel_position) {
-	uint chunk_index = (chunk_position.x) + (chunk_position.y * CLUSTER_DIM_X) + (chunk_position.z * CLUSTER_DIM_X * CLUSTER_DIM_Y);
+uint get_chunk_position_to_index(ivec3 chunk_position) {
+	return (chunk_position.x) + (chunk_position.y * STATIC_VDB_DIM_X) + (chunk_position.z * STATIC_VDB_DIM_X * STATIC_VDB_DIM_Y);
+}
 
-	return uint(imageLoad(chunk_data[chunk_index], voxel_position).r);
+uint get_voxel(ivec3 chunk_position, ivec3 voxel_position) {
+	uint chunk_index = get_chunk_position_to_index(chunk_position);
+
+	return uint(imageLoad(voxel_data[chunk_index], voxel_position).r);
 }
 uint get_voxel_safe(ivec3 chunk_position, ivec3 voxel_position) {
 	uint voxel = EMPTY_VOXEL;
@@ -20,20 +24,20 @@ uint get_voxel_safe(ivec3 chunk_position, ivec3 voxel_position) {
 	chunk_position += chunk_offset;
 	voxel_position -= chunk_offset * int(CHUNK_SIZE);
 
-	if (all(greaterThanEqual(chunk_position, ivec3(0))) && all(lessThan(chunk_position, CLUSTER_DIMS))) {
+	if (all(greaterThanEqual(chunk_position, ivec3(0))) && all(lessThan(chunk_position, STATIC_VDB_DIMS))) {
 		
-		uint chunk_index = (chunk_position.x) + (chunk_position.y * CLUSTER_DIM_X) + (chunk_position.z * CLUSTER_DIM_X * CLUSTER_DIM_Y);
+		uint chunk_index = get_chunk_position_to_index(chunk_position);
 
-		voxel = uint(imageLoad(chunk_data[chunk_index], voxel_position).r);
+		voxel = uint(imageLoad(voxel_data[chunk_index], voxel_position).r);
 	}
 
 	return voxel;
 }
 
 void set_voxel(ivec3 chunk_position, ivec3 voxel_position, uint voxel) {
-	uint chunk_index = (chunk_position.x) + (chunk_position.y * CLUSTER_DIM_X) + (chunk_position.z * CLUSTER_DIM_X * CLUSTER_DIM_Y);
+	uint chunk_index = get_chunk_position_to_index(chunk_position);
 
-	imageStore(chunk_data[chunk_index], voxel_position, uvec4(voxel, 0, 0, 0));
+	imageStore(voxel_data[chunk_index], voxel_position, uvec4(voxel, 0, 0, 0));
 }
 void set_voxel_safe(ivec3 chunk_position, ivec3 voxel_position, uint voxel) {
 	ivec3 chunk_offset = ivec3(
@@ -45,11 +49,11 @@ void set_voxel_safe(ivec3 chunk_position, ivec3 voxel_position, uint voxel) {
 	chunk_position += chunk_offset;
 	voxel_position -= chunk_offset * int(CHUNK_SIZE);
 
-	if (all(greaterThanEqual(chunk_position, ivec3(0))) && all(lessThan(chunk_position, CLUSTER_DIMS))) {
+	if (all(greaterThanEqual(chunk_position, ivec3(0))) && all(lessThan(chunk_position, STATIC_VDB_DIMS))) {
 		
-		uint chunk_index = (chunk_position.x) + (chunk_position.y * CLUSTER_DIM_X) + (chunk_position.z * CLUSTER_DIM_X * CLUSTER_DIM_Y);
+		uint chunk_index = get_chunk_position_to_index(chunk_position);
 
-		imageStore(chunk_data[chunk_index], voxel_position, uvec4(voxel, 0, 0, 0));
+		imageStore(voxel_data[chunk_index], voxel_position, uvec4(voxel, 0, 0, 0));
 	}
 }
 

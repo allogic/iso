@@ -1,20 +1,6 @@
 #ifndef VDB_H
 #define VDB_H
 
-// TODO: remove every int8_t -> uint32_t
-
-// TODO: rename "chunk_renderer" -> "static_chunk_renderer"
-// TODO: rename "chunk_data" -> "static_chunk_voxel"
-// TODO: rename "chunk_info" -> "static_chunk_info"
-// TODO: rename "chunk_mask" -> "static_chunk_mask"
-// TODO: rename greedy_mesher -> "mesh_genereator"
-// TODO: rename chunk_renderer -> "mesh_renderer"
-// TODO: rename CLUSTER_DIM to just DIM_X
-
-// TODO: remove struct cluster_info_t
-
-// TODO: ban "chunk" entierly..?
-
 #define STATIC_VDB_DIM_X (3)
 #define STATIC_VDB_DIM_Y (3)
 #define STATIC_VDB_DIM_Z (3)

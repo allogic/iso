@@ -106,8 +106,8 @@ void window_run(void) {
 
     g_window.mouse_wheel_delta = 0;
 
-    uint8_t keyboard_key_index = 0;
-    uint8_t keyboard_key_count = KEYBOARD_KEY_COUNT;
+    int32_t keyboard_key_index = 0;
+    int32_t keyboard_key_count = KEYBOARD_KEY_COUNT;
 
     while (keyboard_key_index < keyboard_key_count) {
 
@@ -120,8 +120,8 @@ void window_run(void) {
       keyboard_key_index++;
     }
 
-    uint8_t mouse_key_index = 0;
-    uint8_t mouse_key_count = MOUSE_KEY_COUNT;
+    int32_t mouse_key_index = 0;
+    int32_t mouse_key_count = MOUSE_KEY_COUNT;
 
     while (mouse_key_index < mouse_key_count) {
 
@@ -227,23 +227,23 @@ void window_destroy(void) {
   window_destroy_native();
 }
 
-uint8_t window_is_keyboard_key_pressed(keyboard_key_t key) {
+uint32_t window_is_keyboard_key_pressed(keyboard_key_t key) {
   return g_window.keyboard_key_states[key] == KEY_STATE_PRESSED;
 }
-uint8_t window_is_keyboard_key_held(keyboard_key_t key) {
+uint32_t window_is_keyboard_key_held(keyboard_key_t key) {
   return (g_window.keyboard_key_states[key] == KEY_STATE_DOWN) || (g_window.keyboard_key_states[key] == KEY_STATE_PRESSED);
 }
-uint8_t window_is_keyboard_key_released(keyboard_key_t key) {
+uint32_t window_is_keyboard_key_released(keyboard_key_t key) {
   return g_window.keyboard_key_states[key] == KEY_STATE_RELEASED;
 }
 
-uint8_t window_is_mouse_key_pressed(mouse_key_t key) {
+uint32_t window_is_mouse_key_pressed(mouse_key_t key) {
   return g_window.mouse_key_states[key] == KEY_STATE_PRESSED;
 }
-uint8_t window_is_mouse_key_held(mouse_key_t key) {
+uint32_t window_is_mouse_key_held(mouse_key_t key) {
   return (g_window.mouse_key_states[key] == KEY_STATE_DOWN) || (g_window.mouse_key_states[key] == KEY_STATE_PRESSED);
 }
-uint8_t window_is_mouse_key_released(mouse_key_t key) {
+uint32_t window_is_mouse_key_released(mouse_key_t key) {
   return g_window.mouse_key_states[key] == KEY_STATE_RELEASED;
 }
 
@@ -797,7 +797,7 @@ static void window_check_physical_device_extensions(void) {
 
   while (device_extension_index < device_extension_count) {
 
-    int8_t device_extensions_available = 0;
+    uint32_t device_extensions_available = 0;
 
     int32_t available_device_extension_index = 0;
 

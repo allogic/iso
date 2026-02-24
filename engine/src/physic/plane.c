@@ -1,6 +1,6 @@
 #include <pch.h>
 
-int8_t plane_intersect_plane3(plane_t p1, plane_t p2, plane_t p3, vector3_t *intersection_point) {
+uint32_t plane_intersect_plane3(plane_t p1, plane_t p2, plane_t p3, vector3_t *intersection_point) {
   vector3_t n1 = {p1.nx, p1.ny, p1.nz};
   vector3_t n2 = {p2.nx, p2.ny, p2.nz};
   vector3_t n3 = {p3.nx, p3.ny, p3.nz};

@@ -18,7 +18,7 @@ layout (
 	local_size_z = 8
 ) in;
 
-layout (binding = 0, r32ui) uniform uimage3D chunk_data[];
+layout (binding = 0, r32ui) uniform uimage3D voxel_data[];
 
 layout (push_constant) uniform push_constant_t {
 	ivec3 chunk_position;
@@ -31,7 +31,7 @@ layout (push_constant) uniform push_constant_t {
 
 #include "../vdb/voxel_mod_multi.glsl"
 
-float default_terrain_density(vec3 sample_position, float ground_level, float cluster_height) {
+float default_terrain_density(vec3 sample_position, float ground_level, float global_height) {
 	float base = ground_level - sample_position.y;
 	
 	float height_noise = noise_cellular_t1(sample_position * 0.02, 2.0, 0.3);
@@ -61,10 +61,10 @@ float default_terrain_density(vec3 sample_position, float ground_level, float cl
 void stage_0(ivec3 voxel_position) {
 	vec3 sample_position = vec3((pc.chunk_position * CHUNK_SIZE) + voxel_position);
 
-	float cluster_height = CLUSTER_DIM_Y * CHUNK_SIZE;
-	float ground_level = cluster_height * 0.2;
+	float global_height = STATIC_VDB_DIM_Y * CHUNK_SIZE;
+	float ground_level = global_height * 0.2;
 
-	float density  = default_terrain_density(sample_position, ground_level, cluster_height);
+	float density  = default_terrain_density(sample_position, ground_level, global_height);
 
 	uint voxel = EMPTY_VOXEL;
 
