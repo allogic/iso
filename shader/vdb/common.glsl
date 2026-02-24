@@ -16,9 +16,9 @@
 #define VOXEL_SET_BLOCK_TYPE(VOXEL, BLOCK_TYPE) \
 	((VOXEL & ~(0xFF << 8)) | ((BLOCK_TYPE & 0xFF) << 8))
 
-const uint STATIC_VDB_DIM_X = 3;
-const uint STATIC_VDB_DIM_Y = 3;
-const uint STATIC_VDB_DIM_Z = 3;
+const uint STATIC_VDB_DIM_X = 1;
+const uint STATIC_VDB_DIM_Y = 1;
+const uint STATIC_VDB_DIM_Z = 1;
 
 const ivec3 STATIC_VDB_DIMS = ivec3(STATIC_VDB_DIM_X, STATIC_VDB_DIM_Y, STATIC_VDB_DIM_Z);
 
@@ -53,6 +53,7 @@ const uint BLOCK_FACE_BOTTOM = 5;
 const uint BLOCK_FACE_COUNT = 6;
 
 struct chunk_info_t {
+	uint is_dirty;
 	uint vertex_count;
 	uint index_count;
 };

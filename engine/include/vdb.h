@@ -1,12 +1,23 @@
 #ifndef VDB_H
 #define VDB_H
 
-#define STATIC_VDB_DIM_X (3)
-#define STATIC_VDB_DIM_Y (3)
-#define STATIC_VDB_DIM_Z (3)
+// TODO: Implement hardware raytracing voxel renderer!
+// TODO: Implement augmented vertex block descent (AVBD) collision solver!
+// TODO: Finally implement sparse textures!
+
+#define STATIC_VDB_DIM_X (1)
+#define STATIC_VDB_DIM_Y (1)
+#define STATIC_VDB_DIM_Z (1)
 
 #define STATIC_VDB_CHUNK_SIZE (32)
-#define STATIC_VDB_CHUNK_COUNT (27)
+#define STATIC_VDB_CHUNK_COUNT (1)
+
+#define DYNAMIC_VDB_DIM_X (4)
+#define DYNAMIC_VDB_DIM_Y (4)
+#define DYNAMIC_VDB_DIM_Z (4)
+
+#define DYNAMIC_VDB_CHUNK_SIZE (32)
+#define DYNAMIC_VDB_CHUNK_COUNT (64)
 
 typedef struct static_vdb_chunk_vertex_t {
   vector4_t position;
@@ -49,6 +60,7 @@ STATIC_ASSERT(ALIGNOF(static_vdb_mesh_generator_push_constant_t) == 4);
 STATIC_ASSERT(ALIGNOF(static_vdb_renderer_push_constant_t) == 4);
 
 typedef struct static_vdb_chunk_info_t {
+  uint32_t is_dirty;
   uint32_t vertex_count;
   uint32_t index_count;
 } static_vdb_chunk_info_t;
@@ -70,13 +82,13 @@ typedef struct static_vdb_chunk_mask_t {
 STATIC_ASSERT(ALIGNOF(static_vdb_chunk_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(static_vdb_chunk_mask_t) == 4);
 
-// TODO: add "chunk_" back in for better readability..
 typedef struct static_vdb_t {
   image_t *chunk_voxel_image;
   buffer_t chunk_info_buffer;
   buffer_t chunk_mask_buffer;
   buffer_t *chunk_vertex_buffer;
   buffer_t *chunk_index_buffer;
+  static_vdb_chunk_info_t *chunk_info;
   VkDescriptorImageInfo *chunk_voxel_descriptor_image_info;
   VkDescriptorBufferInfo chunk_info_descriptor_buffer_info;
   VkDescriptorBufferInfo chunk_mask_descriptor_buffer_info;
@@ -85,7 +97,10 @@ typedef struct static_vdb_t {
 } static_vdb_t;
 
 typedef struct dynamic_vdb_t {
-  void *dummy;
+  image_t *curr_chunk_voxel_image;
+  image_t *next_chunk_voxel_image;
+  VkDescriptorImageInfo *curr_chunk_voxel_descriptor_image_info;
+  VkDescriptorImageInfo *next_chunk_voxel_descriptor_image_info;
 } dynamic_vdb_t;
 
 #ifdef __cplusplus
@@ -109,6 +124,9 @@ void dynamic_vdb_create(void);
 void dynamic_vdb_draw(void);
 void dynamic_vdb_debug(void);
 void dynamic_vdb_destroy(void);
+
+int32_t dynamic_vdb_chunk_position_to_index(ivector3_t chunk_position);
+ivector3_t dynamic_vdb_chunk_index_to_position(int32_t chunk_index);
 
 #ifdef __cplusplus
 }

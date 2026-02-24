@@ -22,6 +22,10 @@ static void static_vdb_generate_mesh(void);
 static void static_vdb_destroy_image(void);
 static void static_vdb_destroy_buffer(void);
 
+static void dynamic_vdb_create_chunk_voxel_image(void);
+
+static void dynamic_vdb_destroy_image(void);
+
 static_vdb_t g_static_vdb = {
   .chunk_info_buffer = {
     .size = sizeof(static_vdb_chunk_info_t) * STATIC_VDB_CHUNK_COUNT,
@@ -51,14 +55,30 @@ void static_vdb_build(void) {
   static_vdb_generate_mesh();
 }
 void static_vdb_debug(void) {
-  renderer_draw_debug_box(
-    (vector3_t){0.0F, 0.0F, 0.0F},
-    (vector3_t){(float)STATIC_VDB_CHUNK_SIZE * STATIC_VDB_DIM_X, (float)STATIC_VDB_CHUNK_SIZE * STATIC_VDB_DIM_Y, (float)STATIC_VDB_CHUNK_SIZE * STATIC_VDB_DIM_Z},
-    (vector4_t){1.0F, 1.0F, 1.0F, 1.0F});
+  int32_t chunk_index = 0;
+  int32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
+
+  while (chunk_index < chunk_count) {
+
+    ivector3_t chunk_position = static_vdb_chunk_index_to_position(chunk_index);
+
+    vector4_t chunk_color = {0};
+
+    if (g_static_vdb.chunk_info[0].is_dirty) {
+      chunk_color = vector4_xyzw(1.0F, 0.0F, 0.0F, 1.0F);
+    } else {
+      chunk_color = vector4_xyzw(1.0F, 1.0F, 1.0F, 1.0F);
+    }
+
+    renderer_draw_debug_box(
+      (vector3_t){(float)chunk_position.x * STATIC_VDB_CHUNK_SIZE, (float)chunk_position.y * STATIC_VDB_CHUNK_SIZE, (float)chunk_position.z * STATIC_VDB_CHUNK_SIZE},
+      (vector3_t){(float)STATIC_VDB_CHUNK_SIZE, (float)STATIC_VDB_CHUNK_SIZE, (float)STATIC_VDB_CHUNK_SIZE},
+      chunk_color);
+
+    chunk_index++;
+  }
 }
 void static_vdb_draw(void) {
-  static_vdb_chunk_info_t *chunk_info = (static_vdb_chunk_info_t *)g_static_vdb.chunk_info_buffer.device_data;
-
   vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, g_renderer.static_vdb_renderer_pipeline.pipeline_handle);
 
   static_vdb_renderer_push_constant_t static_vdb_renderer_push_constant = {0};
@@ -77,7 +97,7 @@ void static_vdb_draw(void) {
     vkCmdBindIndexBuffer(g_window.command_buffer, g_static_vdb.chunk_index_buffer[chunk_index].buffer_handle, 0, VK_INDEX_TYPE_UINT32);
     vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, g_renderer.static_vdb_renderer_pipeline.pipeline_layout, 0, 1, &g_renderer.static_vdb_renderer_pipeline.descriptor_set[chunk_index], 0, 0);
     vkCmdPushConstants(g_window.command_buffer, g_renderer.static_vdb_renderer_pipeline.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(static_vdb_renderer_push_constant), &static_vdb_renderer_push_constant);
-    vkCmdDrawIndexed(g_window.command_buffer, chunk_info[chunk_index].index_count, 1, 0, 0, 0);
+    vkCmdDrawIndexed(g_window.command_buffer, g_static_vdb.chunk_info[chunk_index].index_count, 1, 0, 0, 0);
 
     chunk_index++;
   }
@@ -101,12 +121,27 @@ ivector3_t static_vdb_chunk_index_to_position(int32_t chunk_index) {
 }
 
 void dynamic_vdb_create(void) {
+  dynamic_vdb_create_chunk_voxel_image();
 }
 void dynamic_vdb_draw(void) {
 }
 void dynamic_vdb_debug(void) {
 }
 void dynamic_vdb_destroy(void) {
+  dynamic_vdb_destroy_image();
+}
+
+int32_t dynamic_vdb_chunk_position_to_index(ivector3_t chunk_position) {
+  return (chunk_position.x) +
+         (chunk_position.y * DYNAMIC_VDB_DIM_X) +
+         (chunk_position.z * DYNAMIC_VDB_DIM_X * DYNAMIC_VDB_DIM_Y);
+}
+ivector3_t dynamic_vdb_chunk_index_to_position(int32_t chunk_index) {
+  return (ivector3_t){
+    chunk_index % DYNAMIC_VDB_DIM_X,
+    (chunk_index / DYNAMIC_VDB_DIM_X) % DYNAMIC_VDB_DIM_Y,
+    chunk_index / (DYNAMIC_VDB_DIM_X * DYNAMIC_VDB_DIM_Y),
+  };
 }
 
 static void static_vdb_create_chunk_voxel_image(void) {
@@ -145,6 +180,8 @@ static void static_vdb_create_chunk_info_buffer(void) {
   buffer_create(&g_static_vdb.chunk_info_buffer);
 
   buffer_map(&g_static_vdb.chunk_info_buffer);
+
+  g_static_vdb.chunk_info = (static_vdb_chunk_info_t *)g_static_vdb.chunk_info_buffer.device_data;
 
   g_static_vdb.chunk_info_descriptor_buffer_info.offset = 0;
   g_static_vdb.chunk_info_descriptor_buffer_info.buffer = g_static_vdb.chunk_info_buffer.buffer_handle;
@@ -341,8 +378,6 @@ static void static_vdb_generate_mask(void) {
     0);
 }
 static void static_vdb_generate_mesh(void) {
-  static_vdb_chunk_info_t *chunk_info = (static_vdb_chunk_info_t *)g_static_vdb.chunk_info_buffer.device_data;
-
   vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, g_renderer.static_vdb_mesh_generator_pipeline.pipeline_handle);
 
   static_vdb_mesh_generator_push_constant_t static_vdb_mesh_generator_push_constant = {0};
@@ -353,8 +388,8 @@ static void static_vdb_generate_mesh(void) {
   while (chunk_index < chunk_count) {
 
     // TODO: find a clean way to reset these counters..
-    chunk_info[chunk_index].vertex_count = 0;
-    chunk_info[chunk_index].index_count = 0;
+    g_static_vdb.chunk_info[chunk_index].vertex_count = 0;
+    g_static_vdb.chunk_info[chunk_index].index_count = 0;
 
     static_vdb_mesh_generator_push_constant.chunk_position = static_vdb_chunk_index_to_position(chunk_index);
     static_vdb_mesh_generator_push_constant.chunk_index = chunk_index;
@@ -437,4 +472,76 @@ static void static_vdb_destroy_buffer(void) {
 
   HEAP_FREE(g_static_vdb.chunk_vertex_descriptor_buffer_info);
   HEAP_FREE(g_static_vdb.chunk_index_descriptor_buffer_info);
+}
+
+static void dynamic_vdb_create_chunk_voxel_image(void) {
+  g_dynamic_vdb.curr_chunk_voxel_image = (image_t *)HEAP_ALLOC(sizeof(image_t) * DYNAMIC_VDB_CHUNK_COUNT, 1, 0);
+  g_dynamic_vdb.next_chunk_voxel_image = (image_t *)HEAP_ALLOC(sizeof(image_t) * DYNAMIC_VDB_CHUNK_COUNT, 1, 0);
+
+  g_dynamic_vdb.curr_chunk_voxel_descriptor_image_info = (VkDescriptorImageInfo *)HEAP_ALLOC(sizeof(VkDescriptorImageInfo) * DYNAMIC_VDB_CHUNK_COUNT, 1, 0);
+  g_dynamic_vdb.next_chunk_voxel_descriptor_image_info = (VkDescriptorImageInfo *)HEAP_ALLOC(sizeof(VkDescriptorImageInfo) * DYNAMIC_VDB_CHUNK_COUNT, 1, 0);
+
+  int32_t chunk_index = 0;
+  int32_t chunk_count = DYNAMIC_VDB_CHUNK_COUNT;
+
+  while (chunk_index < chunk_count) {
+
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].width = DYNAMIC_VDB_CHUNK_SIZE,
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].height = DYNAMIC_VDB_CHUNK_SIZE,
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].depth = DYNAMIC_VDB_CHUNK_SIZE,
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].channel = 1,
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].element_size = sizeof(uint32_t),
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].format = VK_FORMAT_R32_UINT,
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].filter = VK_FILTER_NEAREST,
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].image_usage_flags = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].image_type = VK_IMAGE_TYPE_3D,
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].image_view_type = VK_IMAGE_VIEW_TYPE_3D,
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].image_aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].image_tiling = VK_IMAGE_TILING_OPTIMAL,
+
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].width = DYNAMIC_VDB_CHUNK_SIZE,
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].height = DYNAMIC_VDB_CHUNK_SIZE,
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].depth = DYNAMIC_VDB_CHUNK_SIZE,
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].channel = 1,
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].element_size = sizeof(uint32_t),
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].format = VK_FORMAT_R32_UINT,
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].filter = VK_FILTER_NEAREST,
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].image_usage_flags = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].image_type = VK_IMAGE_TYPE_3D,
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].image_view_type = VK_IMAGE_VIEW_TYPE_3D,
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].image_aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].image_tiling = VK_IMAGE_TILING_OPTIMAL,
+
+    image_create(&g_dynamic_vdb.curr_chunk_voxel_image[chunk_index]);
+    image_create(&g_dynamic_vdb.next_chunk_voxel_image[chunk_index]);
+
+    g_dynamic_vdb.curr_chunk_voxel_descriptor_image_info[chunk_index].sampler = g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].sampler;
+    g_dynamic_vdb.curr_chunk_voxel_descriptor_image_info[chunk_index].imageView = g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].image_view;
+    g_dynamic_vdb.curr_chunk_voxel_descriptor_image_info[chunk_index].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+    g_dynamic_vdb.next_chunk_voxel_descriptor_image_info[chunk_index].sampler = g_dynamic_vdb.next_chunk_voxel_image[chunk_index].sampler;
+    g_dynamic_vdb.next_chunk_voxel_descriptor_image_info[chunk_index].imageView = g_dynamic_vdb.next_chunk_voxel_image[chunk_index].image_view;
+    g_dynamic_vdb.next_chunk_voxel_descriptor_image_info[chunk_index].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+    chunk_index++;
+  }
+}
+
+static void dynamic_vdb_destroy_image(void) {
+  int32_t chunk_index = 0;
+  int32_t chunk_count = DYNAMIC_VDB_CHUNK_COUNT;
+
+  while (chunk_index < chunk_count) {
+
+    image_destroy(&g_dynamic_vdb.curr_chunk_voxel_image[chunk_index]);
+    image_destroy(&g_dynamic_vdb.next_chunk_voxel_image[chunk_index]);
+
+    chunk_index++;
+  }
+
+  HEAP_FREE(g_dynamic_vdb.curr_chunk_voxel_image);
+  HEAP_FREE(g_dynamic_vdb.next_chunk_voxel_image);
+
+  HEAP_FREE(g_dynamic_vdb.curr_chunk_voxel_descriptor_image_info);
+  HEAP_FREE(g_dynamic_vdb.next_chunk_voxel_descriptor_image_info);
 }
