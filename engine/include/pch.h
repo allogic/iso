@@ -43,12 +43,13 @@
 #include <transform.h>
 #include <camera.h>
 
-#include <block.h>
-#include <vdb.h>
-#include <structure.h>
-#include <pipeline.h>
 #include <buffer.h>
 #include <image.h>
+#include <pipeline.h>
+
+#include <block.h>
+#include <structure.h>
+#include <vdb.h>
 #include <swapchain.h>
 #include <framebuffer.h>
 #include <player.h>

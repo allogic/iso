@@ -11,15 +11,12 @@ layout (
 	local_size_z = 1
 ) in;
 
-layout (binding = 0) uniform cluster_info_t {
-	ivec2 dimension;
-} cluster_info;
-layout (binding = 1) uniform place_info_t {
+layout (binding = 0) uniform place_info_t {
 	ivec3 voxel_position;
 	uint voxel_id;
 } place_info;
-layout (binding = 2, r32ui) uniform uimage3D chunk_data[];
-layout (binding = 4, std430) writeonly buffer place_result_buffer_t {
+layout (binding = 1, r32ui) uniform uimage3D chunk_data[];
+layout (binding = 2, std430) writeonly buffer place_result_buffer_t {
 	uint is_obstructed;
 } place_result_buffer;
 

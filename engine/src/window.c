@@ -86,6 +86,9 @@ void window_create(int32_t width, int32_t height, char const *title) {
 
   structure_create();
 
+  static_vdb_create();
+  dynamic_vdb_create();
+
   renderpass_create_main();
 
   swapchain_create(3);
@@ -153,32 +156,10 @@ void window_run(void) {
       DispatchMessageA(&g_window.window_message);
     }
 
-    renderer_draw_debug_box(
-      (vector3_t){0.0F, 0.0F, 0.0F},
-      (vector3_t){1.0F, 1.0F, 1.0F},
-      (vector4_t){1.0F, 1.0F, 1.0F, 1.0F});
-
-    renderer_draw_debug_box(
-      (vector3_t){0.0F, 0.0F, 0.0F},
-      (vector3_t){(float)CHUNK_SIZE, (float)CHUNK_SIZE, (float)CHUNK_SIZE},
-      (vector4_t){1.0F, 1.0F, 1.0F, 1.0F});
-
-    renderer_draw_debug_box(
-      (vector3_t){0.0F, 0.0F, 0.0F},
-      (vector3_t){(float)CHUNK_SIZE * CLUSTER_DIM_X, (float)CHUNK_SIZE * CLUSTER_DIM_Y, (float)CHUNK_SIZE * CLUSTER_DIM_Z},
-      (vector4_t){1.0F, 1.0F, 1.0F, 1.0F});
-
-    renderer_draw_debug_box(
-      (vector3_t){0.0F, 1.0F, 0.0F},
-      (vector3_t){(float)CHUNK_SIZE, 0.0F, (float)CHUNK_SIZE},
-      (vector4_t){1.0F, 1.0F, 1.0F, 1.0F});
-
-    renderer_draw_debug_box(
-      (vector3_t){0.0F, (float)CHUNK_SIZE / 2, 0.0F},
-      (vector3_t){(float)CHUNK_SIZE, 0.0F, (float)CHUNK_SIZE},
-      (vector4_t){1.0F, 1.0F, 1.0F, 1.0F});
-
     player_update();
+
+    static_vdb_debug();
+    dynamic_vdb_debug();
 
     renderer_draw();
 
@@ -232,6 +213,9 @@ void window_destroy(void) {
   swapchain_destroy();
 
   renderpass_destroy_main();
+
+  dynamic_vdb_destroy();
+  static_vdb_destroy();
 
   structure_destroy();
 

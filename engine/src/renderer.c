@@ -3,40 +3,25 @@
 #define DEBUG_LINE_VERTEX_COUNT (0xFFFFF)
 #define DEBUG_LINE_INDEX_COUNT (0xFFFFF)
 
-//    32 ^ 3 sides      = 32768
-// 32768 / 2 checkboard = 16384
-// 16384 x 6 faces      = 98304
-// 98304 x 4 vertices   = 393216 ~6.0 MB
-// 98304 x 6 indices    = 589824 ~2.3 MB
-#define WORST_CASE_GREEDY_MESH_VERTEX_COUNT (400000)
-#define WORST_CASE_GREEDY_MESH_INDEX_COUNT (600000)
-
 #define MAKE_GROUP_COUNT(GLOBAL_SIZE, LOCAL_SIZE) ((int32_t)ceilf(((float)(GLOBAL_SIZE)) / (LOCAL_SIZE)))
 
 static void renderer_create_sync_object(void);
 static void renderer_create_coherent_buffer(void);
 static void renderer_create_debug_line_buffer(void);
 static void renderer_create_full_screen_buffer(void);
-static void renderer_create_chunk_mask_buffer(void);
-static void renderer_create_chunk_vertex_buffer(void);
-static void renderer_create_chunk_index_buffer(void);
 static void renderer_create_block_buffer(void);
 
-static void renderer_create_chunk_data_image(void);
 static void renderer_create_block_atlas_image(void);
 
 static void renderer_update_vdb_voxel_placer_descriptor_set(void);
 static void renderer_update_vdb_world_generator_descriptor_set(void);
 static void renderer_update_vdb_mask_generator_descriptor_set(void);
-static void renderer_update_vdb_greedy_mesher_descriptor_set(void);
-static void renderer_update_vdb_chunk_renderer_descriptor_set(void);
+static void renderer_update_vdb_mesh_generator_descriptor_set(void);
+static void renderer_update_vdb_renderer_descriptor_set(void);
 static void renderer_update_debug_line_descriptor_set(void);
 
 static void renderer_update_coherent_buffer(void);
 
-static void renderer_generate_world(void);
-static void renderer_generate_mask(void);
-static void renderer_generate_mesh(void);
 static void renderer_place_voxel(void);
 
 static void renderer_record_compute_pass(void);
@@ -45,8 +30,6 @@ static void renderer_record_main_pass(void);
 static void renderer_destroy_sync_object(void);
 static void renderer_destroy_buffer(void);
 static void renderer_destroy_image(void);
-
-renderer_t g_renderer = {0};
 
 static int32_t s_image_index = 0;
 static int32_t s_debug_line_vertex_offset = 0;
@@ -79,10 +62,10 @@ static VkVertexInputBindingDescription const s_full_screen_vertex_input_binding_
     .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
   },
 };
-static VkVertexInputBindingDescription const s_vdb_chunk_vertex_input_binding_description[] = {
+static VkVertexInputBindingDescription const s_static_vdb_chunk_vertex_input_binding_description[] = {
   {
     .binding = 0,
-    .stride = sizeof(vdb_chunk_vertex_t),
+    .stride = sizeof(static_vdb_chunk_vertex_t),
     .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
   },
 };
@@ -102,7 +85,7 @@ static VkVertexInputAttributeDescription const s_full_screen_vertex_input_attrib
     .offset = 0,
   },
 };
-static VkVertexInputAttributeDescription const s_vdb_chunk_vertex_input_attribute_description[] = {
+static VkVertexInputAttributeDescription const s_static_vdb_chunk_vertex_input_attribute_description[] = {
   {
     .location = 0,
     .binding = 0,
@@ -113,19 +96,19 @@ static VkVertexInputAttributeDescription const s_vdb_chunk_vertex_input_attribut
     .location = 1,
     .binding = 0,
     .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-    .offset = OFFSET_OF(vdb_chunk_vertex_t, color),
+    .offset = OFFSET_OF(static_vdb_chunk_vertex_t, color),
   },
   {
     .location = 2,
     .binding = 0,
     .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-    .offset = OFFSET_OF(vdb_chunk_vertex_t, uv),
+    .offset = OFFSET_OF(static_vdb_chunk_vertex_t, uv),
   },
   {
     .location = 3,
     .binding = 0,
     .format = VK_FORMAT_R32_UINT,
-    .offset = OFFSET_OF(vdb_chunk_vertex_t, atlas_id),
+    .offset = OFFSET_OF(static_vdb_chunk_vertex_t, atlas_id),
   },
 };
 static VkVertexInputAttributeDescription const s_debug_line_vertex_input_attribute_description[] = {
@@ -143,41 +126,37 @@ static VkVertexInputAttributeDescription const s_debug_line_vertex_input_attribu
   },
 };
 
-static VkDescriptorPoolSize const s_vdb_voxel_placer_descriptor_pool_size[] = {
+static VkDescriptorPoolSize const s_static_vdb_voxel_placer_descriptor_pool_size[] = {
   {
     .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    .descriptorCount = 2,
+    .descriptorCount = 1,
   },
   {
     .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-    .descriptorCount = CHUNK_COUNT,
-  },
-  {
-    .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-    .descriptorCount = 2,
-  },
-};
-static VkDescriptorPoolSize const s_vdb_world_generator_descriptor_pool_size[] = {
-  {
-    .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    .descriptorCount = 2,
-  },
-  {
-    .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-    .descriptorCount = CHUNK_COUNT,
-  },
-};
-static VkDescriptorPoolSize const s_vdb_mask_generator_descriptor_pool_size[] = {
-  {
-    .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-    .descriptorCount = CHUNK_COUNT,
+    .descriptorCount = STATIC_VDB_CHUNK_COUNT,
   },
   {
     .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
     .descriptorCount = 1,
   },
 };
-static VkDescriptorPoolSize const s_vdb_greedy_mesher_descriptor_pool_size[] = {
+static VkDescriptorPoolSize const s_static_vdb_world_generator_descriptor_pool_size[] = {
+  {
+    .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+    .descriptorCount = STATIC_VDB_CHUNK_COUNT,
+  },
+};
+static VkDescriptorPoolSize const s_static_vdb_mask_generator_descriptor_pool_size[] = {
+  {
+    .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+    .descriptorCount = STATIC_VDB_CHUNK_COUNT,
+  },
+  {
+    .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    .descriptorCount = 1,
+  },
+};
+static VkDescriptorPoolSize const s_static_vdb_mesh_generator_descriptor_pool_size[] = {
   {
     .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
     .descriptorCount = 5,
@@ -187,7 +166,7 @@ static VkDescriptorPoolSize const s_vdb_greedy_mesher_descriptor_pool_size[] = {
     .descriptorCount = 1,
   },
 };
-static VkDescriptorPoolSize const s_vdb_chunk_renderer_descriptor_pool_size[] = {
+static VkDescriptorPoolSize const s_static_vdb_renderer_descriptor_pool_size[] = {
   {
     .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
     .descriptorCount = 1,
@@ -197,14 +176,14 @@ static VkDescriptorPoolSize const s_vdb_chunk_renderer_descriptor_pool_size[] = 
     .descriptorCount = 1,
   },
 };
-static VkDescriptorPoolSize const s_vdb_debug_line_renderer_descriptor_pool_size[] = {
+static VkDescriptorPoolSize const s_debug_line_renderer_descriptor_pool_size[] = {
   {
     .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
     .descriptorCount = 1,
   },
 };
 
-static VkDescriptorSetLayoutBinding const s_vdb_voxel_placer_descriptor_set_layout_binding[] = {
+static VkDescriptorSetLayoutBinding const s_static_vdb_voxel_placer_descriptor_set_layout_binding[] = {
   {
     .binding = 0,
     .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -214,61 +193,33 @@ static VkDescriptorSetLayoutBinding const s_vdb_voxel_placer_descriptor_set_layo
   },
   {
     .binding = 1,
-    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    .descriptorCount = 1,
+    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+    .descriptorCount = STATIC_VDB_CHUNK_COUNT,
     .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
     .pImmutableSamplers = 0,
   },
   {
     .binding = 2,
-    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-    .descriptorCount = CHUNK_COUNT,
-    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-    .pImmutableSamplers = 0,
-  },
-  {
-    .binding = 3,
-    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-    .descriptorCount = 1,
-    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-    .pImmutableSamplers = 0,
-  },
-  {
-    .binding = 4,
     .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
     .descriptorCount = 1,
     .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
     .pImmutableSamplers = 0,
   },
 };
-static VkDescriptorSetLayoutBinding const s_vdb_world_generator_descriptor_set_layout_binding[] = {
+static VkDescriptorSetLayoutBinding const s_static_vdb_world_generator_descriptor_set_layout_binding[] = {
   {
     .binding = 0,
-    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    .descriptorCount = 1,
-    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-    .pImmutableSamplers = 0,
-  },
-  {
-    .binding = 1,
     .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-    .descriptorCount = CHUNK_COUNT,
-    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-    .pImmutableSamplers = 0,
-  },
-  {
-    .binding = 2,
-    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    .descriptorCount = 1,
+    .descriptorCount = STATIC_VDB_CHUNK_COUNT,
     .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
     .pImmutableSamplers = 0,
   },
 };
-static VkDescriptorSetLayoutBinding const s_vdb_mask_generator_descriptor_set_layout_binding[] = {
+static VkDescriptorSetLayoutBinding const s_static_vdb_mask_generator_descriptor_set_layout_binding[] = {
   {
     .binding = 0,
     .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-    .descriptorCount = CHUNK_COUNT,
+    .descriptorCount = STATIC_VDB_CHUNK_COUNT,
     .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
     .pImmutableSamplers = 0,
   },
@@ -280,7 +231,7 @@ static VkDescriptorSetLayoutBinding const s_vdb_mask_generator_descriptor_set_la
     .pImmutableSamplers = 0,
   },
 };
-static VkDescriptorSetLayoutBinding const s_vdb_greedy_mesher_descriptor_set_layout_binding[] = {
+static VkDescriptorSetLayoutBinding const s_static_vdb_mesh_generator_descriptor_set_layout_binding[] = {
   {
     .binding = 0,
     .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -324,7 +275,7 @@ static VkDescriptorSetLayoutBinding const s_vdb_greedy_mesher_descriptor_set_lay
     .pImmutableSamplers = 0,
   },
 };
-static VkDescriptorSetLayoutBinding const s_vdb_chunk_renderer_descriptor_set_layout_binding[] = {
+static VkDescriptorSetLayoutBinding const s_static_vdb_renderer_descriptor_set_layout_binding[] = {
   {
     .binding = 0,
     .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -350,120 +301,33 @@ static VkDescriptorSetLayoutBinding const s_debug_line_renderer_descriptor_set_l
   },
 };
 
-static VkPushConstantRange const s_vdb_world_generator_push_constant_range[] = {
+static VkPushConstantRange const s_static_vdb_world_generator_push_constant_range[] = {
   {
     .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
     .offset = 0,
-    .size = sizeof(world_generator_push_constant_t),
+    .size = sizeof(static_vdb_world_generator_push_constant_t),
   },
 };
-static VkPushConstantRange const s_vdb_mask_generator_push_constant_range[] = {
+static VkPushConstantRange const s_static_vdb_mask_generator_push_constant_range[] = {
   {
     .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
     .offset = 0,
-    .size = sizeof(mask_generator_push_constant_t),
+    .size = sizeof(static_vdb_mask_generator_push_constant_t),
   },
 };
-static VkPushConstantRange const s_vdb_greedy_mesher_push_constant_range[] = {
+static VkPushConstantRange const s_static_vdb_mesh_generator_push_constant_range[] = {
   {
     .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
     .offset = 0,
-    .size = sizeof(greedy_mesher_push_constant_t),
+    .size = sizeof(static_vdb_mesh_generator_push_constant_t),
   },
 };
-static VkPushConstantRange const s_vdb_chunk_renderer_push_constant_range[] = {
+static VkPushConstantRange const s_static_vdb_renderer_push_constant_range[] = {
   {
     .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
     .offset = 0,
-    .size = sizeof(chunk_renderer_push_constant_t),
+    .size = sizeof(static_vdb_renderer_push_constant_t),
   },
-};
-
-static pipeline_t s_vdb_voxel_placer_pipeline = {
-  .pipeline_type = PIPELINE_TYPE_C,
-  .compute_shader = ROOT_DIR "/shader/vdb/voxel_placer.comp.spv",
-  .descriptor_pool_size = s_vdb_voxel_placer_descriptor_pool_size,
-  .descriptor_pool_size_count = ARRAY_COUNT(s_vdb_voxel_placer_descriptor_pool_size),
-  .descriptor_set_layout_binding = s_vdb_voxel_placer_descriptor_set_layout_binding,
-  .descriptor_set_layout_binding_count = ARRAY_COUNT(s_vdb_voxel_placer_descriptor_set_layout_binding),
-  .descriptor_set_count = 1,
-};
-static pipeline_t s_vdb_world_generator_pipeline = {
-  .pipeline_type = PIPELINE_TYPE_C,
-  .compute_shader = ROOT_DIR "/shader/vdb/world_generator.comp.spv",
-  .push_constant_range = s_vdb_world_generator_push_constant_range,
-  .push_constant_range_count = ARRAY_COUNT(s_vdb_world_generator_push_constant_range),
-  .descriptor_pool_size = s_vdb_world_generator_descriptor_pool_size,
-  .descriptor_pool_size_count = ARRAY_COUNT(s_vdb_world_generator_descriptor_pool_size),
-  .descriptor_set_layout_binding = s_vdb_world_generator_descriptor_set_layout_binding,
-  .descriptor_set_layout_binding_count = ARRAY_COUNT(s_vdb_world_generator_descriptor_set_layout_binding),
-  .descriptor_set_count = 1,
-};
-static pipeline_t s_vdb_mask_generator_pipeline = {
-  .pipeline_type = PIPELINE_TYPE_C,
-  .compute_shader = ROOT_DIR "/shader/vdb/mask_generator.comp.spv",
-  .push_constant_range = s_vdb_mask_generator_push_constant_range,
-  .push_constant_range_count = ARRAY_COUNT(s_vdb_mask_generator_push_constant_range),
-  .descriptor_pool_size = s_vdb_mask_generator_descriptor_pool_size,
-  .descriptor_pool_size_count = ARRAY_COUNT(s_vdb_mask_generator_descriptor_pool_size),
-  .descriptor_set_layout_binding = s_vdb_mask_generator_descriptor_set_layout_binding,
-  .descriptor_set_layout_binding_count = ARRAY_COUNT(s_vdb_mask_generator_descriptor_set_layout_binding),
-  .descriptor_set_count = 1,
-};
-static pipeline_t s_vdb_greedy_mesher_pipeline = {
-  .pipeline_type = PIPELINE_TYPE_C,
-  .compute_shader = ROOT_DIR "/shader/vdb/greedy_mesher.comp.spv",
-  .push_constant_range = s_vdb_greedy_mesher_push_constant_range,
-  .push_constant_range_count = ARRAY_COUNT(s_vdb_greedy_mesher_push_constant_range),
-  .descriptor_pool_size = s_vdb_greedy_mesher_descriptor_pool_size,
-  .descriptor_pool_size_count = ARRAY_COUNT(s_vdb_greedy_mesher_descriptor_pool_size),
-  .descriptor_set_layout_binding = s_vdb_greedy_mesher_descriptor_set_layout_binding,
-  .descriptor_set_layout_binding_count = ARRAY_COUNT(s_vdb_greedy_mesher_descriptor_set_layout_binding),
-  .descriptor_set_count = CHUNK_COUNT,
-};
-static pipeline_t s_vdb_chunk_renderer_pipeline = {
-  .pipeline_type = PIPELINE_TYPE_VF,
-  .vertex_shader = ROOT_DIR "/shader/vdb/chunk_renderer.vert.spv",
-  .fragment_shader = ROOT_DIR "/shader/vdb/chunk_renderer.frag.spv",
-  .enable_blending = 1,
-  .enable_depth_test = 1,
-  .enable_depth_write = 1,
-  .primitive_topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-  .polygon_mode = VK_POLYGON_MODE_FILL,
-  .cull_mode = VK_CULL_MODE_BACK_BIT,
-  .vertex_input_binding_description = s_vdb_chunk_vertex_input_binding_description,
-  .vertex_input_binding_description_count = ARRAY_COUNT(s_vdb_chunk_vertex_input_binding_description),
-  .vertex_input_attribute_description = s_vdb_chunk_vertex_input_attribute_description,
-  .vertex_input_attribute_description_count = ARRAY_COUNT(s_vdb_chunk_vertex_input_attribute_description),
-  .push_constant_range = s_vdb_chunk_renderer_push_constant_range,
-  .push_constant_range_count = ARRAY_COUNT(s_vdb_chunk_renderer_push_constant_range),
-  .descriptor_pool_size = s_vdb_chunk_renderer_descriptor_pool_size,
-  .descriptor_pool_size_count = ARRAY_COUNT(s_vdb_chunk_renderer_descriptor_pool_size),
-  .descriptor_set_layout_binding = s_vdb_chunk_renderer_descriptor_set_layout_binding,
-  .descriptor_set_layout_binding_count = ARRAY_COUNT(s_vdb_chunk_renderer_descriptor_set_layout_binding),
-  .descriptor_set_count = CHUNK_COUNT,
-  .render_pass = &g_renderpass_main,
-};
-static pipeline_t s_debug_line_renderer_pipeline = {
-  .pipeline_type = PIPELINE_TYPE_VF,
-  .vertex_shader = ROOT_DIR "/shader/debug/line_renderer.vert.spv",
-  .fragment_shader = ROOT_DIR "/shader/debug/line_renderer.frag.spv",
-  .primitive_topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST,
-  .polygon_mode = VK_POLYGON_MODE_FILL,
-  .cull_mode = VK_CULL_MODE_BACK_BIT,
-  .enable_blending = 1,
-  .enable_depth_test = 1,
-  .enable_depth_write = 1,
-  .vertex_input_binding_description = s_debug_line_vertex_input_binding_description,
-  .vertex_input_binding_description_count = ARRAY_COUNT(s_debug_line_vertex_input_binding_description),
-  .vertex_input_attribute_description = s_debug_line_vertex_input_attribute_description,
-  .vertex_input_attribute_description_count = ARRAY_COUNT(s_debug_line_vertex_input_attribute_description),
-  .descriptor_pool_size = s_vdb_debug_line_renderer_descriptor_pool_size,
-  .descriptor_pool_size_count = ARRAY_COUNT(s_vdb_debug_line_renderer_descriptor_pool_size),
-  .descriptor_set_layout_binding = s_debug_line_renderer_descriptor_set_layout_binding,
-  .descriptor_set_layout_binding_count = ARRAY_COUNT(s_debug_line_renderer_descriptor_set_layout_binding),
-  .descriptor_set_count = 1,
-  .render_pass = &g_renderpass_main,
 };
 
 static buffer_t s_debug_line_vertex_buffer = {
@@ -508,16 +372,6 @@ static buffer_t s_camera_info_buffer = {
   .buffer_usage_flags = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
   .memory_property_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 };
-static buffer_t s_cluster_info_buffer = {
-  .size = sizeof(cluster_info_t),
-  .buffer_usage_flags = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-  .memory_property_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-};
-static buffer_t s_chunk_info_buffer = {
-  .size = sizeof(chunk_info_t) * CHUNK_COUNT,
-  .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-  .memory_property_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-};
 static buffer_t s_place_info_buffer = {
   .size = sizeof(place_info_t),
   .buffer_usage_flags = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
@@ -528,22 +382,12 @@ static buffer_t s_place_result_buffer = {
   .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
   .memory_property_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 };
-static buffer_t s_chunk_mask_buffer = {
-  .size = sizeof(chunk_mask_t) * CHUNK_COUNT,
-  .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-  .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-};
 static buffer_t s_block_buffer = {
   .host_data = g_block,
   .size = sizeof(g_block),
   .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
   .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 };
-
-static buffer_t *s_chunk_vertex_buffer = 0;
-static buffer_t *s_chunk_index_buffer = 0;
-
-static image_t *s_chunk_data_image = 0;
 
 static image_t s_block_atlas_image = {
   .width = 512,
@@ -564,19 +408,100 @@ static VkDescriptorBufferInfo s_time_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_screen_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_mouse_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_camera_info_descriptor_buffer_info = {0};
-static VkDescriptorBufferInfo s_cluster_info_descriptor_buffer_info = {0};
-static VkDescriptorBufferInfo s_chunk_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_place_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_place_result_descriptor_buffer_info = {0};
-static VkDescriptorBufferInfo s_chunk_mask_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_block_descriptor_buffer_info = {0};
 
-static VkDescriptorBufferInfo *s_chunk_vertex_descriptor_buffer_info = 0;
-static VkDescriptorBufferInfo *s_chunk_index_descriptor_buffer_info = 0;
-
-static VkDescriptorImageInfo *s_chunk_data_descriptor_image_info = 0;
-
 static VkDescriptorImageInfo s_block_atlas_descriptor_image_info = {0};
+
+renderer_t g_renderer = {
+  .static_vdb_voxel_placer_pipeline = {
+    .pipeline_type = PIPELINE_TYPE_C,
+    .compute_shader = ROOT_DIR "/shader/vdb/voxel_placer.comp.spv",
+    .descriptor_pool_size = s_static_vdb_voxel_placer_descriptor_pool_size,
+    .descriptor_pool_size_count = ARRAY_COUNT(s_static_vdb_voxel_placer_descriptor_pool_size),
+    .descriptor_set_layout_binding = s_static_vdb_voxel_placer_descriptor_set_layout_binding,
+    .descriptor_set_layout_binding_count = ARRAY_COUNT(s_static_vdb_voxel_placer_descriptor_set_layout_binding),
+    .descriptor_set_count = 1,
+  },
+  .static_vdb_world_generator_pipeline = {
+    .pipeline_type = PIPELINE_TYPE_C,
+    .compute_shader = ROOT_DIR "/shader/vdb/world_generator.comp.spv",
+    .push_constant_range = s_static_vdb_world_generator_push_constant_range,
+    .push_constant_range_count = ARRAY_COUNT(s_static_vdb_world_generator_push_constant_range),
+    .descriptor_pool_size = s_static_vdb_world_generator_descriptor_pool_size,
+    .descriptor_pool_size_count = ARRAY_COUNT(s_static_vdb_world_generator_descriptor_pool_size),
+    .descriptor_set_layout_binding = s_static_vdb_world_generator_descriptor_set_layout_binding,
+    .descriptor_set_layout_binding_count = ARRAY_COUNT(s_static_vdb_world_generator_descriptor_set_layout_binding),
+    .descriptor_set_count = 1,
+  },
+  .static_vdb_mask_generator_pipeline = {
+    .pipeline_type = PIPELINE_TYPE_C,
+    .compute_shader = ROOT_DIR "/shader/vdb/mask_generator.comp.spv",
+    .push_constant_range = s_static_vdb_mask_generator_push_constant_range,
+    .push_constant_range_count = ARRAY_COUNT(s_static_vdb_mask_generator_push_constant_range),
+    .descriptor_pool_size = s_static_vdb_mask_generator_descriptor_pool_size,
+    .descriptor_pool_size_count = ARRAY_COUNT(s_static_vdb_mask_generator_descriptor_pool_size),
+    .descriptor_set_layout_binding = s_static_vdb_mask_generator_descriptor_set_layout_binding,
+    .descriptor_set_layout_binding_count = ARRAY_COUNT(s_static_vdb_mask_generator_descriptor_set_layout_binding),
+    .descriptor_set_count = 1,
+  },
+  .static_vdb_mesh_generator_pipeline = {
+    .pipeline_type = PIPELINE_TYPE_C,
+    .compute_shader = ROOT_DIR "/shader/vdb/mesh_generator.comp.spv",
+    .push_constant_range = s_static_vdb_mesh_generator_push_constant_range,
+    .push_constant_range_count = ARRAY_COUNT(s_static_vdb_mesh_generator_push_constant_range),
+    .descriptor_pool_size = s_static_vdb_mesh_generator_descriptor_pool_size,
+    .descriptor_pool_size_count = ARRAY_COUNT(s_static_vdb_mesh_generator_descriptor_pool_size),
+    .descriptor_set_layout_binding = s_static_vdb_mesh_generator_descriptor_set_layout_binding,
+    .descriptor_set_layout_binding_count = ARRAY_COUNT(s_static_vdb_mesh_generator_descriptor_set_layout_binding),
+    .descriptor_set_count = STATIC_VDB_CHUNK_COUNT,
+  },
+  .static_vdb_renderer_pipeline = {
+    .pipeline_type = PIPELINE_TYPE_VF,
+    .vertex_shader = ROOT_DIR "/shader/vdb/static_renderer.vert.spv",
+    .fragment_shader = ROOT_DIR "/shader/vdb/static_renderer.frag.spv",
+    .enable_blending = 1,
+    .enable_depth_test = 1,
+    .enable_depth_write = 1,
+    .primitive_topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+    .polygon_mode = VK_POLYGON_MODE_FILL,
+    .cull_mode = VK_CULL_MODE_BACK_BIT,
+    .vertex_input_binding_description = s_static_vdb_chunk_vertex_input_binding_description,
+    .vertex_input_binding_description_count = ARRAY_COUNT(s_static_vdb_chunk_vertex_input_binding_description),
+    .vertex_input_attribute_description = s_static_vdb_chunk_vertex_input_attribute_description,
+    .vertex_input_attribute_description_count = ARRAY_COUNT(s_static_vdb_chunk_vertex_input_attribute_description),
+    .push_constant_range = s_static_vdb_renderer_push_constant_range,
+    .push_constant_range_count = ARRAY_COUNT(s_static_vdb_renderer_push_constant_range),
+    .descriptor_pool_size = s_static_vdb_renderer_descriptor_pool_size,
+    .descriptor_pool_size_count = ARRAY_COUNT(s_static_vdb_renderer_descriptor_pool_size),
+    .descriptor_set_layout_binding = s_static_vdb_renderer_descriptor_set_layout_binding,
+    .descriptor_set_layout_binding_count = ARRAY_COUNT(s_static_vdb_renderer_descriptor_set_layout_binding),
+    .descriptor_set_count = STATIC_VDB_CHUNK_COUNT,
+    .render_pass = &g_renderpass_main,
+  },
+  .debug_line_renderer_pipeline = {
+    .pipeline_type = PIPELINE_TYPE_VF,
+    .vertex_shader = ROOT_DIR "/shader/debug/line_renderer.vert.spv",
+    .fragment_shader = ROOT_DIR "/shader/debug/line_renderer.frag.spv",
+    .primitive_topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST,
+    .polygon_mode = VK_POLYGON_MODE_FILL,
+    .cull_mode = VK_CULL_MODE_BACK_BIT,
+    .enable_blending = 1,
+    .enable_depth_test = 1,
+    .enable_depth_write = 1,
+    .vertex_input_binding_description = s_debug_line_vertex_input_binding_description,
+    .vertex_input_binding_description_count = ARRAY_COUNT(s_debug_line_vertex_input_binding_description),
+    .vertex_input_attribute_description = s_debug_line_vertex_input_attribute_description,
+    .vertex_input_attribute_description_count = ARRAY_COUNT(s_debug_line_vertex_input_attribute_description),
+    .descriptor_pool_size = s_debug_line_renderer_descriptor_pool_size,
+    .descriptor_pool_size_count = ARRAY_COUNT(s_debug_line_renderer_descriptor_pool_size),
+    .descriptor_set_layout_binding = s_debug_line_renderer_descriptor_set_layout_binding,
+    .descriptor_set_layout_binding_count = ARRAY_COUNT(s_debug_line_renderer_descriptor_set_layout_binding),
+    .descriptor_set_count = 1,
+    .render_pass = &g_renderpass_main,
+  },
+};
 
 void renderer_create(void) {
   g_renderer.is_debug_enabled = 1;
@@ -586,26 +511,22 @@ void renderer_create(void) {
   renderer_create_coherent_buffer();
   renderer_create_debug_line_buffer();
   renderer_create_full_screen_buffer();
-  renderer_create_chunk_mask_buffer();
-  renderer_create_chunk_vertex_buffer();
-  renderer_create_chunk_index_buffer();
   renderer_create_block_buffer();
 
-  renderer_create_chunk_data_image();
   renderer_create_block_atlas_image();
 
-  pipeline_create(&s_vdb_voxel_placer_pipeline);
-  pipeline_create(&s_vdb_world_generator_pipeline);
-  pipeline_create(&s_vdb_mask_generator_pipeline);
-  pipeline_create(&s_vdb_greedy_mesher_pipeline);
-  pipeline_create(&s_vdb_chunk_renderer_pipeline);
-  pipeline_create(&s_debug_line_renderer_pipeline);
+  pipeline_create(&g_renderer.static_vdb_voxel_placer_pipeline);
+  pipeline_create(&g_renderer.static_vdb_world_generator_pipeline);
+  pipeline_create(&g_renderer.static_vdb_mask_generator_pipeline);
+  pipeline_create(&g_renderer.static_vdb_mesh_generator_pipeline);
+  pipeline_create(&g_renderer.static_vdb_renderer_pipeline);
+  pipeline_create(&g_renderer.debug_line_renderer_pipeline);
 
   renderer_update_vdb_voxel_placer_descriptor_set();
   renderer_update_vdb_world_generator_descriptor_set();
   renderer_update_vdb_mask_generator_descriptor_set();
-  renderer_update_vdb_greedy_mesher_descriptor_set();
-  renderer_update_vdb_chunk_renderer_descriptor_set();
+  renderer_update_vdb_mesh_generator_descriptor_set();
+  renderer_update_vdb_renderer_descriptor_set();
   renderer_update_debug_line_descriptor_set();
 }
 void renderer_draw(void) {
@@ -743,12 +664,12 @@ void renderer_draw(void) {
   }
 }
 void renderer_destroy(void) {
-  pipeline_destroy(&s_vdb_voxel_placer_pipeline);
-  pipeline_destroy(&s_vdb_world_generator_pipeline);
-  pipeline_destroy(&s_vdb_mask_generator_pipeline);
-  pipeline_destroy(&s_vdb_greedy_mesher_pipeline);
-  pipeline_destroy(&s_vdb_chunk_renderer_pipeline);
-  pipeline_destroy(&s_debug_line_renderer_pipeline);
+  pipeline_destroy(&g_renderer.static_vdb_voxel_placer_pipeline);
+  pipeline_destroy(&g_renderer.static_vdb_world_generator_pipeline);
+  pipeline_destroy(&g_renderer.static_vdb_mask_generator_pipeline);
+  pipeline_destroy(&g_renderer.static_vdb_mesh_generator_pipeline);
+  pipeline_destroy(&g_renderer.static_vdb_renderer_pipeline);
+  pipeline_destroy(&g_renderer.debug_line_renderer_pipeline);
 
   renderer_destroy_sync_object();
   renderer_destroy_buffer();
@@ -871,8 +792,6 @@ static void renderer_create_coherent_buffer(void) {
   buffer_create(&s_screen_info_buffer);
   buffer_create(&s_mouse_info_buffer);
   buffer_create(&s_camera_info_buffer);
-  buffer_create(&s_cluster_info_buffer);
-  buffer_create(&s_chunk_info_buffer);
   buffer_create(&s_place_info_buffer);
   buffer_create(&s_place_result_buffer);
 
@@ -880,8 +799,6 @@ static void renderer_create_coherent_buffer(void) {
   buffer_map(&s_screen_info_buffer);
   buffer_map(&s_mouse_info_buffer);
   buffer_map(&s_camera_info_buffer);
-  buffer_map(&s_cluster_info_buffer);
-  buffer_map(&s_chunk_info_buffer);
   buffer_map(&s_place_info_buffer);
   buffer_map(&s_place_result_buffer);
 
@@ -889,8 +806,6 @@ static void renderer_create_coherent_buffer(void) {
   g_renderer.screen_info = (screen_info_t *)s_screen_info_buffer.device_data;
   g_renderer.mouse_info = (mouse_info_t *)s_mouse_info_buffer.device_data;
   g_renderer.camera_info = (camera_info_t *)s_camera_info_buffer.device_data;
-  g_renderer.cluster_info = (cluster_info_t *)s_cluster_info_buffer.device_data;
-  g_renderer.chunk_info = (chunk_info_t *)s_chunk_info_buffer.device_data;
   g_renderer.place_info = (place_info_t *)s_place_info_buffer.device_data;
   g_renderer.place_result = (place_result_t *)s_place_result_buffer.device_data;
 
@@ -909,14 +824,6 @@ static void renderer_create_coherent_buffer(void) {
   s_camera_info_descriptor_buffer_info.offset = 0;
   s_camera_info_descriptor_buffer_info.buffer = s_camera_info_buffer.buffer_handle;
   s_camera_info_descriptor_buffer_info.range = VK_WHOLE_SIZE;
-
-  s_cluster_info_descriptor_buffer_info.offset = 0;
-  s_cluster_info_descriptor_buffer_info.buffer = s_cluster_info_buffer.buffer_handle;
-  s_cluster_info_descriptor_buffer_info.range = VK_WHOLE_SIZE;
-
-  s_chunk_info_descriptor_buffer_info.offset = 0;
-  s_chunk_info_descriptor_buffer_info.buffer = s_chunk_info_buffer.buffer_handle;
-  s_chunk_info_descriptor_buffer_info.range = VK_WHOLE_SIZE;
 
   s_place_info_descriptor_buffer_info.offset = 0;
   s_place_info_descriptor_buffer_info.buffer = s_place_info_buffer.buffer_handle;
@@ -937,57 +844,6 @@ static void renderer_create_full_screen_buffer(void) {
   buffer_create(&s_full_screen_vertex_buffer);
   buffer_create(&s_full_screen_index_buffer);
 }
-static void renderer_create_chunk_mask_buffer(void) {
-  buffer_create(&s_chunk_mask_buffer);
-
-  s_chunk_mask_descriptor_buffer_info.offset = 0;
-  s_chunk_mask_descriptor_buffer_info.buffer = s_chunk_mask_buffer.buffer_handle;
-  s_chunk_mask_descriptor_buffer_info.range = VK_WHOLE_SIZE;
-}
-static void renderer_create_chunk_vertex_buffer(void) {
-  s_chunk_vertex_buffer = (buffer_t *)HEAP_ALLOC(sizeof(buffer_t) * CHUNK_COUNT, 1, 0);
-  s_chunk_vertex_descriptor_buffer_info = (VkDescriptorBufferInfo *)HEAP_ALLOC(sizeof(VkDescriptorBufferInfo) * CHUNK_COUNT, 1, 0);
-
-  int32_t chunk_index = 0;
-  int32_t chunk_count = CHUNK_COUNT;
-
-  while (chunk_index < chunk_count) {
-
-    s_chunk_vertex_buffer[chunk_index].size = sizeof(vdb_chunk_vertex_t) * WORST_CASE_GREEDY_MESH_VERTEX_COUNT;
-    s_chunk_vertex_buffer[chunk_index].buffer_usage_flags = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-    s_chunk_vertex_buffer[chunk_index].memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-
-    buffer_create(&s_chunk_vertex_buffer[chunk_index]);
-
-    s_chunk_vertex_descriptor_buffer_info[chunk_index].offset = 0;
-    s_chunk_vertex_descriptor_buffer_info[chunk_index].buffer = s_chunk_vertex_buffer[chunk_index].buffer_handle;
-    s_chunk_vertex_descriptor_buffer_info[chunk_index].range = VK_WHOLE_SIZE;
-
-    chunk_index++;
-  }
-}
-static void renderer_create_chunk_index_buffer(void) {
-  s_chunk_index_buffer = (buffer_t *)HEAP_ALLOC(sizeof(buffer_t) * CHUNK_COUNT, 1, 0);
-  s_chunk_index_descriptor_buffer_info = (VkDescriptorBufferInfo *)HEAP_ALLOC(sizeof(VkDescriptorBufferInfo) * CHUNK_COUNT, 1, 0);
-
-  int32_t chunk_index = 0;
-  int32_t chunk_count = CHUNK_COUNT;
-
-  while (chunk_index < chunk_count) {
-
-    s_chunk_index_buffer[chunk_index].size = sizeof(vdb_chunk_index_t) * WORST_CASE_GREEDY_MESH_INDEX_COUNT;
-    s_chunk_index_buffer[chunk_index].buffer_usage_flags = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-    s_chunk_index_buffer[chunk_index].memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-
-    buffer_create(&s_chunk_index_buffer[chunk_index]);
-
-    s_chunk_index_descriptor_buffer_info[chunk_index].offset = 0;
-    s_chunk_index_descriptor_buffer_info[chunk_index].buffer = s_chunk_index_buffer[chunk_index].buffer_handle;
-    s_chunk_index_descriptor_buffer_info[chunk_index].range = VK_WHOLE_SIZE;
-
-    chunk_index++;
-  }
-}
 static void renderer_create_block_buffer(void) {
   buffer_create(&s_block_buffer);
 
@@ -996,37 +852,6 @@ static void renderer_create_block_buffer(void) {
   s_block_descriptor_buffer_info.range = VK_WHOLE_SIZE;
 }
 
-static void renderer_create_chunk_data_image(void) {
-  s_chunk_data_image = (image_t *)HEAP_ALLOC(sizeof(image_t) * CHUNK_COUNT, 1, 0);
-  s_chunk_data_descriptor_image_info = (VkDescriptorImageInfo *)HEAP_ALLOC(sizeof(VkDescriptorImageInfo) * CHUNK_COUNT, 1, 0);
-
-  int32_t chunk_index = 0;
-  int32_t chunk_count = CHUNK_COUNT;
-
-  while (chunk_index < chunk_count) {
-
-    s_chunk_data_image[chunk_index].width = CHUNK_SIZE,
-    s_chunk_data_image[chunk_index].height = CHUNK_SIZE,
-    s_chunk_data_image[chunk_index].depth = CHUNK_SIZE,
-    s_chunk_data_image[chunk_index].channel = 1,
-    s_chunk_data_image[chunk_index].element_size = sizeof(uint32_t),
-    s_chunk_data_image[chunk_index].format = VK_FORMAT_R32_UINT,
-    s_chunk_data_image[chunk_index].filter = VK_FILTER_NEAREST,
-    s_chunk_data_image[chunk_index].image_usage_flags = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-    s_chunk_data_image[chunk_index].image_type = VK_IMAGE_TYPE_3D,
-    s_chunk_data_image[chunk_index].image_view_type = VK_IMAGE_VIEW_TYPE_3D,
-    s_chunk_data_image[chunk_index].image_aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
-    s_chunk_data_image[chunk_index].image_tiling = VK_IMAGE_TILING_OPTIMAL,
-
-    image_create(&s_chunk_data_image[chunk_index]);
-
-    s_chunk_data_descriptor_image_info[chunk_index].sampler = s_chunk_data_image[chunk_index].sampler;
-    s_chunk_data_descriptor_image_info[chunk_index].imageView = s_chunk_data_image[chunk_index].image_view;
-    s_chunk_data_descriptor_image_info[chunk_index].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-    chunk_index++;
-  }
-}
 static void renderer_create_block_atlas_image(void) {
   uint8_t *image = imgutil_load_image_from_file(0, 0, 0, ROOT_DIR "/asset/block_atlas.png");
 
@@ -1048,20 +873,8 @@ static void renderer_update_vdb_voxel_placer_descriptor_set(void) {
     {
       .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
       .pNext = 0,
-      .dstSet = s_vdb_voxel_placer_pipeline.descriptor_set[0],
+      .dstSet = g_renderer.static_vdb_voxel_placer_pipeline.descriptor_set[0],
       .dstBinding = 0,
-      .dstArrayElement = 0,
-      .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-      .descriptorCount = 1,
-      .pImageInfo = 0,
-      .pBufferInfo = &s_cluster_info_descriptor_buffer_info,
-      .pTexelBufferView = 0,
-    },
-    {
-      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-      .pNext = 0,
-      .dstSet = s_vdb_voxel_placer_pipeline.descriptor_set[0],
-      .dstBinding = 1,
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
       .descriptorCount = 1,
@@ -1072,20 +885,20 @@ static void renderer_update_vdb_voxel_placer_descriptor_set(void) {
     {
       .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
       .pNext = 0,
-      .dstSet = s_vdb_voxel_placer_pipeline.descriptor_set[0],
-      .dstBinding = 2,
+      .dstSet = g_renderer.static_vdb_voxel_placer_pipeline.descriptor_set[0],
+      .dstBinding = 1,
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-      .descriptorCount = CHUNK_COUNT,
-      .pImageInfo = s_chunk_data_descriptor_image_info,
+      .descriptorCount = STATIC_VDB_CHUNK_COUNT,
+      .pImageInfo = g_static_vdb.chunk_voxel_descriptor_image_info,
       .pBufferInfo = 0,
       .pTexelBufferView = 0,
     },
     {
       .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
       .pNext = 0,
-      .dstSet = s_vdb_voxel_placer_pipeline.descriptor_set[0],
-      .dstBinding = 4,
+      .dstSet = g_renderer.static_vdb_voxel_placer_pipeline.descriptor_set[0],
+      .dstBinding = 2,
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
       .descriptorCount = 1,
@@ -1102,37 +915,13 @@ static void renderer_update_vdb_world_generator_descriptor_set(void) {
     {
       .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
       .pNext = 0,
-      .dstSet = s_vdb_world_generator_pipeline.descriptor_set[0],
+      .dstSet = g_renderer.static_vdb_world_generator_pipeline.descriptor_set[0],
       .dstBinding = 0,
       .dstArrayElement = 0,
-      .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-      .descriptorCount = 1,
-      .pImageInfo = 0,
-      .pBufferInfo = &s_cluster_info_descriptor_buffer_info,
-      .pTexelBufferView = 0,
-    },
-    {
-      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-      .pNext = 0,
-      .dstSet = s_vdb_world_generator_pipeline.descriptor_set[0],
-      .dstBinding = 1,
-      .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-      .descriptorCount = CHUNK_COUNT,
-      .pImageInfo = s_chunk_data_descriptor_image_info,
+      .descriptorCount = STATIC_VDB_CHUNK_COUNT,
+      .pImageInfo = g_static_vdb.chunk_voxel_descriptor_image_info,
       .pBufferInfo = 0,
-      .pTexelBufferView = 0,
-    },
-    {
-      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-      .pNext = 0,
-      .dstSet = s_vdb_world_generator_pipeline.descriptor_set[0],
-      .dstBinding = 2,
-      .dstArrayElement = 0,
-      .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-      .descriptorCount = 1,
-      .pImageInfo = 0,
-      .pBufferInfo = &s_time_info_descriptor_buffer_info,
       .pTexelBufferView = 0,
     },
   };
@@ -1144,34 +933,34 @@ static void renderer_update_vdb_mask_generator_descriptor_set(void) {
     {
       .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
       .pNext = 0,
-      .dstSet = s_vdb_mask_generator_pipeline.descriptor_set[0],
+      .dstSet = g_renderer.static_vdb_mask_generator_pipeline.descriptor_set[0],
       .dstBinding = 0,
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-      .descriptorCount = CHUNK_COUNT,
-      .pImageInfo = s_chunk_data_descriptor_image_info,
+      .descriptorCount = STATIC_VDB_CHUNK_COUNT,
+      .pImageInfo = g_static_vdb.chunk_voxel_descriptor_image_info,
       .pBufferInfo = 0,
       .pTexelBufferView = 0,
     },
     {
       .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
       .pNext = 0,
-      .dstSet = s_vdb_mask_generator_pipeline.descriptor_set[0],
+      .dstSet = g_renderer.static_vdb_mask_generator_pipeline.descriptor_set[0],
       .dstBinding = 1,
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
       .descriptorCount = 1,
       .pImageInfo = 0,
-      .pBufferInfo = &s_chunk_mask_descriptor_buffer_info,
+      .pBufferInfo = &g_static_vdb.chunk_mask_descriptor_buffer_info,
       .pTexelBufferView = 0,
     },
   };
 
   vkUpdateDescriptorSets(g_window.device, ARRAY_COUNT(write_descriptor_set), write_descriptor_set, 0, 0);
 }
-static void renderer_update_vdb_greedy_mesher_descriptor_set(void) {
+static void renderer_update_vdb_mesh_generator_descriptor_set(void) {
   int32_t chunk_index = 0;
-  int32_t chunk_count = CHUNK_COUNT;
+  int32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
 
   while (chunk_index < chunk_count) {
 
@@ -1179,55 +968,55 @@ static void renderer_update_vdb_greedy_mesher_descriptor_set(void) {
       {
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .pNext = 0,
-        .dstSet = s_vdb_greedy_mesher_pipeline.descriptor_set[chunk_index],
+        .dstSet = g_renderer.static_vdb_mesh_generator_pipeline.descriptor_set[chunk_index],
         .dstBinding = 0,
         .dstArrayElement = 0,
         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
         .descriptorCount = 1,
         .pImageInfo = 0,
-        .pBufferInfo = &s_chunk_mask_descriptor_buffer_info,
+        .pBufferInfo = &g_static_vdb.chunk_mask_descriptor_buffer_info,
         .pTexelBufferView = 0,
       },
       {
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .pNext = 0,
-        .dstSet = s_vdb_greedy_mesher_pipeline.descriptor_set[chunk_index],
+        .dstSet = g_renderer.static_vdb_mesh_generator_pipeline.descriptor_set[chunk_index],
         .dstBinding = 1,
         .dstArrayElement = 0,
         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
         .descriptorCount = 1,
         .pImageInfo = 0,
-        .pBufferInfo = &s_chunk_vertex_descriptor_buffer_info[chunk_index],
+        .pBufferInfo = &g_static_vdb.chunk_vertex_descriptor_buffer_info[chunk_index],
         .pTexelBufferView = 0,
       },
       {
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .pNext = 0,
-        .dstSet = s_vdb_greedy_mesher_pipeline.descriptor_set[chunk_index],
+        .dstSet = g_renderer.static_vdb_mesh_generator_pipeline.descriptor_set[chunk_index],
         .dstBinding = 2,
         .dstArrayElement = 0,
         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
         .descriptorCount = 1,
         .pImageInfo = 0,
-        .pBufferInfo = &s_chunk_index_descriptor_buffer_info[chunk_index],
+        .pBufferInfo = &g_static_vdb.chunk_index_descriptor_buffer_info[chunk_index],
         .pTexelBufferView = 0,
       },
       {
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .pNext = 0,
-        .dstSet = s_vdb_greedy_mesher_pipeline.descriptor_set[chunk_index],
+        .dstSet = g_renderer.static_vdb_mesh_generator_pipeline.descriptor_set[chunk_index],
         .dstBinding = 3,
         .dstArrayElement = 0,
         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
         .descriptorCount = 1,
         .pImageInfo = 0,
-        .pBufferInfo = &s_chunk_info_descriptor_buffer_info,
+        .pBufferInfo = &g_static_vdb.chunk_info_descriptor_buffer_info,
         .pTexelBufferView = 0,
       },
       {
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .pNext = 0,
-        .dstSet = s_vdb_greedy_mesher_pipeline.descriptor_set[chunk_index],
+        .dstSet = g_renderer.static_vdb_mesh_generator_pipeline.descriptor_set[chunk_index],
         .dstBinding = 4,
         .dstArrayElement = 0,
         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -1239,12 +1028,12 @@ static void renderer_update_vdb_greedy_mesher_descriptor_set(void) {
       {
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .pNext = 0,
-        .dstSet = s_vdb_greedy_mesher_pipeline.descriptor_set[chunk_index],
+        .dstSet = g_renderer.static_vdb_mesh_generator_pipeline.descriptor_set[chunk_index],
         .dstBinding = 5,
         .dstArrayElement = 0,
         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
         .descriptorCount = 1,
-        .pImageInfo = &s_chunk_data_descriptor_image_info[chunk_index],
+        .pImageInfo = &g_static_vdb.chunk_voxel_descriptor_image_info[chunk_index],
         .pBufferInfo = 0,
         .pTexelBufferView = 0,
       },
@@ -1255,9 +1044,9 @@ static void renderer_update_vdb_greedy_mesher_descriptor_set(void) {
     chunk_index++;
   }
 }
-static void renderer_update_vdb_chunk_renderer_descriptor_set(void) {
+static void renderer_update_vdb_renderer_descriptor_set(void) {
   int32_t chunk_index = 0;
-  int32_t chunk_count = CHUNK_COUNT;
+  int32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
 
   while (chunk_index < chunk_count) {
 
@@ -1265,7 +1054,7 @@ static void renderer_update_vdb_chunk_renderer_descriptor_set(void) {
       {
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .pNext = 0,
-        .dstSet = s_vdb_chunk_renderer_pipeline.descriptor_set[chunk_index],
+        .dstSet = g_renderer.static_vdb_renderer_pipeline.descriptor_set[chunk_index],
         .dstBinding = 0,
         .dstArrayElement = 0,
         .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -1277,7 +1066,7 @@ static void renderer_update_vdb_chunk_renderer_descriptor_set(void) {
       {
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .pNext = 0,
-        .dstSet = s_vdb_chunk_renderer_pipeline.descriptor_set[chunk_index],
+        .dstSet = g_renderer.static_vdb_renderer_pipeline.descriptor_set[chunk_index],
         .dstBinding = 1,
         .dstArrayElement = 0,
         .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -1298,7 +1087,7 @@ static void renderer_update_debug_line_descriptor_set(void) {
     {
       .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
       .pNext = 0,
-      .dstSet = s_debug_line_renderer_pipeline.descriptor_set[0],
+      .dstSet = g_renderer.debug_line_renderer_pipeline.descriptor_set[0],
       .dstBinding = 0,
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -1326,212 +1115,13 @@ static void renderer_update_coherent_buffer(void) {
   g_renderer.camera_info->view_projection = g_player.camera.view_projection;
   g_renderer.camera_info->view_projection_inv = g_player.camera.view_projection_inv;
 
-  g_renderer.cluster_info->dimension = (ivector2_t){CLUSTER_DIM_X, CLUSTER_DIM_Y};
-
   g_renderer.place_info->voxel_position = (ivector3_t){0, 0, 0};
   g_renderer.place_info->voxel_id = 0;
 }
 
-static void renderer_generate_world(void) {
-  vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_vdb_world_generator_pipeline.pipeline_handle);
-  vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_vdb_world_generator_pipeline.pipeline_layout, 0, 1, &s_vdb_world_generator_pipeline.descriptor_set[0], 0, 0);
-
-  world_generator_push_constant_t world_generator_push_constant = {0};
-
-  int32_t chunk_index = 0;
-  int32_t chunk_count = CHUNK_COUNT;
-
-  while (chunk_index < chunk_count) {
-
-    world_generator_push_constant.chunk_position = vdb_chunk_index_to_position(chunk_index);
-    world_generator_push_constant.chunk_index = chunk_index;
-    world_generator_push_constant.stage = 0;
-
-    vkCmdPushConstants(g_window.command_buffer, s_vdb_world_generator_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(world_generator_push_constant_t), &world_generator_push_constant);
-    vkCmdDispatch(g_window.command_buffer, 4, 4, 4);
-
-    VkImageMemoryBarrier image_memory_barrier = {
-      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-      .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-      .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-      .image = s_chunk_data_image[chunk_index].image_handle,
-      .subresourceRange = {
-        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-        .baseMipLevel = 0,
-        .levelCount = 1,
-        .baseArrayLayer = 0,
-        .layerCount = 1,
-      },
-      .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-      .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-    };
-
-    vkCmdPipelineBarrier(
-      g_window.command_buffer,
-      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      &image_memory_barrier);
-
-    chunk_index++;
-  }
-
-  chunk_index = 0;
-
-  while (chunk_index < chunk_count) {
-
-    world_generator_push_constant.chunk_position = vdb_chunk_index_to_position(chunk_index);
-    world_generator_push_constant.chunk_index = chunk_index;
-    world_generator_push_constant.stage = 1;
-
-    vkCmdPushConstants(g_window.command_buffer, s_vdb_world_generator_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(world_generator_push_constant_t), &world_generator_push_constant);
-    vkCmdDispatch(g_window.command_buffer, 4, 4, 4);
-
-    VkImageMemoryBarrier image_memory_barrier = {
-      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-      .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-      .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-      .image = s_chunk_data_image[chunk_index].image_handle,
-      .subresourceRange = {
-        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-        .baseMipLevel = 0,
-        .levelCount = 1,
-        .baseArrayLayer = 0,
-        .layerCount = 1,
-      },
-      .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-      .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-    };
-
-    vkCmdPipelineBarrier(
-      g_window.command_buffer,
-      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      &image_memory_barrier);
-
-    chunk_index++;
-  }
-}
-static void renderer_generate_mask(void) {
-  vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_vdb_mask_generator_pipeline.pipeline_handle);
-  vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_vdb_mask_generator_pipeline.pipeline_layout, 0, 1, &s_vdb_mask_generator_pipeline.descriptor_set[0], 0, 0);
-
-  mask_generator_push_constant_t mask_generator_push_constant = {0};
-
-  int32_t chunk_index = 0;
-  int32_t chunk_count = CHUNK_COUNT;
-
-  while (chunk_index < chunk_count) {
-
-    mask_generator_push_constant.chunk_position = vdb_chunk_index_to_position(chunk_index);
-    mask_generator_push_constant.chunk_index = chunk_index;
-
-    vkCmdPushConstants(g_window.command_buffer, s_vdb_mask_generator_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(mask_generator_push_constant_t), &mask_generator_push_constant);
-    vkCmdDispatch(g_window.command_buffer, CHUNK_SIZE, CHUNK_SIZE, 6);
-
-    chunk_index++;
-  }
-
-  VkBufferMemoryBarrier buffer_memory_barrier = {
-    .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-    .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-    .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-    .buffer = s_chunk_mask_buffer.buffer_handle,
-    .offset = 0,
-    .size = VK_WHOLE_SIZE,
-  };
-
-  vkCmdPipelineBarrier(
-    g_window.command_buffer,
-    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-    0,
-    0,
-    0,
-    1,
-    &buffer_memory_barrier,
-    0,
-    0);
-}
-static void renderer_generate_mesh(void) {
-  vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_vdb_greedy_mesher_pipeline.pipeline_handle);
-
-  greedy_mesher_push_constant_t greedy_mesher_push_constant = {0};
-
-  int32_t chunk_index = 0;
-  int32_t chunk_count = CHUNK_COUNT;
-
-  while (chunk_index < chunk_count) {
-
-    // TODO: find a clean way to reset these counters..
-    g_renderer.chunk_info[chunk_index].vertex_count = 0;
-    g_renderer.chunk_info[chunk_index].index_count = 0;
-
-    greedy_mesher_push_constant.chunk_position = vdb_chunk_index_to_position(chunk_index);
-    greedy_mesher_push_constant.chunk_index = chunk_index;
-
-    vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_vdb_greedy_mesher_pipeline.pipeline_layout, 0, 1, &s_vdb_greedy_mesher_pipeline.descriptor_set[chunk_index], 0, 0);
-    vkCmdPushConstants(g_window.command_buffer, s_vdb_greedy_mesher_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(greedy_mesher_push_constant_t), &greedy_mesher_push_constant);
-    vkCmdDispatch(g_window.command_buffer, CHUNK_SIZE, 1, 6);
-
-    VkBufferMemoryBarrier buffer_memory_barrier[] = {
-      {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-        .dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .buffer = s_chunk_vertex_buffer[chunk_index].buffer_handle,
-        .offset = 0,
-        .size = VK_WHOLE_SIZE,
-      },
-      {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-        .dstAccessMask = VK_ACCESS_INDEX_READ_BIT,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .buffer = s_chunk_index_buffer[chunk_index].buffer_handle,
-        .offset = 0,
-        .size = VK_WHOLE_SIZE,
-      },
-    };
-
-    vkCmdPipelineBarrier(
-      g_window.command_buffer,
-      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-      VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
-      0,
-      0,
-      0,
-      ARRAY_COUNT(buffer_memory_barrier),
-      buffer_memory_barrier,
-      0,
-      0);
-
-    chunk_index++;
-  }
-}
 static void renderer_place_voxel(void) {
-  vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_vdb_voxel_placer_pipeline.pipeline_handle);
-  vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_vdb_voxel_placer_pipeline.pipeline_layout, 0, 1, &s_vdb_voxel_placer_pipeline.descriptor_set[0], 0, 0);
+  vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, g_renderer.static_vdb_voxel_placer_pipeline.pipeline_handle);
+  vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, g_renderer.static_vdb_voxel_placer_pipeline.pipeline_layout, 0, 1, &g_renderer.static_vdb_voxel_placer_pipeline.descriptor_set[0], 0, 0);
   vkCmdDispatch(g_window.command_buffer, 1, 1, 1);
 
   VkImageMemoryBarrier image_memory_barrier = {
@@ -1540,7 +1130,7 @@ static void renderer_place_voxel(void) {
     .newLayout = VK_IMAGE_LAYOUT_GENERAL,
     .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
     .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-    .image = s_chunk_data_image[0].image_handle, // TODO: do this for current and all surrounding chunks..
+    .image = g_static_vdb.chunk_voxel_image[0].image_handle, // TODO: do this for current and all surrounding chunks..
     .subresourceRange = {
       .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
       .baseMipLevel = 0,
@@ -1570,9 +1160,7 @@ static void renderer_record_compute_pass(void) {
 
     g_renderer.rebuild_world = 0;
 
-    renderer_generate_world();
-    renderer_generate_mask();
-    renderer_generate_mesh();
+    static_vdb_build();
   }
 
   if (window_is_mouse_key_held(MOUSE_KEY_RIGHT)) {
@@ -1645,28 +1233,7 @@ static void renderer_record_main_pass(void) {
   vkCmdSetScissor(g_window.command_buffer, 0, 1, &scissor);
 
   {
-    vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_vdb_chunk_renderer_pipeline.pipeline_handle);
-
-    chunk_renderer_push_constant_t chunk_renderer_push_constant = {0};
-
-    int32_t chunk_index = 0;
-    int32_t chunk_count = CHUNK_COUNT;
-
-    while (chunk_index < chunk_count) {
-
-      chunk_renderer_push_constant.chunk_position = vdb_chunk_index_to_position(chunk_index);
-      chunk_renderer_push_constant.chunk_index = chunk_index;
-
-      VkDeviceSize vertex_offset[] = {0};
-
-      vkCmdBindVertexBuffers(g_window.command_buffer, 0, 1, &s_chunk_vertex_buffer[chunk_index].buffer_handle, vertex_offset);
-      vkCmdBindIndexBuffer(g_window.command_buffer, s_chunk_index_buffer[chunk_index].buffer_handle, 0, VK_INDEX_TYPE_UINT32);
-      vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_vdb_chunk_renderer_pipeline.pipeline_layout, 0, 1, &s_vdb_chunk_renderer_pipeline.descriptor_set[chunk_index], 0, 0);
-      vkCmdPushConstants(g_window.command_buffer, s_vdb_chunk_renderer_pipeline.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(chunk_renderer_push_constant_t), &chunk_renderer_push_constant);
-      vkCmdDrawIndexed(g_window.command_buffer, g_renderer.chunk_info[chunk_index].index_count, 1, 0, 0, 0);
-
-      chunk_index++;
-    }
+    static_vdb_draw();
   }
 
   {
@@ -1674,10 +1241,10 @@ static void renderer_record_main_pass(void) {
 
       VkDeviceSize vertex_offset[] = {0};
 
-      vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_debug_line_renderer_pipeline.pipeline_handle);
+      vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, g_renderer.debug_line_renderer_pipeline.pipeline_handle);
       vkCmdBindVertexBuffers(g_window.command_buffer, 0, 1, &s_debug_line_vertex_buffer.buffer_handle, vertex_offset);
       vkCmdBindIndexBuffer(g_window.command_buffer, s_debug_line_index_buffer.buffer_handle, 0, VK_INDEX_TYPE_UINT32);
-      vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_debug_line_renderer_pipeline.pipeline_layout, 0, 1, &s_debug_line_renderer_pipeline.descriptor_set[0], 0, 0);
+      vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, g_renderer.debug_line_renderer_pipeline.pipeline_layout, 0, 1, &g_renderer.debug_line_renderer_pipeline.descriptor_set[0], 0, 0);
       vkCmdDrawIndexed(g_window.command_buffer, s_debug_line_index_offset, 1, 0, 0, 0);
 
       s_debug_line_vertex_offset = 0;
@@ -1713,43 +1280,10 @@ static void renderer_destroy_buffer(void) {
   buffer_destroy(&s_screen_info_buffer);
   buffer_destroy(&s_mouse_info_buffer);
   buffer_destroy(&s_camera_info_buffer);
-  buffer_destroy(&s_cluster_info_buffer);
-  buffer_destroy(&s_chunk_info_buffer);
   buffer_destroy(&s_place_info_buffer);
   buffer_destroy(&s_place_result_buffer);
-  buffer_destroy(&s_chunk_mask_buffer);
   buffer_destroy(&s_block_buffer);
-
-  int32_t chunk_index = 0;
-  int32_t chunk_count = CHUNK_COUNT;
-
-  while (chunk_index < chunk_count) {
-
-    buffer_destroy(&s_chunk_vertex_buffer[chunk_index]);
-    buffer_destroy(&s_chunk_index_buffer[chunk_index]);
-
-    chunk_index++;
-  }
-
-  HEAP_FREE(s_chunk_vertex_buffer);
-  HEAP_FREE(s_chunk_index_buffer);
-
-  HEAP_FREE(s_chunk_vertex_descriptor_buffer_info);
-  HEAP_FREE(s_chunk_index_descriptor_buffer_info);
 }
 static void renderer_destroy_image(void) {
-  int32_t chunk_index = 0;
-  int32_t chunk_count = CHUNK_COUNT;
-
-  while (chunk_index < chunk_count) {
-
-    image_destroy(&s_chunk_data_image[chunk_index]);
-
-    chunk_index++;
-  }
-
   image_destroy(&s_block_atlas_image);
-
-  HEAP_FREE(s_chunk_data_image);
-  HEAP_FREE(s_chunk_data_descriptor_image_info);
 }
