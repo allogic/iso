@@ -1,5 +1,9 @@
 #include <pch.h>
 
+#define VENDOR_ID_NVIDIA (0x10DE)
+#define VENDOR_ID_AMD (0x1002)
+#define VENDOR_ID_INTEL (0x8086)
+
 #define MAX_SURFACE_FORMATS (0xFF)
 #define MAX_PRESENT_MODES (0xFF)
 
@@ -541,13 +545,15 @@ static void window_create_native(void) {
   UpdateWindow(g_window.window_handle);
 }
 static void window_create_instance(void) {
+  uint32_t vulkan_api_version = VK_API_VERSION_1_3;
+
   VkApplicationInfo application_info = {
     .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
     .pApplicationName = "VULKAN_APPLICATION",
     .applicationVersion = VK_MAKE_API_VERSION(0, 1, 0, 0),
     .pEngineName = "VULKAN_ENGINE",
     .engineVersion = VK_MAKE_API_VERSION(0, 1, 0, 0),
-    .apiVersion = VK_API_VERSION_1_3,
+    .apiVersion = vulkan_api_version,
   };
 
 #ifdef BUILD_DEBUG
@@ -560,8 +566,8 @@ static void window_create_instance(void) {
   VkValidationFeaturesEXT validation_features = {
     .sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
     .pNext = 0,
-    .enabledValidationFeatureCount = ARRAY_COUNT(validation_feature_enable),
-    .pEnabledValidationFeatures = validation_feature_enable,
+    .enabledValidationFeatureCount = 0, // ARRAY_COUNT(validation_feature_enable),
+    .pEnabledValidationFeatures = 0,    // validation_feature_enable,
     .disabledValidationFeatureCount = 0,
     .pDisabledValidationFeatures = 0,
   };
@@ -596,6 +602,26 @@ static void window_create_instance(void) {
   vkDestroyDebugUtilsMessengerEXT_proc = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(g_window.instance, "vkDestroyDebugUtilsMessengerEXT");
 
   VK_CHECK(vkCreateDebugUtilsMessengerEXT_proc(g_window.instance, &debug_utils_messenger_create_info, 0, &g_window.debug_utils_messenger));
+
+  uint32_t instance_version = 0;
+
+  VkResult result = vkEnumerateInstanceVersion(&instance_version);
+
+  if (result == VK_SUCCESS) {
+
+    uint32_t major = VK_VERSION_MAJOR(instance_version);
+    uint32_t minor = VK_VERSION_MINOR(instance_version);
+    uint32_t patch = VK_VERSION_PATCH(instance_version);
+
+    printf("Vulkan Runtime Version: %d.%d.%d\n", major, minor, patch);
+
+  } else {
+
+    printf("vkEnumerateInstanceVersion not supported, default to 1.0\n");
+  }
+
+  printf("Vulkan Header Version: %d\n", VK_HEADER_VERSION);
+  printf("\n");
 #endif // BUILD_DEBUG
 }
 static void window_create_surface(void) {
@@ -714,8 +740,29 @@ static void window_find_physical_device(void) {
   }
 
 #ifdef BUILD_DEBUG
+  VkPhysicalDeviceProperties *props = &g_window.physical_device_properties2.properties;
+
   printf("Selected Physical Device\n");
-  printf("  Physical Device Index %d\n", physical_device_index);
+  printf("  Device Index: %d\n", physical_device_index);
+  printf("  Device Name: %s\n", props->deviceName);
+  printf("  Vulkan Version: %u.%u.%u\n", VK_VERSION_MAJOR(props->apiVersion), VK_VERSION_MINOR(props->apiVersion), VK_VERSION_PATCH(props->apiVersion));
+  switch (props->vendorID) {
+    case VENDOR_ID_NVIDIA:
+      printf("  Driver Version: %u.%u.%u\n", (props->driverVersion >> 22) & 0x3FF, (props->driverVersion >> 14) & 0xFF, (props->driverVersion >> 0) & 0x3FFF);
+      break;
+    case VENDOR_ID_AMD:
+      printf("  Driver Version: %u.%u.%u\n", (props->driverVersion >> 22) & 0x3FF, (props->driverVersion >> 12) & 0x3FF, (props->driverVersion >> 0) & 0xFFF);
+      break;
+    case VENDOR_ID_INTEL:
+      printf("  Driver Version: %u\n", props->driverVersion);
+      break;
+    default:
+      printf("Driver Version: %u\n", props->driverVersion);
+      break;
+  }
+  printf("  Vendor ID: 0x%X\n", props->vendorID);
+  printf("  Device ID: 0x%X\n", props->deviceID);
+  printf("  Device Type: %d\n", props->deviceType);
   printf("\n");
 #endif // BUILD_DEBUG
 }
@@ -757,8 +804,8 @@ static void window_find_physical_device_queue_families(void) {
 
 #ifdef BUILD_DEBUG
   printf("Selected Physical Queues\n");
-  printf("  Primary Queue Index %d\n", g_window.primary_queue_index);
-  printf("  Present Queue Index %d\n", g_window.present_queue_index);
+  printf("  Primary Queue Index: %d\n", g_window.primary_queue_index);
+  printf("  Present Queue Index: %d\n", g_window.present_queue_index);
   printf("\n");
 #endif // BUILD_DEBUG
 }
@@ -818,7 +865,7 @@ static void window_check_physical_device_extensions(void) {
   VK_CHECK(vkEnumerateDeviceExtensionProperties(g_window.physical_device, 0, &available_device_extension_count, available_extension_properties));
 
 #ifdef BUILD_DEBUG
-  printf("Device Extensions\n");
+  printf("Required Device Extensions\n");
 #endif // BUILD_DEBUG
 
   int32_t device_extension_index = 0;
@@ -835,7 +882,7 @@ static void window_check_physical_device_extensions(void) {
       if (strcmp(s_device_extension[device_extension_index], available_extension_properties[available_device_extension_index].extensionName) == 0) {
 
 #ifdef BUILD_DEBUG
-        printf("  Found %s\n", s_device_extension[device_extension_index]);
+        printf("  %s: 1\n", s_device_extension[device_extension_index]);
 #endif // BUILD_DEBUG
 
         device_extensions_available = 1;
@@ -849,7 +896,7 @@ static void window_check_physical_device_extensions(void) {
     if (device_extensions_available == 0) {
 
 #ifdef BUILD_DEBUG
-      printf("  Missing %s\n", s_device_extension[device_extension_index]);
+      printf("  %s: 0\n", s_device_extension[device_extension_index]);
 #endif // BUILD_DEBUG
 
       break;
@@ -865,12 +912,12 @@ static void window_check_physical_device_extensions(void) {
 static void window_check_physical_device_features(void) {
 #ifdef BUILD_DEBUG
   printf("Required Device Features\n");
-  printf("  VkPhysicalDeviceMeshShaderFeaturesEXT::taskShader : %d\n", g_physical_device_mesh_shader_features.taskShader);
-  printf("  VkPhysicalDeviceMeshShaderFeaturesEXT::meshShader : %d\n", g_physical_device_mesh_shader_features.meshShader);
-  printf("  VkPhysicalDeviceDescriptorIndexingFeatures::runtimeDescriptorArray : %d\n", g_physical_device_descriptor_indexing_features.runtimeDescriptorArray);
-  printf("  VkPhysicalDeviceBufferDeviceAddressFeatures::bufferDeviceAddress : %d\n", g_physical_device_buffer_device_address_freatures.bufferDeviceAddress);
-  printf("  VkPhysicalDeviceRayTracingPipelineFeaturesKHR::rayTracingPipeline : %d\n", g_physical_device_ray_tracing_pipeline_features.rayTracingPipeline);
-  printf("  VkPhysicalDeviceAccelerationStructureFeaturesKHR::accelerationStructure : %d\n", g_physical_device_acceleration_structure_features.accelerationStructure);
+  printf("  VkPhysicalDeviceMeshShaderFeaturesEXT::taskShader: %d\n", g_physical_device_mesh_shader_features.taskShader);
+  printf("  VkPhysicalDeviceMeshShaderFeaturesEXT::meshShader: %d\n", g_physical_device_mesh_shader_features.meshShader);
+  printf("  VkPhysicalDeviceDescriptorIndexingFeatures::runtimeDescriptorArray: %d\n", g_physical_device_descriptor_indexing_features.runtimeDescriptorArray);
+  printf("  VkPhysicalDeviceBufferDeviceAddressFeatures::bufferDeviceAddress: %d\n", g_physical_device_buffer_device_address_freatures.bufferDeviceAddress);
+  printf("  VkPhysicalDeviceRayTracingPipelineFeaturesKHR::rayTracingPipeline: %d\n", g_physical_device_ray_tracing_pipeline_features.rayTracingPipeline);
+  printf("  VkPhysicalDeviceAccelerationStructureFeaturesKHR::accelerationStructure: %d\n", g_physical_device_acceleration_structure_features.accelerationStructure);
   printf("\n");
 #endif // BUILD_DEBUG
 }

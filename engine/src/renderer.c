@@ -26,8 +26,8 @@ static void renderer_update_coherent_buffer(void);
 static void renderer_place_voxel(void);
 
 static void renderer_record_compute_pass(void);
-static void renderer_record_ray_tracing_pass(void);
 static void renderer_record_main_pass(void);
+static void renderer_record_ray_tracing_pass(void);
 
 static void renderer_destroy_sync_object(void);
 static void renderer_destroy_buffer(void);
@@ -648,8 +648,8 @@ void renderer_draw(void) {
   VK_CHECK(vkBeginCommandBuffer(g_window.command_buffer, &command_buffer_begin_info));
 
   renderer_record_compute_pass();
-  renderer_record_ray_tracing_pass();
   renderer_record_main_pass();
+  renderer_record_ray_tracing_pass();
 
   VK_CHECK(vkEndCommandBuffer(g_window.command_buffer));
 
@@ -1248,9 +1248,6 @@ static void renderer_record_compute_pass(void) {
     // printf("[%d, %d, %d] Obstructed %d\n", g_player.voxel_position.x, g_player.voxel_position.y, g_player.voxel_position.z, place_result->is_obstructed);
   }
 }
-static void renderer_record_ray_tracing_pass(void) {
-  dynamic_vdb_draw();
-}
 static void renderer_record_main_pass(void) {
   VkClearValue color_clear_value = {
     .color.float32 = {
@@ -1332,6 +1329,9 @@ static void renderer_record_main_pass(void) {
   dbgui_draw();
 
   vkCmdEndRenderPass(g_window.command_buffer);
+}
+static void renderer_record_ray_tracing_pass(void) {
+  dynamic_vdb_draw();
 }
 
 static void renderer_destroy_sync_object(void) {
