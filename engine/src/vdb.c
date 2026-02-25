@@ -23,18 +23,26 @@ static void static_vdb_destroy_image(void);
 static void static_vdb_destroy_buffer(void);
 
 static void dynamic_vdb_create_chunk_voxel_image(void);
+static void dynamic_vdb_create_output_image(void);
 
 static void dynamic_vdb_create_chunk_info_buffer(void);
 static void dynamic_vdb_create_aabb_buffer(void);
+static void dynamic_vdb_create_instance_buffer(void);
 static void dynamic_vdb_create_blas_buffer(void);
-static void dynamic_vdb_create_scratch_buffer(void);
+static void dynamic_vdb_create_tlas_buffer(void);
+static void dynamic_vdb_create_blas_scratch_buffer(void);
+static void dynamic_vdb_create_tlas_scratch_buffer(void);
 
 static void dynamic_vdb_create_blas(void);
+static void dynamic_vdb_create_tlas(void);
 
 static void dynamic_vdb_build_blas(void);
+static void dynamic_vdb_build_tlas(void);
 
 static void dynamic_vdb_destroy_image(void);
 static void dynamic_vdb_destroy_buffer(void);
+static void dynamic_vdb_destroy_blas(void);
+static void dynamic_vdb_destroy_tlas(void);
 
 // TODO: remove me..
 static VkAabbPositionsKHR s_aabb = {
@@ -69,7 +77,12 @@ dynamic_vdb_t g_dynamic_vdb = {
     .host_data = &s_aabb,
     .size = sizeof(s_aabb),
     .buffer_usage_flags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-    .memory_property_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+    .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+    .memory_allocate_flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT,
+  },
+  .instance_buffer = {
+    .buffer_usage_flags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+    .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
     .memory_allocate_flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT,
   },
   .blas_buffer = {
@@ -77,7 +90,17 @@ dynamic_vdb_t g_dynamic_vdb = {
     .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
     .memory_allocate_flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT,
   },
-  .scratch_buffer = {
+  .tlas_buffer = {
+    .buffer_usage_flags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+    .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+    .memory_allocate_flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT,
+  },
+  .blas_scratch_buffer = {
+    .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+    .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+    .memory_allocate_flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT,
+  },
+  .tlas_scratch_buffer = {
     .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
     .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
     .memory_allocate_flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT,
@@ -87,6 +110,10 @@ dynamic_vdb_t g_dynamic_vdb = {
   .blas_build_sizes_info = {
     .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR,
   },
+  .tlas_build_sizes_info = {
+    .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR,
+  },
+  .instance_count = 1,
 };
 
 void static_vdb_create(void) {
@@ -170,16 +197,27 @@ ivector3_t static_vdb_chunk_index_to_position(int32_t chunk_index) {
 
 void dynamic_vdb_create(void) {
   dynamic_vdb_create_chunk_voxel_image();
+  dynamic_vdb_create_output_image();
 
   dynamic_vdb_create_chunk_info_buffer();
+
+  // TODO: Begin BLAS creation
   dynamic_vdb_create_aabb_buffer();
   dynamic_vdb_create_blas_buffer();
 
   dynamic_vdb_create_blas();
-
-  dynamic_vdb_create_scratch_buffer();
+  dynamic_vdb_create_blas_scratch_buffer();
 
   dynamic_vdb_build_blas();
+
+  // TODO: Begin TLAS creation
+  dynamic_vdb_create_instance_buffer();
+  dynamic_vdb_create_tlas_buffer();
+
+  dynamic_vdb_create_tlas();
+  dynamic_vdb_create_tlas_scratch_buffer();
+
+  dynamic_vdb_build_tlas();
 }
 void dynamic_vdb_draw(void) {
   vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, g_renderer.dynamic_vdb_renderer_pipeline.pipeline_handle);
@@ -219,6 +257,8 @@ void dynamic_vdb_debug(void) {
 void dynamic_vdb_destroy(void) {
   dynamic_vdb_destroy_image();
   dynamic_vdb_destroy_buffer();
+  dynamic_vdb_destroy_blas();
+  dynamic_vdb_destroy_tlas();
 }
 
 int32_t dynamic_vdb_chunk_position_to_index(ivector3_t chunk_position) {
@@ -576,31 +616,31 @@ static void dynamic_vdb_create_chunk_voxel_image(void) {
 
   while (chunk_index < chunk_count) {
 
-    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].width = DYNAMIC_VDB_CHUNK_SIZE,
-    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].height = DYNAMIC_VDB_CHUNK_SIZE,
-    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].depth = DYNAMIC_VDB_CHUNK_SIZE,
-    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].channel = 1,
-    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].element_size = sizeof(uint32_t),
-    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].format = VK_FORMAT_R32_UINT,
-    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].filter = VK_FILTER_NEAREST,
-    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].image_usage_flags = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].image_type = VK_IMAGE_TYPE_3D,
-    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].image_view_type = VK_IMAGE_VIEW_TYPE_3D,
-    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].image_aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
-    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].image_tiling = VK_IMAGE_TILING_OPTIMAL,
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].width = DYNAMIC_VDB_CHUNK_SIZE;
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].height = DYNAMIC_VDB_CHUNK_SIZE;
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].depth = DYNAMIC_VDB_CHUNK_SIZE;
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].channel = 1;
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].element_size = sizeof(uint32_t);
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].format = VK_FORMAT_R32_UINT;
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].filter = VK_FILTER_NEAREST;
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].image_usage_flags = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].image_type = VK_IMAGE_TYPE_3D;
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].image_view_type = VK_IMAGE_VIEW_TYPE_3D;
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].image_aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT;
+    g_dynamic_vdb.curr_chunk_voxel_image[chunk_index].image_tiling = VK_IMAGE_TILING_OPTIMAL;
 
-    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].width = DYNAMIC_VDB_CHUNK_SIZE,
-    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].height = DYNAMIC_VDB_CHUNK_SIZE,
-    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].depth = DYNAMIC_VDB_CHUNK_SIZE,
-    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].channel = 1,
-    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].element_size = sizeof(uint32_t),
-    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].format = VK_FORMAT_R32_UINT,
-    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].filter = VK_FILTER_NEAREST,
-    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].image_usage_flags = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].image_type = VK_IMAGE_TYPE_3D,
-    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].image_view_type = VK_IMAGE_VIEW_TYPE_3D,
-    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].image_aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
-    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].image_tiling = VK_IMAGE_TILING_OPTIMAL,
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].width = DYNAMIC_VDB_CHUNK_SIZE;
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].height = DYNAMIC_VDB_CHUNK_SIZE;
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].depth = DYNAMIC_VDB_CHUNK_SIZE;
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].channel = 1;
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].element_size = sizeof(uint32_t);
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].format = VK_FORMAT_R32_UINT;
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].filter = VK_FILTER_NEAREST;
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].image_usage_flags = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].image_type = VK_IMAGE_TYPE_3D;
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].image_view_type = VK_IMAGE_VIEW_TYPE_3D;
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].image_aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT;
+    g_dynamic_vdb.next_chunk_voxel_image[chunk_index].image_tiling = VK_IMAGE_TILING_OPTIMAL;
 
     image_create(&g_dynamic_vdb.curr_chunk_voxel_image[chunk_index]);
     image_create(&g_dynamic_vdb.next_chunk_voxel_image[chunk_index]);
@@ -616,6 +656,26 @@ static void dynamic_vdb_create_chunk_voxel_image(void) {
     chunk_index++;
   }
 }
+static void dynamic_vdb_create_output_image(void) {
+  g_dynamic_vdb.output_image.width = g_window.window_width;
+  g_dynamic_vdb.output_image.height = g_window.window_height;
+  g_dynamic_vdb.output_image.depth = 1;
+  g_dynamic_vdb.output_image.channel = 4;
+  g_dynamic_vdb.output_image.element_size = sizeof(uint8_t);
+  g_dynamic_vdb.output_image.format = VK_FORMAT_R8G8B8A8_UNORM;
+  g_dynamic_vdb.output_image.filter = VK_FILTER_NEAREST;
+  g_dynamic_vdb.output_image.image_usage_flags = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+  g_dynamic_vdb.output_image.image_type = VK_IMAGE_TYPE_2D;
+  g_dynamic_vdb.output_image.image_view_type = VK_IMAGE_VIEW_TYPE_2D;
+  g_dynamic_vdb.output_image.image_aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT;
+  g_dynamic_vdb.output_image.image_tiling = VK_IMAGE_TILING_OPTIMAL;
+
+  image_create(&g_dynamic_vdb.output_image);
+
+  g_dynamic_vdb.output_descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+  g_dynamic_vdb.output_descriptor_image_info.sampler = g_dynamic_vdb.output_image.sampler;
+  g_dynamic_vdb.output_descriptor_image_info.imageView = g_dynamic_vdb.output_image.image_view;
+}
 
 static void dynamic_vdb_create_chunk_info_buffer(void) {
   buffer_create(&g_dynamic_vdb.chunk_info_buffer);
@@ -630,16 +690,51 @@ static void dynamic_vdb_create_chunk_info_buffer(void) {
 }
 static void dynamic_vdb_create_aabb_buffer(void) {
   buffer_create(&g_dynamic_vdb.aabb_buffer);
+}
+static void dynamic_vdb_create_instance_buffer(void) {
+  VkAccelerationStructureDeviceAddressInfoKHR blas_device_address_info = {
+    .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR,
+    .accelerationStructure = g_dynamic_vdb.blas,
+  };
 
-  buffer_map(&g_dynamic_vdb.aabb_buffer);
+  VkDeviceAddress blas_device_address = vkGetAccelerationStructureDeviceAddressKHR_proc(g_window.device, &blas_device_address_info);
+
+  VkAccelerationStructureInstanceKHR acceleration_structure_instance = {
+    .transform = {
+      {
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+      },
+    },
+    .instanceCustomIndex = 0,
+    .mask = 0xFF,
+    .instanceShaderBindingTableRecordOffset = 0,
+    .flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR,
+    .accelerationStructureReference = blas_device_address,
+  };
+
+  g_dynamic_vdb.instance_buffer.host_data = &acceleration_structure_instance;
+  g_dynamic_vdb.instance_buffer.size = sizeof(acceleration_structure_instance);
+
+  buffer_create(&g_dynamic_vdb.instance_buffer);
 }
 static void dynamic_vdb_create_blas_buffer(void) {
-  VkBufferDeviceAddressInfo buffer_device_address_info = {
+  VkBufferDeviceAddressInfo aabb_buffer_device_address_info = {
     .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
     .buffer = g_dynamic_vdb.aabb_buffer.buffer_handle,
   };
 
-  VkDeviceAddress aabb_device_address = vkGetBufferDeviceAddress(g_window.device, &buffer_device_address_info);
+  VkDeviceAddress aabb_device_address = vkGetBufferDeviceAddress(g_window.device, &aabb_buffer_device_address_info);
 
   g_dynamic_vdb.blas_geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
   g_dynamic_vdb.blas_geometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
@@ -660,10 +755,40 @@ static void dynamic_vdb_create_blas_buffer(void) {
 
   buffer_create(&g_dynamic_vdb.blas_buffer);
 }
-static void dynamic_vdb_create_scratch_buffer(void) {
-  g_dynamic_vdb.scratch_buffer.size = g_dynamic_vdb.blas_build_sizes_info.buildScratchSize;
+static void dynamic_vdb_create_tlas_buffer(void) {
+  VkBufferDeviceAddressInfo instance_buffer_device_address_info = {
+    .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+    .buffer = g_dynamic_vdb.instance_buffer.buffer_handle,
+  };
 
-  buffer_create(&g_dynamic_vdb.scratch_buffer);
+  VkDeviceAddress instance_device_address = vkGetBufferDeviceAddress(g_window.device, &instance_buffer_device_address_info);
+
+  g_dynamic_vdb.tlas_geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+  g_dynamic_vdb.tlas_geometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+  g_dynamic_vdb.tlas_geometry.geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
+  g_dynamic_vdb.tlas_geometry.geometry.instances.data.deviceAddress = instance_device_address;
+
+  g_dynamic_vdb.tlas_build_geometry_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+  g_dynamic_vdb.tlas_build_geometry_info.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+  g_dynamic_vdb.tlas_build_geometry_info.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+  g_dynamic_vdb.tlas_build_geometry_info.geometryCount = 1; // TODO: this should be one right..?
+  g_dynamic_vdb.tlas_build_geometry_info.pGeometries = &g_dynamic_vdb.tlas_geometry;
+
+  vkGetAccelerationStructureBuildSizesKHR_proc(g_window.device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &g_dynamic_vdb.tlas_build_geometry_info, &g_dynamic_vdb.instance_count, &g_dynamic_vdb.tlas_build_sizes_info);
+
+  g_dynamic_vdb.tlas_buffer.size = g_dynamic_vdb.tlas_build_sizes_info.accelerationStructureSize;
+
+  buffer_create(&g_dynamic_vdb.tlas_buffer);
+}
+static void dynamic_vdb_create_blas_scratch_buffer(void) {
+  g_dynamic_vdb.blas_scratch_buffer.size = g_dynamic_vdb.blas_build_sizes_info.buildScratchSize;
+
+  buffer_create(&g_dynamic_vdb.blas_scratch_buffer);
+}
+static void dynamic_vdb_create_tlas_scratch_buffer(void) {
+  g_dynamic_vdb.tlas_scratch_buffer.size = g_dynamic_vdb.tlas_build_sizes_info.buildScratchSize;
+
+  buffer_create(&g_dynamic_vdb.tlas_scratch_buffer);
 }
 
 static void dynamic_vdb_create_blas(void) {
@@ -675,19 +800,39 @@ static void dynamic_vdb_create_blas(void) {
   };
 
   VK_CHECK(vkCreateAccelerationStructureKHR_proc(g_window.device, &acceleration_structure_create_info, 0, &g_dynamic_vdb.blas));
+
+  g_dynamic_vdb.blas_write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
+  g_dynamic_vdb.blas_write_descriptor_set.pNext = 0;
+  g_dynamic_vdb.blas_write_descriptor_set.accelerationStructureCount = 1;                // TODO
+  g_dynamic_vdb.blas_write_descriptor_set.pAccelerationStructures = &g_dynamic_vdb.blas; // TODO
+}
+static void dynamic_vdb_create_tlas(void) {
+  VkAccelerationStructureCreateInfoKHR acceleration_structure_create_info = {
+    .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
+    .buffer = g_dynamic_vdb.tlas_buffer.buffer_handle,
+    .size = g_dynamic_vdb.tlas_build_sizes_info.accelerationStructureSize,
+    .type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR,
+  };
+
+  VK_CHECK(vkCreateAccelerationStructureKHR_proc(g_window.device, &acceleration_structure_create_info, 0, &g_dynamic_vdb.tlas));
+
+  g_dynamic_vdb.tlas_write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
+  g_dynamic_vdb.tlas_write_descriptor_set.pNext = 0;
+  g_dynamic_vdb.tlas_write_descriptor_set.accelerationStructureCount = 1;                // TODO
+  g_dynamic_vdb.tlas_write_descriptor_set.pAccelerationStructures = &g_dynamic_vdb.tlas; // TODO
 }
 
 static void dynamic_vdb_build_blas(void) {
-  VkBufferDeviceAddressInfo buffer_device_address_info = {
+  VkBufferDeviceAddressInfo blas_buffer_device_address_info = {
     .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
-    .buffer = g_dynamic_vdb.scratch_buffer.buffer_handle,
+    .buffer = g_dynamic_vdb.blas_scratch_buffer.buffer_handle,
   };
 
-  VkDeviceAddress scratch_device_address = vkGetBufferDeviceAddress(g_window.device, &buffer_device_address_info);
+  VkDeviceAddress blas_scratch_device_address = vkGetBufferDeviceAddress(g_window.device, &blas_buffer_device_address_info);
 
   // TODO: set scratch data device address and BLAS..
-  g_dynamic_vdb.blas_build_geometry_info.scratchData.deviceAddress = scratch_device_address;
   g_dynamic_vdb.blas_build_geometry_info.dstAccelerationStructure = g_dynamic_vdb.blas;
+  g_dynamic_vdb.blas_build_geometry_info.scratchData.deviceAddress = blas_scratch_device_address;
 
   VkAccelerationStructureBuildRangeInfoKHR dflt_acceleration_structure_build_range_info = {
     .primitiveCount = g_dynamic_vdb.primitive_count,
@@ -697,10 +842,70 @@ static void dynamic_vdb_build_blas(void) {
     &dflt_acceleration_structure_build_range_info,
   };
 
+  VkCommandBufferBeginInfo command_buffer_begin_info = {
+    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+    .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+  };
+
+  VK_CHECK(vkBeginCommandBuffer(g_window.command_buffer, &command_buffer_begin_info));
+
   vkCmdBuildAccelerationStructuresKHR_proc(g_window.command_buffer, 1, &g_dynamic_vdb.blas_build_geometry_info, acceleration_structure_build_range_info);
+
+  VK_CHECK(vkEndCommandBuffer(g_window.command_buffer));
+
+  VkSubmitInfo submit_info = {
+    .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+    .commandBufferCount = 1,
+    .pCommandBuffers = &g_window.command_buffer,
+  };
+
+  VK_CHECK(vkQueueSubmit(g_window.primary_queue, 1, &submit_info, 0));
+  VK_CHECK(vkQueueWaitIdle(g_window.primary_queue));
+}
+static void dynamic_vdb_build_tlas(void) {
+  VkBufferDeviceAddressInfo tlas_buffer_device_address_info = {
+    .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+    .buffer = g_dynamic_vdb.tlas_scratch_buffer.buffer_handle,
+  };
+
+  VkDeviceAddress tlas_scratch_device_address = vkGetBufferDeviceAddress(g_window.device, &tlas_buffer_device_address_info);
+
+  // TODO: set scratch data device address and TLAS..
+  g_dynamic_vdb.tlas_build_geometry_info.dstAccelerationStructure = g_dynamic_vdb.tlas;
+  g_dynamic_vdb.tlas_build_geometry_info.scratchData.deviceAddress = tlas_scratch_device_address;
+
+  VkAccelerationStructureBuildRangeInfoKHR dflt_acceleration_structure_build_range_info = {
+    .primitiveCount = g_dynamic_vdb.instance_count, // TODO
+  };
+
+  VkAccelerationStructureBuildRangeInfoKHR const *acceleration_structure_build_range_info[] = {
+    &dflt_acceleration_structure_build_range_info,
+  };
+
+  VkCommandBufferBeginInfo command_buffer_begin_info = {
+    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+    .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+  };
+
+  VK_CHECK(vkBeginCommandBuffer(g_window.command_buffer, &command_buffer_begin_info));
+
+  vkCmdBuildAccelerationStructuresKHR_proc(g_window.command_buffer, 1, &g_dynamic_vdb.tlas_build_geometry_info, acceleration_structure_build_range_info);
+
+  VK_CHECK(vkEndCommandBuffer(g_window.command_buffer));
+
+  VkSubmitInfo submit_info = {
+    .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+    .commandBufferCount = 1,
+    .pCommandBuffers = &g_window.command_buffer,
+  };
+
+  VK_CHECK(vkQueueSubmit(g_window.primary_queue, 1, &submit_info, 0));
+  VK_CHECK(vkQueueWaitIdle(g_window.primary_queue));
 }
 
 static void dynamic_vdb_destroy_image(void) {
+  image_destroy(&g_dynamic_vdb.output_image);
+
   int32_t chunk_index = 0;
   int32_t chunk_count = DYNAMIC_VDB_CHUNK_COUNT;
 
@@ -721,6 +926,15 @@ static void dynamic_vdb_destroy_image(void) {
 static void dynamic_vdb_destroy_buffer(void) {
   buffer_destroy(&g_dynamic_vdb.chunk_info_buffer);
   buffer_destroy(&g_dynamic_vdb.aabb_buffer);
+  buffer_destroy(&g_dynamic_vdb.instance_buffer);
   buffer_destroy(&g_dynamic_vdb.blas_buffer);
-  buffer_destroy(&g_dynamic_vdb.scratch_buffer);
+  buffer_destroy(&g_dynamic_vdb.tlas_buffer);
+  buffer_destroy(&g_dynamic_vdb.blas_scratch_buffer);
+  buffer_destroy(&g_dynamic_vdb.tlas_scratch_buffer);
+}
+static void dynamic_vdb_destroy_blas(void) {
+  vkDestroyAccelerationStructureKHR_proc(g_window.device, g_dynamic_vdb.blas, 0);
+}
+static void dynamic_vdb_destroy_tlas(void) {
+  vkDestroyAccelerationStructureKHR_proc(g_window.device, g_dynamic_vdb.tlas, 0);
 }

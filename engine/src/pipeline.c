@@ -145,7 +145,7 @@ static void pipeline_create_sbt_buffer(pipeline_t *pipeline) {
   uint64_t ray_hit_region_size = ALIGN_UP_BY(ray_hit_size, base_alignment);
   uint64_t callable_region_size = ALIGN_UP_BY(callable_size, base_alignment);
 
-  uint64_t sbt_buffer_size = ray_gen_size + ray_miss_size + ray_hit_size;
+  uint64_t sbt_buffer_size = ray_gen_region_size + ray_miss_region_size + ray_hit_region_size + callable_region_size;
 
   VkBufferCreateInfo buffer_create_info = {
     .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -186,9 +186,9 @@ static void pipeline_create_sbt_buffer(pipeline_t *pipeline) {
   VK_CHECK(vkGetRayTracingShaderGroupHandlesKHR_proc(g_window.device, pipeline->pipeline_handle, 0, 3, handle_size * 3, handles));
 
   memcpy(sbt_device_data, handles + handle_size * 0, handle_size);
-  sbt_device_data += ray_gen_size;
+  sbt_device_data += ray_gen_region_size;
   memcpy(sbt_device_data, handles + handle_size * 1, handle_size);
-  sbt_device_data += ray_miss_size;
+  sbt_device_data += ray_miss_region_size;
   memcpy(sbt_device_data, handles + handle_size * 2, handle_size);
 
   HEAP_FREE(handles);
@@ -203,16 +203,16 @@ static void pipeline_create_sbt_buffer(pipeline_t *pipeline) {
   pipeline->sbt_device_address = vkGetBufferDeviceAddress(g_window.device, &buffer_device_address_info);
 
   pipeline->ray_gen_region.deviceAddress = pipeline->sbt_device_address;
-  pipeline->ray_gen_region.stride = ray_gen_size;
-  pipeline->ray_gen_region.size = ray_gen_size;
+  pipeline->ray_gen_region.stride = aligned_handle_size;
+  pipeline->ray_gen_region.size = aligned_handle_size;
 
-  pipeline->ray_miss_region.deviceAddress = pipeline->sbt_device_address + ray_gen_region_size;
+  pipeline->ray_miss_region.deviceAddress = ALIGN_UP_BY(pipeline->sbt_device_address + aligned_handle_size, base_alignment);
   pipeline->ray_miss_region.stride = aligned_handle_size;
-  pipeline->ray_miss_region.size = ray_miss_size;
+  pipeline->ray_miss_region.size = ray_miss_region_size;
 
-  pipeline->ray_hit_region.deviceAddress = pipeline->sbt_device_address + ray_gen_region_size + ray_miss_region_size;
+  pipeline->ray_hit_region.deviceAddress = ALIGN_UP_BY(pipeline->sbt_device_address + aligned_handle_size, base_alignment) + ray_miss_region_size;
   pipeline->ray_hit_region.stride = aligned_handle_size;
-  pipeline->ray_hit_region.size = ray_hit_size;
+  pipeline->ray_hit_region.size = ray_hit_region_size;
 
   pipeline->callable_region.deviceAddress = 0;
   pipeline->callable_region.stride = 0;

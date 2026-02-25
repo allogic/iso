@@ -126,7 +126,10 @@ PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR_proc = 0;
 PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR_proc = 0;
 
 PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR_proc = 0;
+PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR_proc = 0;
 PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR_proc = 0;
+
+PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR_proc = 0;
 
 void window_create(int32_t width, int32_t height, char const *title) {
   g_window.window_width = width;
@@ -649,7 +652,10 @@ static void window_create_device(void) {
   vkCreateRayTracingPipelinesKHR_proc = (PFN_vkCreateRayTracingPipelinesKHR)vkGetDeviceProcAddr(g_window.device, "vkCreateRayTracingPipelinesKHR");
 
   vkGetAccelerationStructureBuildSizesKHR_proc = (PFN_vkGetAccelerationStructureBuildSizesKHR)vkGetDeviceProcAddr(g_window.device, "vkGetAccelerationStructureBuildSizesKHR");
+  vkGetAccelerationStructureDeviceAddressKHR_proc = (PFN_vkGetAccelerationStructureDeviceAddressKHR)vkGetDeviceProcAddr(g_window.device, "vkGetAccelerationStructureDeviceAddressKHR");
   vkGetRayTracingShaderGroupHandlesKHR_proc = (PFN_vkGetRayTracingShaderGroupHandlesKHR)vkGetDeviceProcAddr(g_window.device, "vkGetRayTracingShaderGroupHandlesKHR");
+
+  vkDestroyAccelerationStructureKHR_proc = (PFN_vkDestroyAccelerationStructureKHR)vkGetDeviceProcAddr(g_window.device, "vkDestroyAccelerationStructureKHR");
 }
 static void window_create_command_pool(void) {
   VkCommandPoolCreateInfo command_pool_create_info = {

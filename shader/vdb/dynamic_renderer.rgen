@@ -15,19 +15,6 @@ void main() {
 	vec3 ray_origin = vec3(0, 0, -1);
 	vec3 ray_direction = normalize(vec3((uv * 2) - 1, 1));
 
-	//void traceRayEXT(
-	//	accelerationStructureEXT topLevel,
-	//	uint rayFlags,
-	//	uint cullMask,
-	//	uint sbtRecordOffset,
-	//	uint sbtRecordStride,
-	//	uint missIndex,
-	//	vec3 origin,
-	//	float Tmin,
-	//	vec3 direction,
-	//	float Tmax,
-	//	int payload);
-
 	traceRayEXT(
 		tlas,
 		gl_RayFlagsOpaqueEXT,

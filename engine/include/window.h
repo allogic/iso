@@ -207,7 +207,10 @@ extern PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR_pro
 extern PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR_proc;
 
 extern PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR_proc;
+extern PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR_proc;
 extern PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR_proc;
+
+extern PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR_proc;
 
 void window_create(int32_t width, int32_t height, char const *title);
 void window_run(void);

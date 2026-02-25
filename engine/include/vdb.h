@@ -107,21 +107,34 @@ typedef struct static_vdb_t {
 typedef struct dynamic_vdb_t {
   image_t *curr_chunk_voxel_image;
   image_t *next_chunk_voxel_image;
+  image_t output_image;
   buffer_t chunk_info_buffer;
   buffer_t aabb_buffer;
+  buffer_t instance_buffer;
   buffer_t blas_buffer;
-  buffer_t scratch_buffer;
+  buffer_t tlas_buffer;
+  buffer_t blas_scratch_buffer;
+  buffer_t tlas_scratch_buffer;
   dynamic_vdb_chunk_info_t *chunk_info;
   VkDescriptorImageInfo *curr_chunk_voxel_descriptor_image_info;
   VkDescriptorImageInfo *next_chunk_voxel_descriptor_image_info;
+  VkDescriptorImageInfo output_descriptor_image_info;
   VkDescriptorBufferInfo chunk_info_descriptor_buffer_info;
   // TODO: make BLAS's dynamic..
   uint32_t geometry_count;
   uint32_t primitive_count;
   VkAccelerationStructureGeometryKHR blas_geometry;
-  VkAccelerationStructureBuildGeometryInfoKHR blas_build_geometry_info;
+  VkAccelerationStructureBuildGeometryInfoKHR blas_build_geometry_info; // TODO: make queries in a separate function..
   VkAccelerationStructureBuildSizesInfoKHR blas_build_sizes_info;
   VkAccelerationStructureKHR blas;
+  VkWriteDescriptorSetAccelerationStructureKHR blas_write_descriptor_set;
+  // TODO: make TLAS's dynamic..
+  uint32_t instance_count;
+  VkAccelerationStructureGeometryKHR tlas_geometry;
+  VkAccelerationStructureBuildGeometryInfoKHR tlas_build_geometry_info;
+  VkAccelerationStructureBuildSizesInfoKHR tlas_build_sizes_info; // TODO: make queries in a separate function..
+  VkAccelerationStructureKHR tlas;
+  VkWriteDescriptorSetAccelerationStructureKHR tlas_write_descriptor_set;
 } dynamic_vdb_t;
 
 #ifdef __cplusplus

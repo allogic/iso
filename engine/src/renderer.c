@@ -1134,14 +1134,14 @@ static void renderer_update_dynamic_vdb_renderer_descriptor_set(void) {
   VkWriteDescriptorSet write_descriptor_set[] = {
     {
       .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-      .pNext = 0,
+      .pNext = &g_dynamic_vdb.tlas_write_descriptor_set,
       .dstSet = g_renderer.dynamic_vdb_renderer_pipeline.descriptor_set[0],
       .dstBinding = 0,
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
       .descriptorCount = 1,
       .pImageInfo = 0,
-      .pBufferInfo = 0, // TODO
+      .pBufferInfo = 0,
       .pTexelBufferView = 0,
     },
     {
@@ -1152,7 +1152,7 @@ static void renderer_update_dynamic_vdb_renderer_descriptor_set(void) {
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
       .descriptorCount = 1,
-      .pImageInfo = 0, // TODO
+      .pImageInfo = &g_dynamic_vdb.output_descriptor_image_info,
       .pBufferInfo = 0,
       .pTexelBufferView = 0,
     },
