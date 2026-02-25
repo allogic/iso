@@ -161,12 +161,12 @@ typedef struct window_t {
   VkSurfaceKHR surface;
   VkSurfaceCapabilitiesKHR surface_capabilities;
   VkSurfaceTransformFlagBitsKHR surface_transform;
-  VkPhysicalDeviceProperties physical_device_properties;
-  VkPhysicalDeviceFeatures physical_device_features;
-  VkPhysicalDeviceMemoryProperties physical_device_memory_properties;
-  VkPhysicalDevice physical_device;
   VkSurfaceFormatKHR prefered_surface_format;
   VkPresentModeKHR prefered_present_mode;
+  VkPhysicalDeviceFeatures2 physical_device_features2;
+  VkPhysicalDeviceProperties2 physical_device_properties2;
+  VkPhysicalDeviceMemoryProperties2 physical_device_memory_properties2;
+  VkPhysicalDevice physical_device;
   VkDevice device;
   VkQueue primary_queue;
   VkQueue present_queue;
@@ -178,11 +178,36 @@ typedef struct window_t {
 extern "C" {
 #endif // __cplusplus
 
+extern VkPhysicalDeviceRayTracingPipelinePropertiesKHR g_physical_device_ray_tracing_pipeline_properties;
+
+extern VkPhysicalDeviceRayTracingPipelineFeaturesKHR g_physical_device_ray_tracing_pipeline_features;
+extern VkPhysicalDeviceAccelerationStructureFeaturesKHR g_physical_device_acceleration_structure_features;
+extern VkPhysicalDevice8BitStorageFeatures g_physical_device_8bit_storage_features;
+extern VkPhysicalDeviceBufferDeviceAddressFeatures g_physical_device_buffer_device_address_freatures;
+extern VkPhysicalDeviceVulkanMemoryModelFeatures g_physical_device_vulkan_memory_model_features;
+extern VkPhysicalDeviceTimelineSemaphoreFeatures g_physical_device_timeline_semaphore_features;
+extern VkPhysicalDeviceMaintenance4Features g_physical_device_maintenance4_features;
+extern VkPhysicalDeviceFragmentShadingRateFeaturesKHR g_physical_device_fragment_shading_rate_features;
+extern VkPhysicalDeviceMultiviewFeatures g_physical_device_multiview_features;
+extern VkPhysicalDeviceMeshShaderFeaturesEXT g_physical_device_mesh_shader_features;
+extern VkPhysicalDeviceDescriptorIndexingFeatures g_physical_device_descriptor_indexing_features;
+
 extern window_t g_window;
 
-extern PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessenger;
-extern PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessenger;
-extern PFN_vkCmdDrawMeshTasksEXT vkCmdDrawMeshTasks;
+#ifdef BUILD_DEBUG
+extern PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT_proc;
+extern PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT_proc;
+#endif // BUILD_DEBUG
+
+extern PFN_vkCmdDrawMeshTasksEXT vkCmdDrawMeshTasksEXT_proc;
+extern PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR_proc;
+extern PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR_proc;
+
+extern PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR_proc;
+extern PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR_proc;
+
+extern PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR_proc;
+extern PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR_proc;
 
 void window_create(int32_t width, int32_t height, char const *title);
 void window_run(void);

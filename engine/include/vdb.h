@@ -1,6 +1,8 @@
 #ifndef VDB_H
 #define VDB_H
 
+// TODO: add vkGetBufferDeviceAddress to buffer_t directly..
+
 // TODO: Implement hardware raytracing voxel renderer!
 // TODO: Implement augmented vertex block descent (AVBD) collision solver!
 // TODO: Finally implement sparse textures!
@@ -16,7 +18,7 @@
 #define DYNAMIC_VDB_DIM_Y (4)
 #define DYNAMIC_VDB_DIM_Z (4)
 
-#define DYNAMIC_VDB_CHUNK_SIZE (32)
+#define DYNAMIC_VDB_CHUNK_SIZE (8)
 #define DYNAMIC_VDB_CHUNK_COUNT (64)
 
 typedef struct static_vdb_chunk_vertex_t {
@@ -64,6 +66,13 @@ typedef struct static_vdb_chunk_info_t {
   uint32_t vertex_count;
   uint32_t index_count;
 } static_vdb_chunk_info_t;
+typedef struct dynamic_vdb_chunk_info_t {
+  uint32_t is_dirty;
+} dynamic_vdb_chunk_info_t;
+
+STATIC_ASSERT(ALIGNOF(static_vdb_chunk_info_t) == 4);
+STATIC_ASSERT(ALIGNOF(dynamic_vdb_chunk_info_t) == 4);
+
 typedef struct static_vdb_chunk_mask_t {
   uint32_t any_px_faces;
   uint32_t any_py_faces;
@@ -79,7 +88,6 @@ typedef struct static_vdb_chunk_mask_t {
   uint32_t opaque_nz_mask[STATIC_VDB_CHUNK_SIZE * STATIC_VDB_CHUNK_SIZE];
 } static_vdb_chunk_mask_t;
 
-STATIC_ASSERT(ALIGNOF(static_vdb_chunk_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(static_vdb_chunk_mask_t) == 4);
 
 typedef struct static_vdb_t {
@@ -99,8 +107,21 @@ typedef struct static_vdb_t {
 typedef struct dynamic_vdb_t {
   image_t *curr_chunk_voxel_image;
   image_t *next_chunk_voxel_image;
+  buffer_t chunk_info_buffer;
+  buffer_t aabb_buffer;
+  buffer_t blas_buffer;
+  buffer_t scratch_buffer;
+  dynamic_vdb_chunk_info_t *chunk_info;
   VkDescriptorImageInfo *curr_chunk_voxel_descriptor_image_info;
   VkDescriptorImageInfo *next_chunk_voxel_descriptor_image_info;
+  VkDescriptorBufferInfo chunk_info_descriptor_buffer_info;
+  // TODO: make BLAS's dynamic..
+  uint32_t geometry_count;
+  uint32_t primitive_count;
+  VkAccelerationStructureGeometryKHR blas_geometry;
+  VkAccelerationStructureBuildGeometryInfoKHR blas_build_geometry_info;
+  VkAccelerationStructureBuildSizesInfoKHR blas_build_sizes_info;
+  VkAccelerationStructureKHR blas;
 } dynamic_vdb_t;
 
 #ifdef __cplusplus

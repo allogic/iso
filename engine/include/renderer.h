@@ -56,6 +56,7 @@ typedef struct renderer_t {
   pipeline_t static_vdb_mask_generator_pipeline;
   pipeline_t static_vdb_mesh_generator_pipeline;
   pipeline_t static_vdb_renderer_pipeline;
+  pipeline_t dynamic_vdb_renderer_pipeline;
   pipeline_t debug_line_renderer_pipeline;
   time_info_t *time_info;
   screen_info_t *screen_info;

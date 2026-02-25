@@ -4,6 +4,11 @@ glslangValidator -I"." -V --target-env vulkan1.3 -o debug/line_renderer.frag.spv
 glslangValidator -I"." -V --target-env vulkan1.3 -o vdb/static_renderer.vert.spv vdb/static_renderer.vert
 glslangValidator -I"." -V --target-env vulkan1.3 -o vdb/static_renderer.frag.spv vdb/static_renderer.frag
 
+glslangValidator -I"." -V --target-env vulkan1.3 -o vdb/dynamic_renderer.rchit.spv vdb/dynamic_renderer.rchit
+glslangValidator -I"." -V --target-env vulkan1.3 -o vdb/dynamic_renderer.rgen.spv vdb/dynamic_renderer.rgen
+glslangValidator -I"." -V --target-env vulkan1.3 -o vdb/dynamic_renderer.rint.spv vdb/dynamic_renderer.rint
+glslangValidator -I"." -V --target-env vulkan1.3 -o vdb/dynamic_renderer.rmiss.spv vdb/dynamic_renderer.rmiss
+
 glslangValidator -I"." -V --target-env vulkan1.3 -o vdb/dda_tracer.comp.spv vdb/dda_tracer.comp
 glslangValidator -I"." -V --target-env vulkan1.3 -o vdb/voxel_placer.comp.spv vdb/voxel_placer.comp
 glslangValidator -I"." -V --target-env vulkan1.3 -o vdb/world_generator.comp.spv vdb/world_generator.comp

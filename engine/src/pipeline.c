@@ -5,9 +5,14 @@ static void pipeline_create_descriptor_set_layout(pipeline_t *pipeline);
 static void pipeline_create_descriptor_set(pipeline_t *pipeline);
 static void pipeline_create_pipeline_layout(pipeline_t *pipeline);
 
-static void pipeline_create_vf(pipeline_t *pipeline);
-static void pipeline_create_tmf(pipeline_t *pipeline);
-static void pipeline_create_c(pipeline_t *pipeline);
+static void pipeline_create_sbt_buffer(pipeline_t *pipeline);
+
+static void pipeline_create_dflt(pipeline_t *pipeline);
+static void pipeline_create_mesh(pipeline_t *pipeline);
+static void pipeline_create_ray(pipeline_t *pipeline);
+static void pipeline_create_comp(pipeline_t *pipeline);
+
+static void pipeline_destroy_sbt_buffer(pipeline_t *pipeline);
 
 void pipeline_create(pipeline_t *pipeline) {
   pipeline->descriptor_set_layout = (VkDescriptorSetLayout *)HEAP_ALLOC(sizeof(VkDescriptorSetLayout) * pipeline->descriptor_set_count, 0, 0);
@@ -19,27 +24,44 @@ void pipeline_create(pipeline_t *pipeline) {
   pipeline_create_pipeline_layout(pipeline);
 
   switch (pipeline->pipeline_type) {
-    case PIPELINE_TYPE_VF: {
+    case PIPELINE_TYPE_DFLT: {
 
-      pipeline_create_vf(pipeline);
-
-      break;
-    }
-    case PIPELINE_TYPE_TMF: {
-
-      pipeline_create_tmf(pipeline);
+      pipeline_create_dflt(pipeline);
 
       break;
     }
-    case PIPELINE_TYPE_C: {
+    case PIPELINE_TYPE_MESH: {
 
-      pipeline_create_c(pipeline);
+      pipeline_create_mesh(pipeline);
+
+      break;
+    }
+    case PIPELINE_TYPE_RAY: {
+
+      pipeline_create_ray(pipeline);
+
+      pipeline_create_sbt_buffer(pipeline);
+
+      break;
+    }
+    case PIPELINE_TYPE_COMP: {
+
+      pipeline_create_comp(pipeline);
 
       break;
     }
   }
 }
 void pipeline_destroy(pipeline_t *pipeline) {
+  switch (pipeline->pipeline_type) {
+    case PIPELINE_TYPE_RAY: {
+
+      pipeline_destroy_sbt_buffer(pipeline);
+
+      break;
+    }
+  }
+
   vkDestroyDescriptorPool(g_window.device, pipeline->descriptor_pool, 0);
   vkDestroyDescriptorSetLayout(g_window.device, pipeline->descriptor_set_layout_base, 0);
   vkDestroyPipelineLayout(g_window.device, pipeline->pipeline_layout, 0);
@@ -101,7 +123,103 @@ static void pipeline_create_pipeline_layout(pipeline_t *pipeline) {
   VK_CHECK(vkCreatePipelineLayout(g_window.device, &pipeline_layout_create_info, 0, &pipeline->pipeline_layout));
 }
 
-static void pipeline_create_vf(pipeline_t *pipeline) {
+static void pipeline_create_sbt_buffer(pipeline_t *pipeline) {
+  pipeline->ray_gen_group_count = 1;
+  pipeline->ray_miss_group_count = 1;
+  pipeline->ray_hit_group_count = 1;
+  pipeline->callable_group_count = 0;
+
+  uint32_t handle_size = g_physical_device_ray_tracing_pipeline_properties.shaderGroupHandleSize;
+  uint32_t handle_alignment = g_physical_device_ray_tracing_pipeline_properties.shaderGroupHandleAlignment;
+  uint32_t base_alignment = g_physical_device_ray_tracing_pipeline_properties.shaderGroupBaseAlignment;
+
+  uint32_t aligned_handle_size = ALIGN_UP_BY(handle_size, handle_alignment);
+
+  uint64_t ray_gen_size = aligned_handle_size * pipeline->ray_gen_group_count;
+  uint64_t ray_miss_size = aligned_handle_size * pipeline->ray_miss_group_count;
+  uint64_t ray_hit_size = aligned_handle_size * pipeline->ray_hit_group_count;
+  uint64_t callable_size = 0;
+
+  uint64_t ray_gen_region_size = ALIGN_UP_BY(ray_gen_size, base_alignment);
+  uint64_t ray_miss_region_size = ALIGN_UP_BY(ray_miss_size, base_alignment);
+  uint64_t ray_hit_region_size = ALIGN_UP_BY(ray_hit_size, base_alignment);
+  uint64_t callable_region_size = ALIGN_UP_BY(callable_size, base_alignment);
+
+  uint64_t sbt_buffer_size = ray_gen_size + ray_miss_size + ray_hit_size;
+
+  VkBufferCreateInfo buffer_create_info = {
+    .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+    .size = sbt_buffer_size,
+    .usage = VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+    .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+  };
+
+  VK_CHECK(vkCreateBuffer(g_window.device, &buffer_create_info, 0, &pipeline->sbt_buffer_handle));
+
+  VkMemoryRequirements memory_requirements = {0};
+
+  vkGetBufferMemoryRequirements(g_window.device, pipeline->sbt_buffer_handle, &memory_requirements);
+
+  uint32_t memory_type_index = vkutil_find_memory_type_index(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+  VkMemoryAllocateFlagsInfo memory_allocate_flags_info = {
+    .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
+    .flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT,
+  };
+
+  VkMemoryAllocateInfo memory_allocate_info = {
+    .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+    .pNext = &memory_allocate_flags_info,
+    .allocationSize = memory_requirements.size,
+    .memoryTypeIndex = memory_type_index,
+  };
+
+  VK_CHECK(vkAllocateMemory(g_window.device, &memory_allocate_info, 0, &pipeline->sbt_device_memory));
+  VK_CHECK(vkBindBufferMemory(g_window.device, pipeline->sbt_buffer_handle, pipeline->sbt_device_memory, 0));
+
+  uint8_t *sbt_device_data = 0;
+
+  VK_CHECK(vkMapMemory(g_window.device, pipeline->sbt_device_memory, 0, sbt_buffer_size, 0, &sbt_device_data));
+
+  uint8_t *handles = (uint8_t *)HEAP_ALLOC(handle_size * 3, 0, 0);
+
+  VK_CHECK(vkGetRayTracingShaderGroupHandlesKHR_proc(g_window.device, pipeline->pipeline_handle, 0, 3, handle_size * 3, handles));
+
+  memcpy(sbt_device_data, handles + handle_size * 0, handle_size);
+  sbt_device_data += ray_gen_size;
+  memcpy(sbt_device_data, handles + handle_size * 1, handle_size);
+  sbt_device_data += ray_miss_size;
+  memcpy(sbt_device_data, handles + handle_size * 2, handle_size);
+
+  HEAP_FREE(handles);
+
+  vkUnmapMemory(g_window.device, pipeline->sbt_device_memory);
+
+  VkBufferDeviceAddressInfo buffer_device_address_info = {
+    .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+    .buffer = pipeline->sbt_buffer_handle,
+  };
+
+  pipeline->sbt_device_address = vkGetBufferDeviceAddress(g_window.device, &buffer_device_address_info);
+
+  pipeline->ray_gen_region.deviceAddress = pipeline->sbt_device_address;
+  pipeline->ray_gen_region.stride = ray_gen_size;
+  pipeline->ray_gen_region.size = ray_gen_size;
+
+  pipeline->ray_miss_region.deviceAddress = pipeline->sbt_device_address + ray_gen_region_size;
+  pipeline->ray_miss_region.stride = aligned_handle_size;
+  pipeline->ray_miss_region.size = ray_miss_size;
+
+  pipeline->ray_hit_region.deviceAddress = pipeline->sbt_device_address + ray_gen_region_size + ray_miss_region_size;
+  pipeline->ray_hit_region.stride = aligned_handle_size;
+  pipeline->ray_hit_region.size = ray_hit_size;
+
+  pipeline->callable_region.deviceAddress = 0;
+  pipeline->callable_region.stride = 0;
+  pipeline->callable_region.size = 0;
+}
+
+static void pipeline_create_dflt(pipeline_t *pipeline) {
   VkShaderModule vertex_module = 0;
   VkShaderModule fragment_module = 0;
 
@@ -286,7 +404,7 @@ static void pipeline_create_vf(pipeline_t *pipeline) {
   vkDestroyShaderModule(g_window.device, vertex_module, 0);
   vkDestroyShaderModule(g_window.device, fragment_module, 0);
 }
-static void pipeline_create_tmf(pipeline_t *pipeline) {
+static void pipeline_create_mesh(pipeline_t *pipeline) {
   VkShaderModule task_module = 0;
   VkShaderModule mesh_module = 0;
   VkShaderModule fragment_module = 0;
@@ -482,7 +600,157 @@ static void pipeline_create_tmf(pipeline_t *pipeline) {
   vkDestroyShaderModule(g_window.device, mesh_module, 0);
   vkDestroyShaderModule(g_window.device, fragment_module, 0);
 }
-static void pipeline_create_c(pipeline_t *pipeline) {
+static void pipeline_create_ray(pipeline_t *pipeline) {
+  VkShaderModule ray_gen_module = 0;
+  VkShaderModule ray_miss_module = 0;
+  VkShaderModule ray_intersect_module = 0;
+  VkShaderModule ray_closest_hit_module = 0;
+
+  {
+    uint8_t *shader_bytes = 0;
+    uint64_t shader_size = 0;
+
+    fsutil_load_binary(&shader_bytes, &shader_size, pipeline->ray_gen_shader);
+
+    VkShaderModuleCreateInfo shader_module_create_info = {
+      .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+      .pCode = (uint32_t const *)shader_bytes,
+      .codeSize = shader_size,
+    };
+
+    VK_CHECK(vkCreateShaderModule(g_window.device, &shader_module_create_info, 0, &ray_gen_module));
+
+    HEAP_FREE(shader_bytes);
+  }
+
+  {
+    uint8_t *shader_bytes = 0;
+    uint64_t shader_size = 0;
+
+    fsutil_load_binary(&shader_bytes, &shader_size, pipeline->ray_miss_shader);
+
+    VkShaderModuleCreateInfo shader_module_create_info = {
+      .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+      .pCode = (uint32_t const *)shader_bytes,
+      .codeSize = shader_size,
+    };
+
+    VK_CHECK(vkCreateShaderModule(g_window.device, &shader_module_create_info, 0, &ray_miss_module));
+
+    HEAP_FREE(shader_bytes);
+  }
+
+  {
+    uint8_t *shader_bytes = 0;
+    uint64_t shader_size = 0;
+
+    fsutil_load_binary(&shader_bytes, &shader_size, pipeline->ray_intersect_shader);
+
+    VkShaderModuleCreateInfo shader_module_create_info = {
+      .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+      .pCode = (uint32_t const *)shader_bytes,
+      .codeSize = shader_size,
+    };
+
+    VK_CHECK(vkCreateShaderModule(g_window.device, &shader_module_create_info, 0, &ray_intersect_module));
+
+    HEAP_FREE(shader_bytes);
+  }
+
+  {
+    uint8_t *shader_bytes = 0;
+    uint64_t shader_size = 0;
+
+    fsutil_load_binary(&shader_bytes, &shader_size, pipeline->ray_closest_hit_shader);
+
+    VkShaderModuleCreateInfo shader_module_create_info = {
+      .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+      .pCode = (uint32_t const *)shader_bytes,
+      .codeSize = shader_size,
+    };
+
+    VK_CHECK(vkCreateShaderModule(g_window.device, &shader_module_create_info, 0, &ray_closest_hit_module));
+
+    HEAP_FREE(shader_bytes);
+  }
+
+  VkPipelineShaderStageCreateInfo pipeline_shader_stage_create_info[] = {
+    {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+      .stage = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+      .module = ray_gen_module,
+      .pName = "main",
+    },
+    {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+      .stage = VK_SHADER_STAGE_MISS_BIT_KHR,
+      .module = ray_miss_module,
+      .pName = "main",
+    },
+    {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+      .stage = VK_SHADER_STAGE_INTERSECTION_BIT_KHR,
+      .module = ray_intersect_module,
+      .pName = "main",
+    },
+    {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+      .stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+      .module = ray_closest_hit_module,
+      .pName = "main",
+    },
+  };
+
+  VkRayTracingShaderGroupCreateInfoKHR ray_tracing_shader_group_create_info[] = {
+    {
+      .sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+      .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+      .generalShader = 0,
+      .closestHitShader = VK_SHADER_UNUSED_KHR,
+      .anyHitShader = VK_SHADER_UNUSED_KHR,
+      .intersectionShader = VK_SHADER_UNUSED_KHR,
+    },
+    {
+      .sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+      .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+      .generalShader = 1,
+      .closestHitShader = VK_SHADER_UNUSED_KHR,
+      .anyHitShader = VK_SHADER_UNUSED_KHR,
+      .intersectionShader = VK_SHADER_UNUSED_KHR,
+    },
+    {
+      .sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+      .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR,
+      .generalShader = VK_SHADER_UNUSED_KHR,
+      .closestHitShader = 3,
+      .anyHitShader = VK_SHADER_UNUSED_KHR,
+      .intersectionShader = 2,
+    },
+  };
+
+  VkRayTracingPipelineCreateInfoKHR ray_tracing_pipeline_create_info = {
+    .sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR,
+    .pStages = pipeline_shader_stage_create_info,
+    .stageCount = ARRAY_COUNT(pipeline_shader_stage_create_info),
+    .pGroups = ray_tracing_shader_group_create_info,
+    .groupCount = ARRAY_COUNT(ray_tracing_shader_group_create_info),
+    .maxPipelineRayRecursionDepth = 1,
+    .pLibraryInfo = 0,
+    .pLibraryInterface = 0,
+    .pDynamicState = 0,
+    .layout = pipeline->pipeline_layout,
+    .basePipelineHandle = 0,
+    .basePipelineIndex = 0,
+  };
+
+  VK_CHECK(vkCreateRayTracingPipelinesKHR_proc(g_window.device, 0, 0, 1, &ray_tracing_pipeline_create_info, 0, &pipeline->pipeline_handle));
+
+  vkDestroyShaderModule(g_window.device, ray_gen_module, 0);
+  vkDestroyShaderModule(g_window.device, ray_miss_module, 0);
+  vkDestroyShaderModule(g_window.device, ray_intersect_module, 0);
+  vkDestroyShaderModule(g_window.device, ray_closest_hit_module, 0);
+}
+static void pipeline_create_comp(pipeline_t *pipeline) {
   VkShaderModule compute_module = 0;
 
   {
@@ -518,4 +786,9 @@ static void pipeline_create_c(pipeline_t *pipeline) {
   VK_CHECK(vkCreateComputePipelines(g_window.device, 0, 1, &compute_pipeline_create_info, 0, &pipeline->pipeline_handle));
 
   vkDestroyShaderModule(g_window.device, compute_module, 0);
+}
+
+static void pipeline_destroy_sbt_buffer(pipeline_t *pipeline) {
+  vkFreeMemory(g_window.device, pipeline->sbt_device_memory, 0);
+  vkDestroyBuffer(g_window.device, pipeline->sbt_buffer_handle, 0);
 }

@@ -8,6 +8,7 @@ typedef struct buffer_t {
   uint64_t size;
   VkBufferUsageFlags buffer_usage_flags;
   VkMemoryPropertyFlags memory_property_flags;
+  VkMemoryAllocateFlags memory_allocate_flags;
   VkBuffer buffer_handle;
   VkDeviceMemory device_memory;
 } buffer_t;

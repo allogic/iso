@@ -26,8 +26,14 @@ void buffer_create(buffer_t *buffer) {
 
     uint32_t memory_type_index = vkutil_find_memory_type_index(memory_requirements.memoryTypeBits, buffer->memory_property_flags);
 
+    VkMemoryAllocateFlagsInfo memory_allocate_flags_info = {
+      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
+      .flags = buffer->memory_allocate_flags,
+    };
+
     VkMemoryAllocateInfo memory_allocate_info = {
       .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+      .pNext = &memory_allocate_flags_info,
       .allocationSize = memory_requirements.size,
       .memoryTypeIndex = memory_type_index,
     };

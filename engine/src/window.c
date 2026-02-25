@@ -22,6 +22,7 @@ static void window_find_prefered_surface_format(void);
 static void window_find_prefered_present_mode(void);
 
 static void window_check_physical_device_extensions(void);
+static void window_check_physical_device_features(void);
 
 static void window_update_surface_capabilities(void);
 
@@ -32,21 +33,15 @@ static void window_destroy_device(void);
 static void window_destroy_command_pool(void);
 static void window_destroy_command_buffer(void);
 
-window_t g_window = {0};
-
-PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessenger = 0;
-PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessenger = 0;
-PFN_vkCmdDrawMeshTasksEXT vkCmdDrawMeshTasks = 0;
-
-static char const *s_window_class = "VULKAN_ENGINE_WND_CLASS";
+static char const *s_window_class = "ENGINE_WND_CLASS";
 
 #ifdef BUILD_DEBUG
-static char const *s_window_enabled_layer[] = {
+static char const *s_enabled_layer[] = {
   "VK_LAYER_KHRONOS_validation",
 };
 #endif // BUILD_DEBUG
 
-static char const *s_window_instance_extension[] = {
+static char const *s_instance_extension[] = {
   "VK_KHR_surface",
   "VK_KHR_win32_surface",
 #ifdef BUILD_DEBUG
@@ -54,18 +49,89 @@ static char const *s_window_instance_extension[] = {
 #endif // BUILD_DEBUG
 };
 
-static char const *s_window_device_extension[] = {
+static char const *s_device_extension[] = {
   "VK_KHR_swapchain",
   "VK_KHR_fragment_shading_rate", // TODO: remove me..
-  "VK_EXT_mesh_shader",
+  "VK_KHR_ray_tracing_pipeline",
+  "VK_KHR_acceleration_structure",
+  "VK_KHR_deferred_host_operations",
+  "VK_EXT_mesh_shader", // TODO: do i really need task/mesh shaders..
 };
 
+VkPhysicalDeviceRayTracingPipelinePropertiesKHR g_physical_device_ray_tracing_pipeline_properties = {
+  .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR,
+  .pNext = 0,
+};
+
+VkPhysicalDeviceRayTracingPipelineFeaturesKHR g_physical_device_ray_tracing_pipeline_features = {
+  .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
+  .pNext = 0,
+};
+VkPhysicalDeviceAccelerationStructureFeaturesKHR g_physical_device_acceleration_structure_features = {
+  .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
+  .pNext = &g_physical_device_ray_tracing_pipeline_features,
+};
+VkPhysicalDevice8BitStorageFeatures g_physical_device_8bit_storage_features = {
+  .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_8BIT_STORAGE_FEATURES,
+  .pNext = &g_physical_device_acceleration_structure_features,
+};
+VkPhysicalDeviceBufferDeviceAddressFeatures g_physical_device_buffer_device_address_freatures = {
+  .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
+  .pNext = &g_physical_device_8bit_storage_features,
+};
+VkPhysicalDeviceVulkanMemoryModelFeatures g_physical_device_vulkan_memory_model_features = {
+  .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_MEMORY_MODEL_FEATURES,
+  .pNext = &g_physical_device_buffer_device_address_freatures,
+};
+VkPhysicalDeviceTimelineSemaphoreFeatures g_physical_device_timeline_semaphore_features = {
+  .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES,
+  .pNext = &g_physical_device_vulkan_memory_model_features,
+};
+VkPhysicalDeviceMaintenance4Features g_physical_device_maintenance4_features = {
+  .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_4_FEATURES,
+  .pNext = &g_physical_device_timeline_semaphore_features,
+};
+VkPhysicalDeviceFragmentShadingRateFeaturesKHR g_physical_device_fragment_shading_rate_features = {
+  .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_FEATURES_KHR,
+  .pNext = &g_physical_device_maintenance4_features,
+};
+VkPhysicalDeviceMultiviewFeatures g_physical_device_multiview_features = {
+  .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES,
+  .pNext = &g_physical_device_fragment_shading_rate_features,
+};
+VkPhysicalDeviceMeshShaderFeaturesEXT g_physical_device_mesh_shader_features = {
+  .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT,
+  .pNext = &g_physical_device_multiview_features,
+};
+VkPhysicalDeviceDescriptorIndexingFeatures g_physical_device_descriptor_indexing_features = {
+  .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
+  .pNext = &g_physical_device_mesh_shader_features,
+};
+
+window_t g_window = {
+  .primary_queue_index = -1,
+  .present_queue_index = -1,
+};
+
+#ifdef BUILD_DEBUG
+PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT_proc = 0;
+PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT_proc = 0;
+#endif // BUILD_DEBUG
+
+PFN_vkCmdDrawMeshTasksEXT vkCmdDrawMeshTasksEXT_proc = 0;
+PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR_proc = 0;
+PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR_proc = 0;
+
+PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR_proc = 0;
+PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR_proc = 0;
+
+PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR_proc = 0;
+PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR_proc = 0;
+
 void window_create(int32_t width, int32_t height, char const *title) {
-  g_window.window_title = title;
   g_window.window_width = width;
   g_window.window_height = height;
-  g_window.primary_queue_index = -1;
-  g_window.present_queue_index = -1;
+  g_window.window_title = title;
 
   window_create_native();
   window_create_instance();
@@ -77,6 +143,7 @@ void window_create(int32_t width, int32_t height, char const *title) {
   window_find_prefered_present_mode();
 
   window_check_physical_device_extensions();
+  window_check_physical_device_features();
 
   window_create_device();
   window_create_command_pool();
@@ -425,6 +492,8 @@ static LRESULT window_native_message_proc(HWND window_handle, UINT window_messag
 static VkBool32 window_vulkan_message_proc(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity, VkDebugUtilsMessageTypeFlagsEXT message_type, VkDebugUtilsMessengerCallbackDataEXT const *callback_data, void *user_data) {
   printf("%s\n", callback_data->pMessage);
 
+  __debugbreak();
+
   return 0;
 }
 #endif // BUILD_DEBUG
@@ -508,25 +577,23 @@ static void window_create_instance(void) {
   VkInstanceCreateInfo instance_create_info = {
     .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
     .pApplicationInfo = &application_info,
-    .ppEnabledExtensionNames = s_window_instance_extension,
-    .enabledExtensionCount = ARRAY_COUNT(s_window_instance_extension),
+    .ppEnabledExtensionNames = s_instance_extension,
+    .enabledExtensionCount = ARRAY_COUNT(s_instance_extension),
 #ifdef BUILD_DEBUG
     .pNext = &debug_utils_messenger_create_info,
-    .ppEnabledLayerNames = s_window_enabled_layer,
-    .enabledLayerCount = ARRAY_COUNT(s_window_enabled_layer),
+    .ppEnabledLayerNames = s_enabled_layer,
+    .enabledLayerCount = ARRAY_COUNT(s_enabled_layer),
 #endif // BUILD_DEBUG
   };
 
   VK_CHECK(vkCreateInstance(&instance_create_info, 0, &g_window.instance));
 
 #ifdef BUILD_DEBUG
-  vkCreateDebugUtilsMessenger = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(g_window.instance, "vkCreateDebugUtilsMessengerEXT");
-  vkDestroyDebugUtilsMessenger = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(g_window.instance, "vkDestroyDebugUtilsMessengerEXT");
+  vkCreateDebugUtilsMessengerEXT_proc = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(g_window.instance, "vkCreateDebugUtilsMessengerEXT");
+  vkDestroyDebugUtilsMessengerEXT_proc = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(g_window.instance, "vkDestroyDebugUtilsMessengerEXT");
 
-  VK_CHECK(vkCreateDebugUtilsMessenger(g_window.instance, &debug_utils_messenger_create_info, 0, &g_window.debug_utils_messenger));
+  VK_CHECK(vkCreateDebugUtilsMessengerEXT_proc(g_window.instance, &debug_utils_messenger_create_info, 0, &g_window.debug_utils_messenger));
 #endif // BUILD_DEBUG
-
-  vkCmdDrawMeshTasks = (PFN_vkCmdDrawMeshTasksEXT)vkGetInstanceProcAddr(g_window.instance, "vkCmdDrawMeshTasksEXT");
 }
 static void window_create_surface(void) {
   VkWin32SurfaceCreateInfoKHR win32_surface_create_info = {
@@ -538,65 +605,6 @@ static void window_create_surface(void) {
   VK_CHECK(vkCreateWin32SurfaceKHR(g_window.instance, &win32_surface_create_info, 0, &g_window.surface));
 }
 static void window_create_device(void) {
-  VkPhysicalDevice8BitStorageFeatures physical_device_8bit_storage_features = {
-    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_8BIT_STORAGE_FEATURES,
-    .pNext = 0,
-  };
-
-  VkPhysicalDeviceBufferDeviceAddressFeatures physical_device_buffer_device_address_freatures = {
-    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
-    .pNext = &physical_device_8bit_storage_features,
-  };
-
-  VkPhysicalDeviceVulkanMemoryModelFeatures physical_device_vulkan_memory_model_features = {
-    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_MEMORY_MODEL_FEATURES,
-    .pNext = &physical_device_buffer_device_address_freatures,
-  };
-
-  VkPhysicalDeviceTimelineSemaphoreFeatures physical_device_timeline_semaphore_features = {
-    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES,
-    .pNext = &physical_device_vulkan_memory_model_features,
-  };
-
-  VkPhysicalDeviceMaintenance4Features physical_device_maintenance4_features = {
-    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_4_FEATURES,
-    .pNext = &physical_device_timeline_semaphore_features,
-  };
-
-  VkPhysicalDeviceFragmentShadingRateFeaturesKHR physical_device_fragment_shading_rate_features = {
-    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_FEATURES_KHR,
-    .pNext = &physical_device_maintenance4_features,
-  };
-
-  VkPhysicalDeviceMultiviewFeatures physical_device_multiview_features = {
-    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES,
-    .pNext = &physical_device_fragment_shading_rate_features,
-  };
-
-  VkPhysicalDeviceMeshShaderFeaturesEXT physical_device_mesh_shader_features = {
-    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT,
-    .pNext = &physical_device_multiview_features,
-  };
-
-  VkPhysicalDeviceDescriptorIndexingFeatures physical_device_descriptor_indexing_features = {
-    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
-    .pNext = &physical_device_mesh_shader_features,
-  };
-
-  VkPhysicalDeviceFeatures2 physical_device_features_2 = {
-    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-    .pNext = &physical_device_descriptor_indexing_features,
-  };
-
-  vkGetPhysicalDeviceFeatures2(g_window.physical_device, &physical_device_features_2);
-
-#ifdef BUILD_DEBUG
-  printf("Required Device Features\n");
-  printf("  taskShader : %d\n", physical_device_mesh_shader_features.taskShader);
-  printf("  meshShader : %d\n", physical_device_mesh_shader_features.meshShader);
-  printf("  runtimeDescriptorArray : %d\n", physical_device_descriptor_indexing_features.runtimeDescriptorArray);
-#endif // BUILD_DEBUG
-
   float queue_priority = 1.0F;
 
   VkDeviceQueueCreateInfo device_queue_create_infos[2] = {
@@ -616,15 +624,15 @@ static void window_create_device(void) {
 
   VkDeviceCreateInfo device_create_info = {
     .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-    .pNext = &physical_device_features_2,
+    .pNext = &g_window.physical_device_features2,
     .pQueueCreateInfos = device_queue_create_infos,
     .queueCreateInfoCount = ARRAY_COUNT(device_queue_create_infos),
     .pEnabledFeatures = 0,
-    .ppEnabledExtensionNames = s_window_device_extension,
-    .enabledExtensionCount = ARRAY_COUNT(s_window_device_extension),
+    .ppEnabledExtensionNames = s_device_extension,
+    .enabledExtensionCount = ARRAY_COUNT(s_device_extension),
 #ifdef BUILD_DEBUG
-    .ppEnabledLayerNames = s_window_enabled_layer,
-    .enabledLayerCount = ARRAY_COUNT(s_window_enabled_layer),
+    .ppEnabledLayerNames = s_enabled_layer,
+    .enabledLayerCount = ARRAY_COUNT(s_enabled_layer),
 #endif // BUILD_DEBUG
   };
 
@@ -632,6 +640,16 @@ static void window_create_device(void) {
 
   vkGetDeviceQueue(g_window.device, g_window.primary_queue_index, 0, &g_window.primary_queue);
   vkGetDeviceQueue(g_window.device, g_window.present_queue_index, 0, &g_window.present_queue);
+
+  vkCmdDrawMeshTasksEXT_proc = (PFN_vkCmdDrawMeshTasksEXT)vkGetDeviceProcAddr(g_window.device, "vkCmdDrawMeshTasksEXT");
+  vkCmdTraceRaysKHR_proc = (PFN_vkCmdTraceRaysKHR)vkGetDeviceProcAddr(g_window.device, "vkCmdTraceRaysKHR");
+  vkCmdBuildAccelerationStructuresKHR_proc = (PFN_vkCmdBuildAccelerationStructuresKHR)vkGetDeviceProcAddr(g_window.device, "vkCmdBuildAccelerationStructuresKHR");
+
+  vkCreateAccelerationStructureKHR_proc = (PFN_vkCreateAccelerationStructureKHR)vkGetDeviceProcAddr(g_window.device, "vkCreateAccelerationStructureKHR");
+  vkCreateRayTracingPipelinesKHR_proc = (PFN_vkCreateRayTracingPipelinesKHR)vkGetDeviceProcAddr(g_window.device, "vkCreateRayTracingPipelinesKHR");
+
+  vkGetAccelerationStructureBuildSizesKHR_proc = (PFN_vkGetAccelerationStructureBuildSizesKHR)vkGetDeviceProcAddr(g_window.device, "vkGetAccelerationStructureBuildSizesKHR");
+  vkGetRayTracingShaderGroupHandlesKHR_proc = (PFN_vkGetRayTracingShaderGroupHandlesKHR)vkGetDeviceProcAddr(g_window.device, "vkGetRayTracingShaderGroupHandlesKHR");
 }
 static void window_create_command_pool(void) {
   VkCommandPoolCreateInfo command_pool_create_info = {
@@ -666,19 +684,24 @@ static void window_find_physical_device(void) {
 
     VkPhysicalDevice physical_device = physical_devices[physical_device_index];
 
-    vkGetPhysicalDeviceProperties(physical_device, &g_window.physical_device_properties);
-    vkGetPhysicalDeviceFeatures(physical_device, &g_window.physical_device_features);
-    vkGetPhysicalDeviceMemoryProperties(physical_device, &g_window.physical_device_memory_properties);
+    g_window.physical_device_features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    g_window.physical_device_features2.pNext = &g_physical_device_descriptor_indexing_features;
 
-    if (g_window.physical_device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+    g_window.physical_device_properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+    g_window.physical_device_properties2.pNext = &g_physical_device_ray_tracing_pipeline_properties;
 
-      if (g_window.physical_device_features.geometryShader &&
-          g_window.physical_device_features.samplerAnisotropy) {
+    g_window.physical_device_memory_properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+    g_window.physical_device_memory_properties2.pNext = 0;
 
-        g_window.physical_device = physical_device;
+    vkGetPhysicalDeviceFeatures2(physical_device, &g_window.physical_device_features2);
+    vkGetPhysicalDeviceProperties2(physical_device, &g_window.physical_device_properties2);
+    vkGetPhysicalDeviceMemoryProperties2(physical_device, &g_window.physical_device_memory_properties2);
 
-        break;
-      }
+    if (g_window.physical_device_properties2.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+
+      g_window.physical_device = physical_device;
+
+      break;
     }
 
     physical_device_index++;
@@ -793,7 +816,7 @@ static void window_check_physical_device_extensions(void) {
 #endif // BUILD_DEBUG
 
   int32_t device_extension_index = 0;
-  int32_t device_extension_count = ARRAY_COUNT(s_window_device_extension);
+  int32_t device_extension_count = ARRAY_COUNT(s_device_extension);
 
   while (device_extension_index < device_extension_count) {
 
@@ -803,10 +826,10 @@ static void window_check_physical_device_extensions(void) {
 
     while (available_device_extension_index < available_device_extension_count) {
 
-      if (strcmp(s_window_device_extension[device_extension_index], available_extension_properties[available_device_extension_index].extensionName) == 0) {
+      if (strcmp(s_device_extension[device_extension_index], available_extension_properties[available_device_extension_index].extensionName) == 0) {
 
 #ifdef BUILD_DEBUG
-        printf("  Found %s\n", s_window_device_extension[device_extension_index]);
+        printf("  Found %s\n", s_device_extension[device_extension_index]);
 #endif // BUILD_DEBUG
 
         device_extensions_available = 1;
@@ -820,7 +843,7 @@ static void window_check_physical_device_extensions(void) {
     if (device_extensions_available == 0) {
 
 #ifdef BUILD_DEBUG
-      printf("  Missing %s\n", s_window_device_extension[device_extension_index]);
+      printf("  Missing %s\n", s_device_extension[device_extension_index]);
 #endif // BUILD_DEBUG
 
       break;
@@ -830,6 +853,18 @@ static void window_check_physical_device_extensions(void) {
   }
 
 #ifdef BUILD_DEBUG
+  printf("\n");
+#endif // BUILD_DEBUG
+}
+static void window_check_physical_device_features(void) {
+#ifdef BUILD_DEBUG
+  printf("Required Device Features\n");
+  printf("  VkPhysicalDeviceMeshShaderFeaturesEXT::taskShader : %d\n", g_physical_device_mesh_shader_features.taskShader);
+  printf("  VkPhysicalDeviceMeshShaderFeaturesEXT::meshShader : %d\n", g_physical_device_mesh_shader_features.meshShader);
+  printf("  VkPhysicalDeviceDescriptorIndexingFeatures::runtimeDescriptorArray : %d\n", g_physical_device_descriptor_indexing_features.runtimeDescriptorArray);
+  printf("  VkPhysicalDeviceBufferDeviceAddressFeatures::bufferDeviceAddress : %d\n", g_physical_device_buffer_device_address_freatures.bufferDeviceAddress);
+  printf("  VkPhysicalDeviceRayTracingPipelineFeaturesKHR::rayTracingPipeline : %d\n", g_physical_device_ray_tracing_pipeline_features.rayTracingPipeline);
+  printf("  VkPhysicalDeviceAccelerationStructureFeaturesKHR::accelerationStructure : %d\n", g_physical_device_acceleration_structure_features.accelerationStructure);
   printf("\n");
 #endif // BUILD_DEBUG
 }
@@ -851,7 +886,7 @@ static void window_destroy_native(void) {
 }
 static void window_destroy_instance(void) {
 #ifdef BUILD_DEBUG
-  vkDestroyDebugUtilsMessenger(g_window.instance, g_window.debug_utils_messenger, 0);
+  vkDestroyDebugUtilsMessengerEXT_proc(g_window.instance, g_window.debug_utils_messenger, 0);
 #endif // BUILD_DEBUG
 
   vkDestroyInstance(g_window.instance, 0);

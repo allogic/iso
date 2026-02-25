@@ -13,11 +13,12 @@ static void renderer_create_block_buffer(void);
 
 static void renderer_create_block_atlas_image(void);
 
-static void renderer_update_vdb_voxel_placer_descriptor_set(void);
-static void renderer_update_vdb_world_generator_descriptor_set(void);
-static void renderer_update_vdb_mask_generator_descriptor_set(void);
-static void renderer_update_vdb_mesh_generator_descriptor_set(void);
-static void renderer_update_vdb_renderer_descriptor_set(void);
+static void renderer_update_static_vdb_voxel_placer_descriptor_set(void);
+static void renderer_update_static_vdb_world_generator_descriptor_set(void);
+static void renderer_update_static_vdb_mask_generator_descriptor_set(void);
+static void renderer_update_static_vdb_mesh_generator_descriptor_set(void);
+static void renderer_update_static_vdb_renderer_descriptor_set(void);
+static void renderer_update_dynamic_vdb_renderer_descriptor_set(void);
 static void renderer_update_debug_line_descriptor_set(void);
 
 static void renderer_update_coherent_buffer(void);
@@ -25,6 +26,7 @@ static void renderer_update_coherent_buffer(void);
 static void renderer_place_voxel(void);
 
 static void renderer_record_compute_pass(void);
+static void renderer_record_ray_tracing_pass(void);
 static void renderer_record_main_pass(void);
 
 static void renderer_destroy_sync_object(void);
@@ -176,6 +178,16 @@ static VkDescriptorPoolSize const s_static_vdb_renderer_descriptor_pool_size[] =
     .descriptorCount = 1,
   },
 };
+static VkDescriptorPoolSize const s_dynamic_vdb_renderer_descriptor_pool_size[] = {
+  {
+    .type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+    .descriptorCount = 1,
+  },
+  {
+    .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+    .descriptorCount = 1,
+  },
+};
 static VkDescriptorPoolSize const s_debug_line_renderer_descriptor_pool_size[] = {
   {
     .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -288,6 +300,22 @@ static VkDescriptorSetLayoutBinding const s_static_vdb_renderer_descriptor_set_l
     .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
     .descriptorCount = 1,
     .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+    .pImmutableSamplers = 0,
+  },
+};
+static VkDescriptorSetLayoutBinding const s_dynamic_vdb_renderer_descriptor_set_layout_binding[] = {
+  {
+    .binding = 0,
+    .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+    .descriptorCount = 1,
+    .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+    .pImmutableSamplers = 0,
+  },
+  {
+    .binding = 1,
+    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+    .descriptorCount = 1,
+    .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
     .pImmutableSamplers = 0,
   },
 };
@@ -416,7 +444,7 @@ static VkDescriptorImageInfo s_block_atlas_descriptor_image_info = {0};
 
 renderer_t g_renderer = {
   .static_vdb_voxel_placer_pipeline = {
-    .pipeline_type = PIPELINE_TYPE_C,
+    .pipeline_type = PIPELINE_TYPE_COMP,
     .compute_shader = ROOT_DIR "/shader/vdb/voxel_placer.comp.spv",
     .descriptor_pool_size = s_static_vdb_voxel_placer_descriptor_pool_size,
     .descriptor_pool_size_count = ARRAY_COUNT(s_static_vdb_voxel_placer_descriptor_pool_size),
@@ -425,7 +453,7 @@ renderer_t g_renderer = {
     .descriptor_set_count = 1,
   },
   .static_vdb_world_generator_pipeline = {
-    .pipeline_type = PIPELINE_TYPE_C,
+    .pipeline_type = PIPELINE_TYPE_COMP,
     .compute_shader = ROOT_DIR "/shader/vdb/world_generator.comp.spv",
     .push_constant_range = s_static_vdb_world_generator_push_constant_range,
     .push_constant_range_count = ARRAY_COUNT(s_static_vdb_world_generator_push_constant_range),
@@ -436,7 +464,7 @@ renderer_t g_renderer = {
     .descriptor_set_count = 1,
   },
   .static_vdb_mask_generator_pipeline = {
-    .pipeline_type = PIPELINE_TYPE_C,
+    .pipeline_type = PIPELINE_TYPE_COMP,
     .compute_shader = ROOT_DIR "/shader/vdb/mask_generator.comp.spv",
     .push_constant_range = s_static_vdb_mask_generator_push_constant_range,
     .push_constant_range_count = ARRAY_COUNT(s_static_vdb_mask_generator_push_constant_range),
@@ -447,7 +475,7 @@ renderer_t g_renderer = {
     .descriptor_set_count = 1,
   },
   .static_vdb_mesh_generator_pipeline = {
-    .pipeline_type = PIPELINE_TYPE_C,
+    .pipeline_type = PIPELINE_TYPE_COMP,
     .compute_shader = ROOT_DIR "/shader/vdb/mesh_generator.comp.spv",
     .push_constant_range = s_static_vdb_mesh_generator_push_constant_range,
     .push_constant_range_count = ARRAY_COUNT(s_static_vdb_mesh_generator_push_constant_range),
@@ -458,7 +486,7 @@ renderer_t g_renderer = {
     .descriptor_set_count = STATIC_VDB_CHUNK_COUNT,
   },
   .static_vdb_renderer_pipeline = {
-    .pipeline_type = PIPELINE_TYPE_VF,
+    .pipeline_type = PIPELINE_TYPE_DFLT,
     .vertex_shader = ROOT_DIR "/shader/vdb/static_renderer.vert.spv",
     .fragment_shader = ROOT_DIR "/shader/vdb/static_renderer.frag.spv",
     .enable_blending = 1,
@@ -480,8 +508,24 @@ renderer_t g_renderer = {
     .descriptor_set_count = STATIC_VDB_CHUNK_COUNT,
     .render_pass = &g_renderpass_main,
   },
+  .dynamic_vdb_renderer_pipeline = {
+    .pipeline_type = PIPELINE_TYPE_RAY,
+    .ray_gen_shader = ROOT_DIR "/shader/vdb/dynamic_renderer.rgen.spv",
+    .ray_miss_shader = ROOT_DIR "/shader/vdb/dynamic_renderer.rmiss.spv",
+    .ray_closest_hit_shader = ROOT_DIR "/shader/vdb/dynamic_renderer.rchit.spv",
+    .ray_intersect_shader = ROOT_DIR "/shader/vdb/dynamic_renderer.rint.spv",
+    .descriptor_pool_size = s_dynamic_vdb_renderer_descriptor_pool_size,
+    .descriptor_pool_size_count = ARRAY_COUNT(s_dynamic_vdb_renderer_descriptor_pool_size),
+    .descriptor_set_layout_binding = s_dynamic_vdb_renderer_descriptor_set_layout_binding,
+    .descriptor_set_layout_binding_count = ARRAY_COUNT(s_dynamic_vdb_renderer_descriptor_set_layout_binding),
+    .ray_gen_group_count = 1,
+    .ray_miss_group_count = 1,
+    .ray_hit_group_count = 1,
+    .callable_group_count = 0,
+    .descriptor_set_count = 1,
+  },
   .debug_line_renderer_pipeline = {
-    .pipeline_type = PIPELINE_TYPE_VF,
+    .pipeline_type = PIPELINE_TYPE_DFLT,
     .vertex_shader = ROOT_DIR "/shader/debug/line_renderer.vert.spv",
     .fragment_shader = ROOT_DIR "/shader/debug/line_renderer.frag.spv",
     .primitive_topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST,
@@ -520,13 +564,15 @@ void renderer_create(void) {
   pipeline_create(&g_renderer.static_vdb_mask_generator_pipeline);
   pipeline_create(&g_renderer.static_vdb_mesh_generator_pipeline);
   pipeline_create(&g_renderer.static_vdb_renderer_pipeline);
+  pipeline_create(&g_renderer.dynamic_vdb_renderer_pipeline);
   pipeline_create(&g_renderer.debug_line_renderer_pipeline);
 
-  renderer_update_vdb_voxel_placer_descriptor_set();
-  renderer_update_vdb_world_generator_descriptor_set();
-  renderer_update_vdb_mask_generator_descriptor_set();
-  renderer_update_vdb_mesh_generator_descriptor_set();
-  renderer_update_vdb_renderer_descriptor_set();
+  renderer_update_static_vdb_voxel_placer_descriptor_set();
+  renderer_update_static_vdb_world_generator_descriptor_set();
+  renderer_update_static_vdb_mask_generator_descriptor_set();
+  renderer_update_static_vdb_mesh_generator_descriptor_set();
+  renderer_update_static_vdb_renderer_descriptor_set();
+  renderer_update_dynamic_vdb_renderer_descriptor_set();
   renderer_update_debug_line_descriptor_set();
 }
 void renderer_draw(void) {
@@ -602,6 +648,7 @@ void renderer_draw(void) {
   VK_CHECK(vkBeginCommandBuffer(g_window.command_buffer, &command_buffer_begin_info));
 
   renderer_record_compute_pass();
+  renderer_record_ray_tracing_pass();
   renderer_record_main_pass();
 
   VK_CHECK(vkEndCommandBuffer(g_window.command_buffer));
@@ -669,6 +716,7 @@ void renderer_destroy(void) {
   pipeline_destroy(&g_renderer.static_vdb_mask_generator_pipeline);
   pipeline_destroy(&g_renderer.static_vdb_mesh_generator_pipeline);
   pipeline_destroy(&g_renderer.static_vdb_renderer_pipeline);
+  pipeline_destroy(&g_renderer.dynamic_vdb_renderer_pipeline);
   pipeline_destroy(&g_renderer.debug_line_renderer_pipeline);
 
   renderer_destroy_sync_object();
@@ -868,7 +916,7 @@ static void renderer_create_block_atlas_image(void) {
   s_block_atlas_descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 }
 
-static void renderer_update_vdb_voxel_placer_descriptor_set(void) {
+static void renderer_update_static_vdb_voxel_placer_descriptor_set(void) {
   VkWriteDescriptorSet write_descriptor_set[] = {
     {
       .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -910,7 +958,7 @@ static void renderer_update_vdb_voxel_placer_descriptor_set(void) {
 
   vkUpdateDescriptorSets(g_window.device, ARRAY_COUNT(write_descriptor_set), write_descriptor_set, 0, 0);
 }
-static void renderer_update_vdb_world_generator_descriptor_set(void) {
+static void renderer_update_static_vdb_world_generator_descriptor_set(void) {
   VkWriteDescriptorSet write_descriptor_set[] = {
     {
       .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -928,7 +976,7 @@ static void renderer_update_vdb_world_generator_descriptor_set(void) {
 
   vkUpdateDescriptorSets(g_window.device, ARRAY_COUNT(write_descriptor_set), write_descriptor_set, 0, 0);
 }
-static void renderer_update_vdb_mask_generator_descriptor_set(void) {
+static void renderer_update_static_vdb_mask_generator_descriptor_set(void) {
   VkWriteDescriptorSet write_descriptor_set[] = {
     {
       .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -958,7 +1006,7 @@ static void renderer_update_vdb_mask_generator_descriptor_set(void) {
 
   vkUpdateDescriptorSets(g_window.device, ARRAY_COUNT(write_descriptor_set), write_descriptor_set, 0, 0);
 }
-static void renderer_update_vdb_mesh_generator_descriptor_set(void) {
+static void renderer_update_static_vdb_mesh_generator_descriptor_set(void) {
   int32_t chunk_index = 0;
   int32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
 
@@ -1044,7 +1092,7 @@ static void renderer_update_vdb_mesh_generator_descriptor_set(void) {
     chunk_index++;
   }
 }
-static void renderer_update_vdb_renderer_descriptor_set(void) {
+static void renderer_update_static_vdb_renderer_descriptor_set(void) {
   int32_t chunk_index = 0;
   int32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
 
@@ -1081,6 +1129,36 @@ static void renderer_update_vdb_renderer_descriptor_set(void) {
 
     chunk_index++;
   }
+}
+static void renderer_update_dynamic_vdb_renderer_descriptor_set(void) {
+  VkWriteDescriptorSet write_descriptor_set[] = {
+    {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = 0,
+      .dstSet = g_renderer.dynamic_vdb_renderer_pipeline.descriptor_set[0],
+      .dstBinding = 0,
+      .dstArrayElement = 0,
+      .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+      .descriptorCount = 1,
+      .pImageInfo = 0,
+      .pBufferInfo = 0, // TODO
+      .pTexelBufferView = 0,
+    },
+    {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = 0,
+      .dstSet = g_renderer.dynamic_vdb_renderer_pipeline.descriptor_set[0],
+      .dstBinding = 1,
+      .dstArrayElement = 0,
+      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+      .descriptorCount = 1,
+      .pImageInfo = 0, // TODO
+      .pBufferInfo = 0,
+      .pTexelBufferView = 0,
+    },
+  };
+
+  vkUpdateDescriptorSets(g_window.device, ARRAY_COUNT(write_descriptor_set), write_descriptor_set, 0, 0);
 }
 static void renderer_update_debug_line_descriptor_set(void) {
   VkWriteDescriptorSet write_descriptor_set[] = {
@@ -1170,6 +1248,9 @@ static void renderer_record_compute_pass(void) {
     // printf("[%d, %d, %d] Obstructed %d\n", g_player.voxel_position.x, g_player.voxel_position.y, g_player.voxel_position.z, place_result->is_obstructed);
   }
 }
+static void renderer_record_ray_tracing_pass(void) {
+  dynamic_vdb_draw();
+}
 static void renderer_record_main_pass(void) {
   VkClearValue color_clear_value = {
     .color.float32 = {
@@ -1232,24 +1313,20 @@ static void renderer_record_main_pass(void) {
 
   vkCmdSetScissor(g_window.command_buffer, 0, 1, &scissor);
 
-  {
-    static_vdb_draw();
-  }
+  static_vdb_draw();
 
-  {
-    if (g_renderer.is_debug_enabled) {
+  if (g_renderer.is_debug_enabled) {
 
-      VkDeviceSize vertex_offset[] = {0};
+    VkDeviceSize vertex_offset[] = {0};
 
-      vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, g_renderer.debug_line_renderer_pipeline.pipeline_handle);
-      vkCmdBindVertexBuffers(g_window.command_buffer, 0, 1, &s_debug_line_vertex_buffer.buffer_handle, vertex_offset);
-      vkCmdBindIndexBuffer(g_window.command_buffer, s_debug_line_index_buffer.buffer_handle, 0, VK_INDEX_TYPE_UINT32);
-      vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, g_renderer.debug_line_renderer_pipeline.pipeline_layout, 0, 1, &g_renderer.debug_line_renderer_pipeline.descriptor_set[0], 0, 0);
-      vkCmdDrawIndexed(g_window.command_buffer, s_debug_line_index_offset, 1, 0, 0, 0);
+    vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, g_renderer.debug_line_renderer_pipeline.pipeline_handle);
+    vkCmdBindVertexBuffers(g_window.command_buffer, 0, 1, &s_debug_line_vertex_buffer.buffer_handle, vertex_offset);
+    vkCmdBindIndexBuffer(g_window.command_buffer, s_debug_line_index_buffer.buffer_handle, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, g_renderer.debug_line_renderer_pipeline.pipeline_layout, 0, 1, &g_renderer.debug_line_renderer_pipeline.descriptor_set[0], 0, 0);
+    vkCmdDrawIndexed(g_window.command_buffer, s_debug_line_index_offset, 1, 0, 0, 0);
 
-      s_debug_line_vertex_offset = 0;
-      s_debug_line_index_offset = 0;
-    }
+    s_debug_line_vertex_offset = 0;
+    s_debug_line_index_offset = 0;
   }
 
   dbgui_draw();
