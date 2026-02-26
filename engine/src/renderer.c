@@ -33,7 +33,6 @@ static void renderer_destroy_sync_object(void);
 static void renderer_destroy_buffer(void);
 static void renderer_destroy_image(void);
 
-static uint32_t s_image_index = 0;
 static uint32_t s_debug_line_vertex_offset = 0;
 static uint32_t s_debug_line_index_offset = 0;
 
@@ -639,7 +638,7 @@ void renderer_draw(void) {
 #endif // BUILD_DEBUG
   }
 
-  result = vkAcquireNextImageKHR(g_window.device, g_swapchain.handle, UINT64_MAX, s_image_available_semaphore, 0, &s_image_index);
+  result = vkAcquireNextImageKHR(g_window.device, g_swapchain.handle, UINT64_MAX, s_image_available_semaphore, 0, &g_renderer.image_index);
 
   switch (result) {
     case VK_SUCCESS: {
@@ -671,7 +670,7 @@ void renderer_draw(void) {
 
   renderer_record_compute_pass();
   renderer_record_main_pass();
-  // renderer_record_ray_tracing_pass();
+  renderer_record_ray_tracing_pass();
 
   {
     VkImageMemoryBarrier image_memory_barrier = {
@@ -680,7 +679,7 @@ void renderer_draw(void) {
       .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
       .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
       .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-      .image = g_framebuffer.color_image[s_image_index],
+      .image = g_framebuffer.color_image[g_renderer.image_index],
       .subresourceRange = {
         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
         .baseMipLevel = 0,
@@ -712,7 +711,7 @@ void renderer_draw(void) {
       .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
       .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
       .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-      .image = g_swapchain.image[s_image_index],
+      .image = g_swapchain.image[g_renderer.image_index],
       .subresourceRange = {
         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
         .baseMipLevel = 0,
@@ -769,12 +768,44 @@ void renderer_draw(void) {
 
   vkCmdCopyImage(
     g_window.command_buffer,
-    g_framebuffer.color_image[s_image_index],
+    g_framebuffer.color_image[g_renderer.image_index],
     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-    g_swapchain.image[s_image_index],
+    g_swapchain.image[g_renderer.image_index],
     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
     1,
     &image_copy);
+
+  {
+    VkImageMemoryBarrier image_memory_barrier = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+      .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .image = g_framebuffer.color_image[g_renderer.image_index],
+      .subresourceRange = {
+        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel = 0,
+        .levelCount = 1,
+        .baseArrayLayer = 0,
+        .layerCount = 1,
+      },
+      .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+      .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+    };
+
+    vkCmdPipelineBarrier(
+      g_window.command_buffer,
+      VK_PIPELINE_STAGE_TRANSFER_BIT,
+      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      &image_memory_barrier);
+  }
 
   {
     VkImageMemoryBarrier image_memory_barrier = {
@@ -783,7 +814,7 @@ void renderer_draw(void) {
       .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
       .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
       .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-      .image = g_swapchain.image[s_image_index],
+      .image = g_swapchain.image[g_renderer.image_index],
       .subresourceRange = {
         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
         .baseMipLevel = 0,
@@ -821,7 +852,7 @@ void renderer_draw(void) {
     .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
     .pWaitSemaphores = &s_image_available_semaphore,
     .waitSemaphoreCount = 1,
-    .pSignalSemaphores = &s_render_finished_semaphore[s_image_index],
+    .pSignalSemaphores = &s_render_finished_semaphore[g_renderer.image_index],
     .signalSemaphoreCount = 1,
     .pCommandBuffers = &g_window.command_buffer,
     .commandBufferCount = 1,
@@ -843,11 +874,11 @@ void renderer_draw(void) {
 
   VkPresentInfoKHR present_info = {
     .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-    .pWaitSemaphores = &s_render_finished_semaphore[s_image_index],
+    .pWaitSemaphores = &s_render_finished_semaphore[g_renderer.image_index],
     .waitSemaphoreCount = 1,
     .pSwapchains = &g_swapchain.handle,
     .swapchainCount = 1,
-    .pImageIndices = &s_image_index,
+    .pImageIndices = &g_renderer.image_index,
   };
 
   result = vkQueuePresentKHR(g_window.present_queue, &present_info);
@@ -1476,7 +1507,7 @@ static void renderer_record_main_pass(void) {
   VkRenderPassBeginInfo render_pass_create_info = {
     .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
     .renderPass = g_renderpass,
-    .framebuffer = g_framebuffer.handle[s_image_index],
+    .framebuffer = g_framebuffer.handle[g_renderer.image_index],
     .renderArea = {
       .offset.x = 0,
       .offset.y = 0,
@@ -1535,13 +1566,13 @@ static void renderer_record_main_pass(void) {
 }
 static void renderer_record_ray_tracing_pass(void) {
   {
-    VkImageMemoryBarrier color_image_memory_barrier = {
+    VkImageMemoryBarrier image_memory_barrier = {
       .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
       .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
       .newLayout = VK_IMAGE_LAYOUT_GENERAL,
       .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
       .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-      .image = g_framebuffer.color_image[s_image_index],
+      .image = g_framebuffer.color_image[g_renderer.image_index],
       .subresourceRange = {
         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
         .baseMipLevel = 0,
@@ -1563,15 +1594,17 @@ static void renderer_record_ray_tracing_pass(void) {
       0,
       0,
       1,
-      &color_image_memory_barrier);
+      &image_memory_barrier);
+  }
 
-    VkImageMemoryBarrier depth_image_memory_barrier = {
+  {
+    VkImageMemoryBarrier image_memory_barrier = {
       .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
       .oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
       .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
       .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
       .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-      .image = g_framebuffer.depth_image[s_image_index],
+      .image = g_framebuffer.depth_image[g_renderer.image_index],
       .subresourceRange = {
         .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
         .baseMipLevel = 0,
@@ -1593,19 +1626,19 @@ static void renderer_record_ray_tracing_pass(void) {
       0,
       0,
       1,
-      &depth_image_memory_barrier);
+      &image_memory_barrier);
   }
 
   dynamic_vdb_draw();
 
   {
-    VkImageMemoryBarrier color_image_memory_barrier = {
+    VkImageMemoryBarrier image_memory_barrier = {
       .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
       .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
       .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
       .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
       .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-      .image = g_framebuffer.color_image[s_image_index],
+      .image = g_framebuffer.color_image[g_renderer.image_index],
       .subresourceRange = {
         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
         .baseMipLevel = 0,
@@ -1627,15 +1660,17 @@ static void renderer_record_ray_tracing_pass(void) {
       0,
       0,
       1,
-      &color_image_memory_barrier);
+      &image_memory_barrier);
+  }
 
-    VkImageMemoryBarrier depth_image_memory_barrier = {
+  {
+    VkImageMemoryBarrier image_memory_barrier = {
       .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
       .oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
       .newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
       .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
       .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-      .image = g_framebuffer.depth_image[s_image_index],
+      .image = g_framebuffer.depth_image[g_renderer.image_index],
       .subresourceRange = {
         .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
         .baseMipLevel = 0,
@@ -1657,7 +1692,7 @@ static void renderer_record_ray_tracing_pass(void) {
       0,
       0,
       1,
-      &depth_image_memory_barrier);
+      &image_memory_barrier);
   }
 }
 

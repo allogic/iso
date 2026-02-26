@@ -219,7 +219,7 @@ void dynamic_vdb_create(void) {
 }
 void dynamic_vdb_draw(void) {
   vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, g_renderer.dynamic_vdb_renderer_pipeline.pipeline_handle);
-  vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, g_renderer.dynamic_vdb_renderer_pipeline.pipeline_layout, 0, 1, &g_renderer.dynamic_vdb_renderer_pipeline.descriptor_set[0], 0, 0);
+  vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, g_renderer.dynamic_vdb_renderer_pipeline.pipeline_layout, 0, 1, &g_renderer.dynamic_vdb_renderer_pipeline.descriptor_set[g_renderer.image_index], 0, 0);
 
   VkStridedDeviceAddressRegionKHR *ray_gen_region = &g_renderer.dynamic_vdb_renderer_pipeline.ray_gen_region;
   VkStridedDeviceAddressRegionKHR *ray_miss_region = &g_renderer.dynamic_vdb_renderer_pipeline.ray_miss_region;
