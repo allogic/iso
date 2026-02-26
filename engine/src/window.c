@@ -134,6 +134,7 @@ void window_create(uint32_t width, uint32_t height, char const *title) {
   g_window.window_width = width;
   g_window.window_height = height;
   g_window.window_title = title;
+  g_window.is_first_frame = 1;
 
   window_create_native();
   window_create_instance();
@@ -246,7 +247,7 @@ void window_run(void) {
     g_window.fps_counter++;
     g_window.frame_index++;
 
-    if (g_window.elapsed_time_since_fps_count_update > 1.0F) {
+    if ((g_window.elapsed_time_since_fps_count_update > 1.0F) || (g_window.is_first_frame)) {
 
       static char title_buffer[0x400] = {0};
 
@@ -263,6 +264,8 @@ void window_run(void) {
       g_window.elapsed_time_since_fps_count_update = 0.0F;
       g_window.fps_counter = 0;
     }
+
+    g_window.is_first_frame = 0;
   }
 }
 void window_destroy(void) {

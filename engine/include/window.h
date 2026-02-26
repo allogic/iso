@@ -140,6 +140,7 @@ typedef struct window_t {
   float time;
   float delta_time;
   float elapsed_time_since_fps_count_update;
+  uint32_t is_first_frame;
   uint32_t is_window_running;
   uint32_t min_image_count;
   uint32_t max_image_count;
