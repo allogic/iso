@@ -129,8 +129,8 @@ void static_vdb_build(void) {
   static_vdb_generate_mesh();
 }
 void static_vdb_debug(void) {
-  int32_t chunk_index = 0;
-  int32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
+  uint32_t chunk_index = 0;
+  uint32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
 
   while (chunk_index < chunk_count) {
 
@@ -157,8 +157,8 @@ void static_vdb_draw(void) {
 
   static_vdb_renderer_push_constant_t static_vdb_renderer_push_constant = {0};
 
-  int32_t chunk_index = 0;
-  int32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
+  uint32_t chunk_index = 0;
+  uint32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
 
   while (chunk_index < chunk_count) {
 
@@ -181,12 +181,12 @@ void static_vdb_destroy(void) {
   static_vdb_destroy_buffer();
 }
 
-int32_t static_vdb_chunk_position_to_index(ivector3_t chunk_position) {
+uint32_t static_vdb_chunk_position_to_index(ivector3_t chunk_position) {
   return (chunk_position.x) +
          (chunk_position.y * STATIC_VDB_DIM_X) +
          (chunk_position.z * STATIC_VDB_DIM_X * STATIC_VDB_DIM_Y);
 }
-ivector3_t static_vdb_chunk_index_to_position(int32_t chunk_index) {
+ivector3_t static_vdb_chunk_index_to_position(uint32_t chunk_index) {
   return (ivector3_t){
     chunk_index % STATIC_VDB_DIM_X,
     (chunk_index / STATIC_VDB_DIM_X) % STATIC_VDB_DIM_Y,
@@ -229,8 +229,8 @@ void dynamic_vdb_draw(void) {
   vkCmdTraceRaysKHR_proc(g_window.command_buffer, ray_gen_region, ray_miss_region, ray_hit_region, callable_region, g_window.window_width, g_window.window_height, 1);
 }
 void dynamic_vdb_debug(void) {
-  int32_t chunk_index = 0;
-  int32_t chunk_count = DYNAMIC_VDB_CHUNK_COUNT;
+  uint32_t chunk_index = 0;
+  uint32_t chunk_count = DYNAMIC_VDB_CHUNK_COUNT;
 
   while (chunk_index < chunk_count) {
 
@@ -259,12 +259,12 @@ void dynamic_vdb_destroy(void) {
   dynamic_vdb_destroy_tlas();
 }
 
-int32_t dynamic_vdb_chunk_position_to_index(ivector3_t chunk_position) {
+uint32_t dynamic_vdb_chunk_position_to_index(ivector3_t chunk_position) {
   return (chunk_position.x) +
          (chunk_position.y * DYNAMIC_VDB_DIM_X) +
          (chunk_position.z * DYNAMIC_VDB_DIM_X * DYNAMIC_VDB_DIM_Y);
 }
-ivector3_t dynamic_vdb_chunk_index_to_position(int32_t chunk_index) {
+ivector3_t dynamic_vdb_chunk_index_to_position(uint32_t chunk_index) {
   return (ivector3_t){
     chunk_index % DYNAMIC_VDB_DIM_X,
     (chunk_index / DYNAMIC_VDB_DIM_X) % DYNAMIC_VDB_DIM_Y,
@@ -276,8 +276,8 @@ static void static_vdb_create_chunk_voxel_image(void) {
   g_svdb.chunk_voxel_image = (image_t *)HEAP_ALLOC(sizeof(image_t) * STATIC_VDB_CHUNK_COUNT, 1, 0);
   g_svdb.chunk_voxel_descriptor_image_info = (VkDescriptorImageInfo *)HEAP_ALLOC(sizeof(VkDescriptorImageInfo) * STATIC_VDB_CHUNK_COUNT, 1, 0);
 
-  int32_t chunk_index = 0;
-  int32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
+  uint32_t chunk_index = 0;
+  uint32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
 
   while (chunk_index < chunk_count) {
 
@@ -326,8 +326,8 @@ static void static_vdb_create_chunk_vertex_buffer(void) {
   g_svdb.chunk_vertex_buffer = (buffer_t *)HEAP_ALLOC(sizeof(buffer_t) * STATIC_VDB_CHUNK_COUNT, 1, 0);
   g_svdb.chunk_vertex_descriptor_buffer_info = (VkDescriptorBufferInfo *)HEAP_ALLOC(sizeof(VkDescriptorBufferInfo) * STATIC_VDB_CHUNK_COUNT, 1, 0);
 
-  int32_t chunk_index = 0;
-  int32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
+  uint32_t chunk_index = 0;
+  uint32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
 
   while (chunk_index < chunk_count) {
 
@@ -348,8 +348,8 @@ static void static_vdb_create_chunk_index_buffer(void) {
   g_svdb.chunk_index_buffer = (buffer_t *)HEAP_ALLOC(sizeof(buffer_t) * STATIC_VDB_CHUNK_COUNT, 1, 0);
   g_svdb.chunk_index_descriptor_buffer_info = (VkDescriptorBufferInfo *)HEAP_ALLOC(sizeof(VkDescriptorBufferInfo) * STATIC_VDB_CHUNK_COUNT, 1, 0);
 
-  int32_t chunk_index = 0;
-  int32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
+  uint32_t chunk_index = 0;
+  uint32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
 
   while (chunk_index < chunk_count) {
 
@@ -373,8 +373,8 @@ static void static_vdb_generate_world(void) {
 
   static_vdb_world_generator_push_constant_t static_vdb_world_generator_push_constant = {0};
 
-  int32_t chunk_index = 0;
-  int32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
+  uint32_t chunk_index = 0;
+  uint32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
 
   while (chunk_index < chunk_count) {
 
@@ -468,8 +468,8 @@ static void static_vdb_generate_mask(void) {
 
   static_vdb_mask_generator_push_constant_t static_vdb_mask_generator_push_constant = {0};
 
-  int32_t chunk_index = 0;
-  int32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
+  uint32_t chunk_index = 0;
+  uint32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
 
   while (chunk_index < chunk_count) {
 
@@ -510,8 +510,8 @@ static void static_vdb_generate_mesh(void) {
 
   static_vdb_mesh_generator_push_constant_t static_vdb_mesh_generator_push_constant = {0};
 
-  int32_t chunk_index = 0;
-  int32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
+  uint32_t chunk_index = 0;
+  uint32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
 
   while (chunk_index < chunk_count) {
 
@@ -566,8 +566,8 @@ static void static_vdb_generate_mesh(void) {
 }
 
 static void static_vdb_destroy_image(void) {
-  int32_t chunk_index = 0;
-  int32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
+  uint32_t chunk_index = 0;
+  uint32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
 
   while (chunk_index < chunk_count) {
 
@@ -584,8 +584,8 @@ static void static_vdb_destroy_buffer(void) {
   buffer_destroy(&g_svdb.chunk_info_buffer);
   buffer_destroy(&g_svdb.chunk_mask_buffer);
 
-  int32_t chunk_index = 0;
-  int32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
+  uint32_t chunk_index = 0;
+  uint32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
 
   while (chunk_index < chunk_count) {
 
@@ -609,8 +609,8 @@ static void dynamic_vdb_create_chunk_voxel_image(void) {
   g_dvdb.curr_chunk_voxel_descriptor_image_info = (VkDescriptorImageInfo *)HEAP_ALLOC(sizeof(VkDescriptorImageInfo) * DYNAMIC_VDB_CHUNK_COUNT, 1, 0);
   g_dvdb.next_chunk_voxel_descriptor_image_info = (VkDescriptorImageInfo *)HEAP_ALLOC(sizeof(VkDescriptorImageInfo) * DYNAMIC_VDB_CHUNK_COUNT, 1, 0);
 
-  int32_t chunk_index = 0;
-  int32_t chunk_count = DYNAMIC_VDB_CHUNK_COUNT;
+  uint32_t chunk_index = 0;
+  uint32_t chunk_count = DYNAMIC_VDB_CHUNK_COUNT;
 
   while (chunk_index < chunk_count) {
 
@@ -882,8 +882,8 @@ static void dynamic_vdb_build_tlas(void) {
 }
 
 static void dynamic_vdb_destroy_image(void) {
-  int32_t chunk_index = 0;
-  int32_t chunk_count = DYNAMIC_VDB_CHUNK_COUNT;
+  uint32_t chunk_index = 0;
+  uint32_t chunk_count = DYNAMIC_VDB_CHUNK_COUNT;
 
   while (chunk_index < chunk_count) {
 

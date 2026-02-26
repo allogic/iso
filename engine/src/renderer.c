@@ -33,9 +33,9 @@ static void renderer_destroy_sync_object(void);
 static void renderer_destroy_buffer(void);
 static void renderer_destroy_image(void);
 
-static int32_t s_image_index = 0;
-static int32_t s_debug_line_vertex_offset = 0;
-static int32_t s_debug_line_index_offset = 0;
+static uint32_t s_image_index = 0;
+static uint32_t s_debug_line_vertex_offset = 0;
+static uint32_t s_debug_line_index_offset = 0;
 
 static VkSemaphore s_render_finished_semaphore[SWAPCHAIN_MAX_IMAGE_COUNT] = {0};
 static VkSemaphore s_image_available_semaphore = {0};
@@ -191,6 +191,10 @@ static VkDescriptorPoolSize const s_dynamic_vdb_renderer_descriptor_pool_size[] 
     .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
     .descriptorCount = SWAPCHAIN_IMAGE_COUNT, // TODO: make seperate executables for single/double and tripple buffering.. (only static way!)
   },
+  {
+    .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+    .descriptorCount = SWAPCHAIN_IMAGE_COUNT, // TODO: make seperate executables for single/double and tripple buffering.. (only static way!)
+  },
 };
 static VkDescriptorPoolSize const s_debug_line_renderer_descriptor_pool_size[] = {
   {
@@ -325,6 +329,13 @@ static VkDescriptorSetLayoutBinding const s_dynamic_vdb_renderer_descriptor_set_
   {
     .binding = 2,
     .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+    .descriptorCount = 1,
+    .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+    .pImmutableSamplers = 0,
+  },
+  {
+    .binding = 3,
+    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
     .descriptorCount = 1,
     .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
     .pImmutableSamplers = 0,
@@ -517,7 +528,7 @@ renderer_t g_renderer = {
     .descriptor_set_layout_binding = s_static_vdb_renderer_descriptor_set_layout_binding,
     .descriptor_set_layout_binding_count = ARRAY_COUNT(s_static_vdb_renderer_descriptor_set_layout_binding),
     .descriptor_set_count = STATIC_VDB_CHUNK_COUNT,
-    .render_pass = &g_renderpass_main,
+    .render_pass = &g_renderpass,
   },
   .dynamic_vdb_renderer_pipeline = {
     .pipeline_type = PIPELINE_TYPE_RAY,
@@ -554,7 +565,7 @@ renderer_t g_renderer = {
     .descriptor_set_layout_binding = s_debug_line_renderer_descriptor_set_layout_binding,
     .descriptor_set_layout_binding_count = ARRAY_COUNT(s_debug_line_renderer_descriptor_set_layout_binding),
     .descriptor_set_count = 1,
-    .render_pass = &g_renderpass_main,
+    .render_pass = &g_renderpass,
   },
 };
 
@@ -661,6 +672,141 @@ void renderer_draw(void) {
   renderer_record_compute_pass();
   renderer_record_main_pass();
   renderer_record_ray_tracing_pass();
+
+  {
+    VkImageMemoryBarrier image_memory_barrier = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+      .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .image = g_framebuffer.color_image[s_image_index],
+      .subresourceRange = {
+        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel = 0,
+        .levelCount = 1,
+        .baseArrayLayer = 0,
+        .layerCount = 1,
+      },
+      .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+      .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+    };
+
+    vkCmdPipelineBarrier(
+      g_window.command_buffer,
+      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+      VK_PIPELINE_STAGE_TRANSFER_BIT,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      &image_memory_barrier);
+  }
+
+  {
+    VkImageMemoryBarrier image_memory_barrier = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+      .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .image = g_swapchain.image[s_image_index],
+      .subresourceRange = {
+        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel = 0,
+        .levelCount = 1,
+        .baseArrayLayer = 0,
+        .layerCount = 1,
+      },
+      .srcAccessMask = VK_ACCESS_NONE,
+      .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+    };
+
+    vkCmdPipelineBarrier(
+      g_window.command_buffer,
+      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+      VK_PIPELINE_STAGE_TRANSFER_BIT,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      &image_memory_barrier);
+  }
+
+  VkImageCopy image_copy = {
+    .srcSubresource = {
+      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+      .baseArrayLayer = 0,
+      .layerCount = 1,
+      .mipLevel = 0,
+    },
+    .srcOffset = {
+      .x = 0,
+      .y = 0,
+      .z = 0,
+    },
+    .dstSubresource = {
+      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+      .baseArrayLayer = 0,
+      .layerCount = 1,
+      .mipLevel = 0,
+    },
+    .dstOffset = {
+      .x = 0,
+      .y = 0,
+      .z = 0,
+    },
+    .extent = {
+      .width = g_window.window_width,
+      .height = g_window.window_height,
+      .depth = 1,
+    },
+  };
+
+  vkCmdCopyImage(
+    g_window.command_buffer,
+    g_framebuffer.color_image[s_image_index],
+    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+    g_swapchain.image[s_image_index],
+    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    1,
+    &image_copy);
+
+  {
+    VkImageMemoryBarrier image_memory_barrier = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+      .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .image = g_swapchain.image[s_image_index],
+      .subresourceRange = {
+        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel = 0,
+        .levelCount = 1,
+        .baseArrayLayer = 0,
+        .layerCount = 1,
+      },
+      .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+      .dstAccessMask = VK_ACCESS_NONE,
+    };
+
+    vkCmdPipelineBarrier(
+      g_window.command_buffer,
+      VK_PIPELINE_STAGE_TRANSFER_BIT,
+      VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      &image_memory_barrier);
+  }
 
   VK_CHECK(vkEndCommandBuffer(g_window.command_buffer));
 
@@ -842,8 +988,8 @@ static void renderer_create_sync_object(void) {
     .flags = VK_FENCE_CREATE_SIGNALED_BIT,
   };
 
-  int32_t image_index = 0;
-  int32_t image_count = g_swapchain.image_count;
+  uint32_t image_index = 0;
+  uint32_t image_count = g_swapchain.image_count;
 
   while (image_index < image_count) {
 
@@ -1027,8 +1173,8 @@ static void renderer_update_static_vdb_mask_generator_descriptor_set(void) {
   vkUpdateDescriptorSets(g_window.device, ARRAY_COUNT(write_descriptor_set), write_descriptor_set, 0, 0);
 }
 static void renderer_update_static_vdb_mesh_generator_descriptor_set(void) {
-  int32_t chunk_index = 0;
-  int32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
+  uint32_t chunk_index = 0;
+  uint32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
 
   while (chunk_index < chunk_count) {
 
@@ -1113,8 +1259,8 @@ static void renderer_update_static_vdb_mesh_generator_descriptor_set(void) {
   }
 }
 static void renderer_update_static_vdb_renderer_descriptor_set(void) {
-  int32_t chunk_index = 0;
-  int32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
+  uint32_t chunk_index = 0;
+  uint32_t chunk_count = STATIC_VDB_CHUNK_COUNT;
 
   while (chunk_index < chunk_count) {
 
@@ -1151,16 +1297,10 @@ static void renderer_update_static_vdb_renderer_descriptor_set(void) {
   }
 }
 static void renderer_update_dynamic_vdb_renderer_descriptor_set(void) {
-  int32_t image_index = 0;
-  int32_t image_count = g_swapchain.image_count;
+  uint32_t image_index = 0;
+  uint32_t image_count = g_swapchain.image_count;
 
   while (image_index < image_count) {
-
-    VkDescriptorImageInfo ray_descriptor_image_info = {
-      ray_descriptor_image_info.sampler = 0,
-      ray_descriptor_image_info.imageView = g_framebuffer.ray_image_view[image_index],
-      ray_descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-    };
 
     VkWriteDescriptorSet write_descriptor_set[] = {
       {
@@ -1195,7 +1335,19 @@ static void renderer_update_dynamic_vdb_renderer_descriptor_set(void) {
         .dstArrayElement = 0,
         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
         .descriptorCount = 1,
-        .pImageInfo = &ray_descriptor_image_info,
+        .pImageInfo = &g_framebuffer.color_descriptor_image_info[image_index],
+        .pBufferInfo = 0,
+        .pTexelBufferView = 0,
+      },
+      {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .pNext = 0,
+        .dstSet = g_renderer.dynamic_vdb_renderer_pipeline.descriptor_set[image_index],
+        .dstBinding = 3,
+        .dstArrayElement = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount = 1,
+        .pImageInfo = &g_framebuffer.depth_descriptor_image_info[image_index],
         .pBufferInfo = 0,
         .pTexelBufferView = 0,
       },
@@ -1320,7 +1472,7 @@ static void renderer_record_main_pass(void) {
 
   VkRenderPassBeginInfo render_pass_create_info = {
     .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-    .renderPass = g_renderpass_main,
+    .renderPass = g_renderpass,
     .framebuffer = g_framebuffer.handle[s_image_index],
     .renderArea = {
       .offset.x = 0,
@@ -1379,12 +1531,136 @@ static void renderer_record_main_pass(void) {
   vkCmdEndRenderPass(g_window.command_buffer);
 }
 static void renderer_record_ray_tracing_pass(void) {
+  {
+    VkImageMemoryBarrier color_image_memory_barrier = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+      .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .image = g_framebuffer.color_image[s_image_index],
+      .subresourceRange = {
+        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel = 0,
+        .levelCount = 1,
+        .baseArrayLayer = 0,
+        .layerCount = 1,
+      },
+      .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+      .dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+    };
+
+    vkCmdPipelineBarrier(
+      g_window.command_buffer,
+      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+      VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      &color_image_memory_barrier);
+
+    VkImageMemoryBarrier depth_image_memory_barrier = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      .oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+      .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .image = g_framebuffer.depth_image[s_image_index],
+      .subresourceRange = {
+        .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+        .baseMipLevel = 0,
+        .levelCount = 1,
+        .baseArrayLayer = 0,
+        .layerCount = 1,
+      },
+      .srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+      .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+    };
+
+    vkCmdPipelineBarrier(
+      g_window.command_buffer,
+      VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+      VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      &depth_image_memory_barrier);
+  }
+
   dynamic_vdb_draw();
+
+  {
+    VkImageMemoryBarrier color_image_memory_barrier = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+      .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .image = g_framebuffer.color_image[s_image_index],
+      .subresourceRange = {
+        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel = 0,
+        .levelCount = 1,
+        .baseArrayLayer = 0,
+        .layerCount = 1,
+      },
+      .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+      .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+    };
+
+    vkCmdPipelineBarrier(
+      g_window.command_buffer,
+      VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      &color_image_memory_barrier);
+
+    VkImageMemoryBarrier depth_image_memory_barrier = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      .oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+      .newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .image = g_framebuffer.depth_image[s_image_index],
+      .subresourceRange = {
+        .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+        .baseMipLevel = 0,
+        .levelCount = 1,
+        .baseArrayLayer = 0,
+        .layerCount = 1,
+      },
+      .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+      .dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+    };
+
+    vkCmdPipelineBarrier(
+      g_window.command_buffer,
+      VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+      VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      &depth_image_memory_barrier);
+  }
 }
 
 static void renderer_destroy_sync_object(void) {
-  int32_t image_index = 0;
-  int32_t image_count = g_swapchain.image_count;
+  uint32_t image_index = 0;
+  uint32_t image_count = g_swapchain.image_count;
 
   while (image_index < image_count) {
 

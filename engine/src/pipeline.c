@@ -92,8 +92,8 @@ static void pipeline_create_descriptor_set_layout(pipeline_t *pipeline) {
   VK_CHECK(vkCreateDescriptorSetLayout(g_window.device, &descriptor_set_layout_create_info, 0, &pipeline->descriptor_set_layout_base));
 }
 static void pipeline_create_descriptor_set(pipeline_t *pipeline) {
-  int32_t descriptor_set_index = 0;
-  int32_t descriptor_set_count = pipeline->descriptor_set_count;
+  uint32_t descriptor_set_index = 0;
+  uint32_t descriptor_set_count = pipeline->descriptor_set_count;
 
   while (descriptor_set_index < descriptor_set_count) {
 

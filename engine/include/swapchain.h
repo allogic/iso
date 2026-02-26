@@ -6,7 +6,8 @@
 
 typedef struct swapchain_t {
   uint32_t is_dirty;
-  int32_t image_count;
+  uint32_t image_count;
+  VkImage image[SWAPCHAIN_MAX_IMAGE_COUNT];
   VkSwapchainKHR handle;
 } swapchain_t;
 

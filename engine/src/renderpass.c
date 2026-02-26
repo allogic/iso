@@ -1,17 +1,17 @@
 #include <pch.h>
 
-VkRenderPass g_renderpass_main = 0;
+VkRenderPass g_renderpass = 0;
 
-void renderpass_create_main(void) {
+void renderpass_create(void) {
   VkAttachmentDescription color_attachment_description = {
-    .format = g_window.prefered_surface_format.format,
+    .format = VK_FORMAT_R8G8B8A8_UNORM,
     .samples = VK_SAMPLE_COUNT_1_BIT,
     .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
     .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
     .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
     .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
     .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-    .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+    .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
   };
 
   VkAttachmentDescription depth_attachment_description = {
@@ -66,9 +66,8 @@ void renderpass_create_main(void) {
     .dependencyCount = 1,
   };
 
-  VK_CHECK(vkCreateRenderPass(g_window.device, &render_pass_create_info, 0, &g_renderpass_main));
+  VK_CHECK(vkCreateRenderPass(g_window.device, &render_pass_create_info, 0, &g_renderpass));
 }
-
-void renderpass_destroy_main(void) {
-  vkDestroyRenderPass(g_window.device, g_renderpass_main, 0);
+void renderpass_destroy(void) {
+  vkDestroyRenderPass(g_window.device, g_renderpass, 0);
 }

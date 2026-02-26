@@ -22,8 +22,6 @@ static void window_create_command_buffer(void);
 
 static void window_find_physical_device(void);
 static void window_find_physical_device_queue_families(void);
-static void window_find_prefered_surface_format(void);
-static void window_find_prefered_present_mode(void);
 
 static void window_check_physical_device_extensions(void);
 static void window_check_physical_device_features(void);
@@ -112,10 +110,7 @@ VkPhysicalDeviceDescriptorIndexingFeatures g_physical_device_descriptor_indexing
   .pNext = &g_physical_device_mesh_shader_features,
 };
 
-window_t g_window = {
-  .primary_queue_index = -1,
-  .present_queue_index = -1,
-};
+window_t g_window = {0};
 
 #ifdef BUILD_DEBUG
 PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT_proc = 0;
@@ -135,7 +130,7 @@ PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR_pr
 
 PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR_proc = 0;
 
-void window_create(int32_t width, int32_t height, char const *title) {
+void window_create(uint32_t width, uint32_t height, char const *title) {
   g_window.window_width = width;
   g_window.window_height = height;
   g_window.window_title = title;
@@ -146,8 +141,6 @@ void window_create(int32_t width, int32_t height, char const *title) {
 
   window_find_physical_device();
   window_find_physical_device_queue_families();
-  window_find_prefered_surface_format();
-  window_find_prefered_present_mode();
 
   window_check_physical_device_extensions();
   window_check_physical_device_features();
@@ -159,12 +152,9 @@ void window_create(int32_t width, int32_t height, char const *title) {
   window_update_surface_capabilities();
 
   structure_create();
-
   static_vdb_create();
   dynamic_vdb_create();
-
-  renderpass_create_main();
-
+  renderpass_create();
   swapchain_create();
   framebuffer_create();
   renderer_create();
@@ -178,8 +168,8 @@ void window_run(void) {
 
     g_window.mouse_wheel_delta = 0;
 
-    int32_t keyboard_key_index = 0;
-    int32_t keyboard_key_count = KEYBOARD_KEY_COUNT;
+    uint32_t keyboard_key_index = 0;
+    uint32_t keyboard_key_count = KEYBOARD_KEY_COUNT;
 
     while (keyboard_key_index < keyboard_key_count) {
 
@@ -192,8 +182,8 @@ void window_run(void) {
       keyboard_key_index++;
     }
 
-    int32_t mouse_key_index = 0;
-    int32_t mouse_key_count = MOUSE_KEY_COUNT;
+    uint32_t mouse_key_index = 0;
+    uint32_t mouse_key_count = MOUSE_KEY_COUNT;
 
     while (mouse_key_index < mouse_key_count) {
 
@@ -283,12 +273,9 @@ void window_destroy(void) {
   renderer_destroy();
   framebuffer_destroy();
   swapchain_destroy();
-
-  renderpass_destroy_main();
-
+  renderpass_destroy();
   dynamic_vdb_destroy();
   static_vdb_destroy();
-
   structure_destroy();
 
   window_destroy_command_buffer();
@@ -702,8 +689,8 @@ static void window_create_command_buffer(void) {
 }
 
 static void window_find_physical_device(void) {
-  int32_t physical_device_index = 0;
-  int32_t physical_device_count = 0;
+  uint32_t physical_device_index = 0;
+  uint32_t physical_device_count = 0;
 
   static VkPhysicalDevice physical_devices[WINDOW_MAX_PHYSICAL_DEVICES] = {0};
 
@@ -740,6 +727,23 @@ static void window_find_physical_device(void) {
 #ifdef BUILD_DEBUG
   VkPhysicalDeviceProperties *props = &g_window.physical_device_properties2.properties;
 
+  char const *vendor_name = 0;
+
+  switch (props->vendorID) {
+    case VENDOR_ID_NVIDIA:
+      vendor_name = "NVIDIA";
+      break;
+    case VENDOR_ID_AMD:
+      vendor_name = "AMD";
+      break;
+    case VENDOR_ID_INTEL:
+      vendor_name = "INTEL";
+      break;
+    default:
+      vendor_name = "UNKNOWN";
+      break;
+  }
+
   printf("Selected Physical Device\n");
   printf("  Device Index: %d\n", physical_device_index);
   printf("  Device Name: %s\n", props->deviceName);
@@ -758,6 +762,7 @@ static void window_find_physical_device(void) {
       printf("Driver Version: %u\n", props->driverVersion);
       break;
   }
+  printf("  Vendor Name: %s\n", vendor_name);
   printf("  Vendor ID: 0x%X\n", props->vendorID);
   printf("  Device ID: 0x%X\n", props->deviceID);
   printf("  Device Type: %d\n", props->deviceType);
@@ -765,8 +770,11 @@ static void window_find_physical_device(void) {
 #endif // BUILD_DEBUG
 }
 static void window_find_physical_device_queue_families(void) {
-  int32_t queue_family_property_index = 0;
-  int32_t queue_family_property_count = 0;
+  int32_t primary_queue_index = -1;
+  int32_t present_queue_index = -1;
+
+  uint32_t queue_family_property_index = 0;
+  uint32_t queue_family_property_count = 0;
 
   static VkQueueFamilyProperties queue_family_properties[WINDOW_MAX_QUEUE_FAMILY_PROPERTIES_COUNT] = {0};
 
@@ -783,16 +791,19 @@ static void window_find_physical_device_queue_families(void) {
 
     VK_CHECK(vkGetPhysicalDeviceSurfaceSupportKHR(g_window.physical_device, (uint32_t)queue_family_property_index, g_window.surface, &present_support));
 
-    if (graphics_support && compute_support && (g_window.primary_queue_index == -1)) {
+    if (graphics_support && compute_support && (primary_queue_index == -1)) {
 
-      g_window.primary_queue_index = queue_family_property_index;
+      primary_queue_index = queue_family_property_index;
 
-    } else if (present_support && (g_window.present_queue_index == -1)) {
+    } else if (present_support && (present_queue_index == -1)) {
 
-      g_window.present_queue_index = queue_family_property_index;
+      present_queue_index = queue_family_property_index;
     }
 
-    if ((g_window.primary_queue_index != -1) && (g_window.present_queue_index != -1)) {
+    if ((primary_queue_index != -1) && (present_queue_index != -1)) {
+
+      g_window.primary_queue_index = (uint32_t)primary_queue_index;
+      g_window.present_queue_index = (uint32_t)present_queue_index;
 
       break;
     }
@@ -807,55 +818,9 @@ static void window_find_physical_device_queue_families(void) {
   printf("\n");
 #endif // BUILD_DEBUG
 }
-static void window_find_prefered_surface_format(void) {
-  int32_t surface_format_index = 0;
-  int32_t surface_format_count = 0;
-
-  VkSurfaceFormatKHR surface_formats[MAX_SURFACE_FORMATS] = {0};
-
-  VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(g_window.physical_device, g_window.surface, &surface_format_count, 0));
-  VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(g_window.physical_device, g_window.surface, &surface_format_count, surface_formats));
-
-  while (surface_format_index < surface_format_count) {
-
-    VkSurfaceFormatKHR surface_format = surface_formats[surface_format_index];
-
-    if ((surface_format.format == VK_FORMAT_B8G8R8A8_UNORM) && (surface_format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)) {
-
-      g_window.prefered_surface_format = surface_format;
-
-      break;
-    }
-
-    surface_format_index++;
-  }
-}
-static void window_find_prefered_present_mode(void) {
-  int32_t present_mode_index = 0;
-  int32_t present_mode_count = 0;
-
-  VkPresentModeKHR present_modes[MAX_PRESENT_MODES] = {0};
-
-  VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(g_window.physical_device, g_window.surface, &present_mode_count, 0));
-  VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(g_window.physical_device, g_window.surface, &present_mode_count, present_modes));
-
-  while (present_mode_index < present_mode_count) {
-
-    VkPresentModeKHR present_mode = present_modes[present_mode_index];
-
-    if (present_mode == VK_PRESENT_MODE_MAILBOX_KHR) {
-
-      g_window.prefered_present_mode = present_mode;
-
-      break;
-    }
-
-    present_mode_index++;
-  }
-}
 
 static void window_check_physical_device_extensions(void) {
-  int32_t available_device_extension_count = 0;
+  uint32_t available_device_extension_count = 0;
 
   static VkExtensionProperties available_extension_properties[WINDOW_MAX_EXTENSION_PROPERTIES_COUNT] = {0};
 
@@ -866,14 +831,14 @@ static void window_check_physical_device_extensions(void) {
   printf("Required Device Extensions\n");
 #endif // BUILD_DEBUG
 
-  int32_t device_extension_index = 0;
-  int32_t device_extension_count = ARRAY_COUNT(s_device_extension);
+  uint32_t device_extension_index = 0;
+  uint32_t device_extension_count = ARRAY_COUNT(s_device_extension);
 
   while (device_extension_index < device_extension_count) {
 
     uint32_t device_extensions_available = 0;
 
-    int32_t available_device_extension_index = 0;
+    uint32_t available_device_extension_index = 0;
 
     while (available_device_extension_index < available_device_extension_count) {
 

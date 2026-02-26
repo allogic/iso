@@ -12,7 +12,7 @@ typedef struct transform_t {
   vector3_t world_scale;
   struct transform_t *parent;
   struct transform_t *children[TRANSFORM_MAX_CHILDREN];
-  int32_t child_count;
+  uint32_t child_count;
 } transform_t;
 
 #ifdef __cplusplus

@@ -19,7 +19,6 @@ layout (binding = 1) uniform camera_info_t {
 	mat4 view_projection_inv;
 	vec4 frustum_plane[6];
 } camera_info;
-// TODO: Can't I just use the framebuffer attachments..
 layout (binding = 2, rgba8) uniform image2D color_image;
 layout (binding = 3) uniform sampler2D depth_image;
 

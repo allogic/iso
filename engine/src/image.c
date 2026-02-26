@@ -7,9 +7,11 @@ void image_create(image_t *image) {
   VkImageCreateInfo image_create_info = {
     .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
     .imageType = image->image_type,
-    .extent.width = image->width,
-    .extent.height = image->height,
-    .extent.depth = image->depth,
+    .extent = {
+      .width = image->width,
+      .height = image->height,
+      .depth = image->depth,
+    },
     .mipLevels = 1,
     .arrayLayers = 1,
     .format = image->format,

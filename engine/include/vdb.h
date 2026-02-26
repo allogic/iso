@@ -149,16 +149,16 @@ void static_vdb_draw(void);
 void static_vdb_debug(void);
 void static_vdb_destroy(void);
 
-int32_t static_vdb_chunk_position_to_index(ivector3_t chunk_position);
-ivector3_t static_vdb_chunk_index_to_position(int32_t chunk_index);
+uint32_t static_vdb_chunk_position_to_index(ivector3_t chunk_position);
+ivector3_t static_vdb_chunk_index_to_position(uint32_t chunk_index);
 
 void dynamic_vdb_create(void);
 void dynamic_vdb_draw(void);
 void dynamic_vdb_debug(void);
 void dynamic_vdb_destroy(void);
 
-int32_t dynamic_vdb_chunk_position_to_index(ivector3_t chunk_position);
-ivector3_t dynamic_vdb_chunk_index_to_position(int32_t chunk_index);
+uint32_t dynamic_vdb_chunk_position_to_index(ivector3_t chunk_position);
+ivector3_t dynamic_vdb_chunk_index_to_position(uint32_t chunk_index);
 
 #ifdef __cplusplus
 }

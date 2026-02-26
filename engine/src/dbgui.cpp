@@ -48,7 +48,7 @@ void dbgui_create(void) {
   imgui_vulkan_init_info.Queue = g_window.primary_queue;
   imgui_vulkan_init_info.PipelineCache = 0;
   imgui_vulkan_init_info.DescriptorPool = s_dbgui_descriptor_pool;
-  imgui_vulkan_init_info.PipelineInfoMain.RenderPass = g_renderpass_main;
+  imgui_vulkan_init_info.PipelineInfoMain.RenderPass = g_renderpass;
   imgui_vulkan_init_info.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
   imgui_vulkan_init_info.MinImageCount = g_window.min_image_count;
   imgui_vulkan_init_info.ImageCount = g_swapchain.image_count;

@@ -141,17 +141,17 @@ typedef struct window_t {
   float delta_time;
   float elapsed_time_since_fps_count_update;
   uint32_t is_window_running;
-  int32_t window_width;
-  int32_t window_height;
-  int32_t mouse_position_x;
-  int32_t mouse_position_y;
-  int32_t mouse_wheel_delta;
-  int32_t frame_index;
-  int32_t fps_counter;
-  int32_t primary_queue_index;
-  int32_t present_queue_index;
-  int32_t min_image_count;
-  int32_t max_image_count;
+  uint32_t min_image_count;
+  uint32_t max_image_count;
+  uint32_t window_width;
+  uint32_t window_height;
+  uint32_t mouse_position_x;
+  uint32_t mouse_position_y;
+  uint32_t mouse_wheel_delta;
+  uint32_t frame_index;
+  uint32_t fps_counter;
+  uint32_t primary_queue_index;
+  uint32_t present_queue_index;
   key_state_t keyboard_key_states[KEYBOARD_KEY_COUNT];
   key_state_t mouse_key_states[MOUSE_KEY_COUNT];
   VkInstance instance;
@@ -161,8 +161,6 @@ typedef struct window_t {
   VkSurfaceKHR surface;
   VkSurfaceCapabilitiesKHR surface_capabilities;
   VkSurfaceTransformFlagBitsKHR surface_transform;
-  VkSurfaceFormatKHR prefered_surface_format;
-  VkPresentModeKHR prefered_present_mode;
   VkPhysicalDeviceFeatures2 physical_device_features2;
   VkPhysicalDeviceProperties2 physical_device_properties2;
   VkPhysicalDeviceMemoryProperties2 physical_device_memory_properties2;
@@ -212,7 +210,7 @@ extern PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandle
 
 extern PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR_proc;
 
-void window_create(int32_t width, int32_t height, char const *title);
+void window_create(uint32_t width, uint32_t height, char const *title);
 void window_run(void);
 void window_destroy(void);
 

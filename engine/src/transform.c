@@ -42,8 +42,8 @@ void transform_compute_world_position(transform_t *transform) {
     transform->world_position = transform->local_position;
   }
 
-  int32_t child_index = 0;
-  int32_t child_count = transform->child_count;
+  uint32_t child_index = 0;
+  uint32_t child_count = transform->child_count;
 
   while (child_index < child_count) {
 
@@ -59,8 +59,8 @@ void transform_compute_world_rotation(transform_t *transform) {
     transform->world_rotation = transform->local_rotation;
   }
 
-  int32_t child_index = 0;
-  int32_t child_count = transform->child_count;
+  uint32_t child_index = 0;
+  uint32_t child_count = transform->child_count;
 
   while (child_index < child_count) {
 
@@ -76,8 +76,8 @@ void transform_compute_world_scale(transform_t *transform) {
     transform->world_scale = transform->local_scale;
   }
 
-  int32_t child_index = 0;
-  int32_t child_count = transform->child_count;
+  uint32_t child_index = 0;
+  uint32_t child_count = transform->child_count;
 
   while (child_index < child_count) {
 
