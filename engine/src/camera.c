@@ -20,6 +20,8 @@ void camera_update(camera_t *camera, transform_t *transform) {
     camera->projection = matrix4_persp(camera->fov, aspect_ratio, camera->persp_near_z, camera->persp_far_z);
   }
 
+  camera->view_inv = matrix4_inverse(camera->view);
+  camera->projection_inv = matrix4_inverse(camera->projection);
   camera->view_projection = matrix4_mul(camera->view, camera->projection);
   camera->view_projection_inv = matrix4_inverse(camera->view_projection);
 

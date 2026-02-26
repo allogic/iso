@@ -181,11 +181,15 @@ static VkDescriptorPoolSize const s_static_vdb_renderer_descriptor_pool_size[] =
 static VkDescriptorPoolSize const s_dynamic_vdb_renderer_descriptor_pool_size[] = {
   {
     .type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
-    .descriptorCount = 1,
+    .descriptorCount = SWAPCHAIN_IMAGE_COUNT, // TODO: make seperate executables for single/double and tripple buffering.. (only static way!)
+  },
+  {
+    .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    .descriptorCount = SWAPCHAIN_IMAGE_COUNT, // TODO: make seperate executables for single/double and tripple buffering.. (only static way!)
   },
   {
     .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-    .descriptorCount = 1,
+    .descriptorCount = SWAPCHAIN_IMAGE_COUNT, // TODO: make seperate executables for single/double and tripple buffering.. (only static way!)
   },
 };
 static VkDescriptorPoolSize const s_debug_line_renderer_descriptor_pool_size[] = {
@@ -313,6 +317,13 @@ static VkDescriptorSetLayoutBinding const s_dynamic_vdb_renderer_descriptor_set_
   },
   {
     .binding = 1,
+    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    .descriptorCount = 1,
+    .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+    .pImmutableSamplers = 0,
+  },
+  {
+    .binding = 2,
     .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
     .descriptorCount = 1,
     .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
@@ -522,7 +533,7 @@ renderer_t g_renderer = {
     .ray_miss_group_count = 1,
     .ray_hit_group_count = 1,
     .callable_group_count = 0,
-    .descriptor_set_count = 1,
+    .descriptor_set_count = SWAPCHAIN_IMAGE_COUNT, // TODO: make seperate executables for single/double and tripple buffering.. (only static way!)
   },
   .debug_line_renderer_pipeline = {
     .pipeline_type = PIPELINE_TYPE_DFLT,
@@ -709,6 +720,15 @@ void renderer_draw(void) {
     }
 #endif // BUILD_DEBUG
   }
+}
+void renderer_update(void) {
+  renderer_update_static_vdb_voxel_placer_descriptor_set();
+  renderer_update_static_vdb_world_generator_descriptor_set();
+  renderer_update_static_vdb_mask_generator_descriptor_set();
+  renderer_update_static_vdb_mesh_generator_descriptor_set();
+  renderer_update_static_vdb_renderer_descriptor_set();
+  renderer_update_dynamic_vdb_renderer_descriptor_set();
+  renderer_update_debug_line_descriptor_set();
 }
 void renderer_destroy(void) {
   pipeline_destroy(&g_renderer.static_vdb_voxel_placer_pipeline);
@@ -938,7 +958,7 @@ static void renderer_update_static_vdb_voxel_placer_descriptor_set(void) {
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
       .descriptorCount = STATIC_VDB_CHUNK_COUNT,
-      .pImageInfo = g_static_vdb.chunk_voxel_descriptor_image_info,
+      .pImageInfo = g_svdb.chunk_voxel_descriptor_image_info,
       .pBufferInfo = 0,
       .pTexelBufferView = 0,
     },
@@ -968,7 +988,7 @@ static void renderer_update_static_vdb_world_generator_descriptor_set(void) {
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
       .descriptorCount = STATIC_VDB_CHUNK_COUNT,
-      .pImageInfo = g_static_vdb.chunk_voxel_descriptor_image_info,
+      .pImageInfo = g_svdb.chunk_voxel_descriptor_image_info,
       .pBufferInfo = 0,
       .pTexelBufferView = 0,
     },
@@ -986,7 +1006,7 @@ static void renderer_update_static_vdb_mask_generator_descriptor_set(void) {
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
       .descriptorCount = STATIC_VDB_CHUNK_COUNT,
-      .pImageInfo = g_static_vdb.chunk_voxel_descriptor_image_info,
+      .pImageInfo = g_svdb.chunk_voxel_descriptor_image_info,
       .pBufferInfo = 0,
       .pTexelBufferView = 0,
     },
@@ -999,7 +1019,7 @@ static void renderer_update_static_vdb_mask_generator_descriptor_set(void) {
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
       .descriptorCount = 1,
       .pImageInfo = 0,
-      .pBufferInfo = &g_static_vdb.chunk_mask_descriptor_buffer_info,
+      .pBufferInfo = &g_svdb.chunk_mask_descriptor_buffer_info,
       .pTexelBufferView = 0,
     },
   };
@@ -1022,7 +1042,7 @@ static void renderer_update_static_vdb_mesh_generator_descriptor_set(void) {
         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
         .descriptorCount = 1,
         .pImageInfo = 0,
-        .pBufferInfo = &g_static_vdb.chunk_mask_descriptor_buffer_info,
+        .pBufferInfo = &g_svdb.chunk_mask_descriptor_buffer_info,
         .pTexelBufferView = 0,
       },
       {
@@ -1034,7 +1054,7 @@ static void renderer_update_static_vdb_mesh_generator_descriptor_set(void) {
         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
         .descriptorCount = 1,
         .pImageInfo = 0,
-        .pBufferInfo = &g_static_vdb.chunk_vertex_descriptor_buffer_info[chunk_index],
+        .pBufferInfo = &g_svdb.chunk_vertex_descriptor_buffer_info[chunk_index],
         .pTexelBufferView = 0,
       },
       {
@@ -1046,7 +1066,7 @@ static void renderer_update_static_vdb_mesh_generator_descriptor_set(void) {
         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
         .descriptorCount = 1,
         .pImageInfo = 0,
-        .pBufferInfo = &g_static_vdb.chunk_index_descriptor_buffer_info[chunk_index],
+        .pBufferInfo = &g_svdb.chunk_index_descriptor_buffer_info[chunk_index],
         .pTexelBufferView = 0,
       },
       {
@@ -1058,7 +1078,7 @@ static void renderer_update_static_vdb_mesh_generator_descriptor_set(void) {
         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
         .descriptorCount = 1,
         .pImageInfo = 0,
-        .pBufferInfo = &g_static_vdb.chunk_info_descriptor_buffer_info,
+        .pBufferInfo = &g_svdb.chunk_info_descriptor_buffer_info,
         .pTexelBufferView = 0,
       },
       {
@@ -1081,7 +1101,7 @@ static void renderer_update_static_vdb_mesh_generator_descriptor_set(void) {
         .dstArrayElement = 0,
         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
         .descriptorCount = 1,
-        .pImageInfo = &g_static_vdb.chunk_voxel_descriptor_image_info[chunk_index],
+        .pImageInfo = &g_svdb.chunk_voxel_descriptor_image_info[chunk_index],
         .pBufferInfo = 0,
         .pTexelBufferView = 0,
       },
@@ -1131,34 +1151,60 @@ static void renderer_update_static_vdb_renderer_descriptor_set(void) {
   }
 }
 static void renderer_update_dynamic_vdb_renderer_descriptor_set(void) {
-  VkWriteDescriptorSet write_descriptor_set[] = {
-    {
-      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-      .pNext = &g_dynamic_vdb.tlas_write_descriptor_set,
-      .dstSet = g_renderer.dynamic_vdb_renderer_pipeline.descriptor_set[0],
-      .dstBinding = 0,
-      .dstArrayElement = 0,
-      .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
-      .descriptorCount = 1,
-      .pImageInfo = 0,
-      .pBufferInfo = 0,
-      .pTexelBufferView = 0,
-    },
-    {
-      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-      .pNext = 0,
-      .dstSet = g_renderer.dynamic_vdb_renderer_pipeline.descriptor_set[0],
-      .dstBinding = 1,
-      .dstArrayElement = 0,
-      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-      .descriptorCount = 1,
-      .pImageInfo = &g_dynamic_vdb.output_descriptor_image_info,
-      .pBufferInfo = 0,
-      .pTexelBufferView = 0,
-    },
-  };
+  int32_t image_index = 0;
+  int32_t image_count = g_swapchain.image_count;
 
-  vkUpdateDescriptorSets(g_window.device, ARRAY_COUNT(write_descriptor_set), write_descriptor_set, 0, 0);
+  while (image_index < image_count) {
+
+    VkDescriptorImageInfo ray_descriptor_image_info = {
+      ray_descriptor_image_info.sampler = 0,
+      ray_descriptor_image_info.imageView = g_framebuffer.ray_image_view[image_index],
+      ray_descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+    };
+
+    VkWriteDescriptorSet write_descriptor_set[] = {
+      {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .pNext = &g_dvdb.tlas_write_descriptor_set,
+        .dstSet = g_renderer.dynamic_vdb_renderer_pipeline.descriptor_set[image_index],
+        .dstBinding = 0,
+        .dstArrayElement = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+        .descriptorCount = 1,
+        .pImageInfo = 0,
+        .pBufferInfo = 0,
+        .pTexelBufferView = 0,
+      },
+      {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .pNext = 0,
+        .dstSet = g_renderer.dynamic_vdb_renderer_pipeline.descriptor_set[image_index],
+        .dstBinding = 1,
+        .dstArrayElement = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .descriptorCount = 1,
+        .pImageInfo = 0,
+        .pBufferInfo = &s_camera_info_descriptor_buffer_info,
+        .pTexelBufferView = 0,
+      },
+      {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .pNext = 0,
+        .dstSet = g_renderer.dynamic_vdb_renderer_pipeline.descriptor_set[image_index],
+        .dstBinding = 2,
+        .dstArrayElement = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+        .descriptorCount = 1,
+        .pImageInfo = &ray_descriptor_image_info,
+        .pBufferInfo = 0,
+        .pTexelBufferView = 0,
+      },
+    };
+
+    vkUpdateDescriptorSets(g_window.device, ARRAY_COUNT(write_descriptor_set), write_descriptor_set, 0, 0);
+
+    image_index++;
+  }
 }
 static void renderer_update_debug_line_descriptor_set(void) {
   VkWriteDescriptorSet write_descriptor_set[] = {
@@ -1187,9 +1233,11 @@ static void renderer_update_coherent_buffer(void) {
 
   g_renderer.mouse_info->position = (ivector2_t){g_window.mouse_position_x, g_window.mouse_position_y};
 
-  g_renderer.camera_info->position = g_player.transform.world_position;
+  g_renderer.camera_info->position = (vector4_t){g_player.transform.world_position.x, g_player.transform.world_position.y, g_player.transform.world_position.z, 0.0F};
   g_renderer.camera_info->view = g_player.camera.view;
+  g_renderer.camera_info->view_inv = g_player.camera.view_inv;
   g_renderer.camera_info->projection = g_player.camera.projection;
+  g_renderer.camera_info->projection_inv = g_player.camera.projection_inv;
   g_renderer.camera_info->view_projection = g_player.camera.view_projection;
   g_renderer.camera_info->view_projection_inv = g_player.camera.view_projection_inv;
 
@@ -1208,7 +1256,7 @@ static void renderer_place_voxel(void) {
     .newLayout = VK_IMAGE_LAYOUT_GENERAL,
     .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
     .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-    .image = g_static_vdb.chunk_voxel_image[0].image_handle, // TODO: do this for current and all surrounding chunks..
+    .image = g_svdb.chunk_voxel_image[0].image_handle, // TODO: do this for current and all surrounding chunks..
     .subresourceRange = {
       .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
       .baseMipLevel = 0,
@@ -1273,7 +1321,7 @@ static void renderer_record_main_pass(void) {
   VkRenderPassBeginInfo render_pass_create_info = {
     .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
     .renderPass = g_renderpass_main,
-    .framebuffer = g_framebuffer_main.handle[s_image_index],
+    .framebuffer = g_framebuffer.handle[s_image_index],
     .renderArea = {
       .offset.x = 0,
       .offset.y = 0,

@@ -4,16 +4,56 @@
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_ray_tracing : require
 
-layout (location = 0) rayPayloadEXT vec3 payload;
+#include "../vdb/common.glsl"
+
+layout (location = 0) rayPayloadEXT ray_payload_t payload;
 
 layout (binding = 0) uniform accelerationStructureEXT tlas;
-layout (binding = 1, rgba8) uniform image2D image;
+layout (binding = 1) uniform camera_info_t {
+	vec4 position;
+	mat4 view;
+	mat4 view_inv;
+	mat4 projection;
+	mat4 projection_inv;
+	mat4 view_projection;
+	mat4 view_projection_inv;
+	vec4 frustum_plane[6];
+} camera_info;
+// TODO: Can't I just use the framebuffer attachments..
+layout (binding = 2, rgba8) uniform image2D color_image;
+layout (binding = 3) uniform sampler2D depth_image;
+
+float depth_to_view_z(float depth) {
+	vec4 clip_depth = vec4(0, 0, depth * 2 - 1, 1);
+	vec4 view_depth = camera_info.projection_inv * clip_depth;
+
+	return view_depth.z / view_depth.w;
+}
 
 void main() {
-	vec2 uv = (vec2(gl_LaunchIDEXT.xy) + 0.5) / vec2(gl_LaunchSizeEXT.xy);
+	ivec2 pixel_position = ivec2(gl_LaunchIDEXT.xy);
+	ivec2 screen_resolution = ivec2(gl_LaunchSizeEXT.xy);
 
-	vec3 ray_origin = vec3(0, 0, -10);
-	vec3 ray_direction = normalize(vec3((uv * 2) - 1, 1));
+	vec2 uv = (vec2(pixel_position) + 0.5) / screen_resolution;
+
+	vec2 ndc = uv * 2 - 1;
+
+	ndc.y *= -1.0;
+
+	vec4 near_clip = vec4(ndc, 0, 1);
+	vec4 far_clip  = vec4(ndc, 1, 1);
+
+	vec4 near_world = camera_info.view_projection_inv * near_clip;
+	vec4 far_world  = camera_info.view_projection_inv * far_clip;
+
+	near_world /= near_world.w;
+	far_world /= far_world.w;
+
+	vec3 ray_origin = camera_info.position.xyz;
+	vec3 ray_direction = normalize(far_world.xyz - near_world.xyz);
+
+	float t_near = 0.001;
+	float t_far = 10000.0;
 
 	traceRayEXT(
 		tlas,
@@ -23,11 +63,25 @@ void main() {
 		0,
 		0,
 		ray_origin,
-		0.001,
+		t_near,
 		ray_direction,
-		10000.0,
+		t_far,
 		0
 	);
 
-	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(payload, 1));
+	float raster_depth = texture(depth_image, pixel_position).r;
+	float raster_view_z = depth_to_view_z(raster_depth);
+
+	// This is wrong... right!?
+	float ray_view_z = ray_origin.z + ray_direction.z * payload.t;
+
+	vec4 color = imageLoad(color_image, pixel_position);
+
+	if (ray_view_z <= raster_view_z) {
+		color.rgb = payload.color;
+	}
+
+	imageStore(color_image, pixel_position, color);
+
+	//imageStore(output_image, pixel_position, vec4(payload.color, 1));
 }

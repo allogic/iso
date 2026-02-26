@@ -88,4 +88,9 @@ struct block_t {
 	uint block_face_atlas_id[BLOCK_FACE_COUNT];
 };
 
+struct ray_payload_t {
+	vec3 color;
+	float t;
+};
+
 #endif // VDB_COMMON_H

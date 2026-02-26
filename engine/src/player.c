@@ -8,7 +8,7 @@ static void player_handle_angular_velocity(void);
 
 player_t g_player = {
   .transform = {
-    .local_position = {0.0F, 0.0F, 0.0F},
+    .local_position = {0.0F, 0.0F, -10.0F},
     .local_rotation = {0.0F, 0.0F, 0.0F, 1.0},
     .local_scale = {1.0F, 1.0F, 1.0F},
     .world_position = {0.0F, 0.0F, 0.0F},

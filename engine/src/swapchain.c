@@ -2,8 +2,8 @@
 
 swapchain_t g_swapchain = {0};
 
-void swapchain_create(int32_t image_count) {
-  g_swapchain.image_count = clampi(image_count, g_window.min_image_count, g_window.max_image_count);
+void swapchain_create(void) {
+  g_swapchain.image_count = clampi(SWAPCHAIN_IMAGE_COUNT, g_window.min_image_count, g_window.max_image_count);
 
   int32_t queue_families[2] = {
     g_window.primary_queue_index,

@@ -15,10 +15,11 @@ layout (location = 1) out vec2 output_uv;
 layout (location = 2) out uint output_atlas_id;
 
 layout (binding = 0) uniform camera_info_t {
-	vec3 position;
-	int reserved0;
+	vec4 position;
 	mat4 view;
+	mat4 view_inv;
 	mat4 projection;
+	mat4 projection_inv;
 	mat4 view_projection;
 	mat4 view_projection_inv;
 	vec4 frustum_plane[6];

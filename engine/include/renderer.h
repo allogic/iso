@@ -12,10 +12,11 @@ typedef struct mouse_info_t {
   ivector2_t position;
 } mouse_info_t;
 typedef struct camera_info_t {
-  vector3_t position;
-  int32_t reserved0;
+  vector4_t position;
   matrix4_t view;
+  matrix4_t view_inv;
   matrix4_t projection;
+  matrix4_t projection_inv;
   matrix4_t view_projection;
   matrix4_t view_projection_inv;
   vector4_t frustum_plane[FRUSTUM_PLANE_COUNT];
@@ -74,6 +75,7 @@ extern renderer_t g_renderer;
 
 void renderer_create(void);
 void renderer_draw(void);
+void renderer_update(void);
 void renderer_destroy(void);
 
 void renderer_draw_debug_line(vector3_t from, vector3_t to, vector4_t color);

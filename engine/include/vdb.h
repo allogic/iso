@@ -107,7 +107,6 @@ typedef struct static_vdb_t {
 typedef struct dynamic_vdb_t {
   image_t *curr_chunk_voxel_image;
   image_t *next_chunk_voxel_image;
-  image_t output_image;
   buffer_t chunk_info_buffer;
   buffer_t aabb_buffer;
   buffer_t instance_buffer;
@@ -118,7 +117,6 @@ typedef struct dynamic_vdb_t {
   dynamic_vdb_chunk_info_t *chunk_info;
   VkDescriptorImageInfo *curr_chunk_voxel_descriptor_image_info;
   VkDescriptorImageInfo *next_chunk_voxel_descriptor_image_info;
-  VkDescriptorImageInfo output_descriptor_image_info;
   VkDescriptorBufferInfo chunk_info_descriptor_buffer_info;
   // TODO: make BLAS's dynamic..
   uint32_t geometry_count;
@@ -141,9 +139,9 @@ typedef struct dynamic_vdb_t {
 extern "C" {
 #endif // __cplusplus
 
-extern static_vdb_t g_static_vdb;
+extern static_vdb_t g_svdb;
 
-extern dynamic_vdb_t g_dynamic_vdb;
+extern dynamic_vdb_t g_dvdb;
 
 void static_vdb_create(void);
 void static_vdb_build(void);

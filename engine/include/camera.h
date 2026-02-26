@@ -35,7 +35,9 @@ typedef struct camera_t {
   vector3_t center;
   vector3_t up;
   matrix4_t view;
+  matrix4_t view_inv;
   matrix4_t projection;
+  matrix4_t projection_inv;
   matrix4_t view_projection;
   matrix4_t view_projection_inv;
   plane_t frustum_plane[FRUSTUM_PLANE_COUNT];

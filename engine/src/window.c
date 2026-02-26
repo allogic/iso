@@ -165,10 +165,8 @@ void window_create(int32_t width, int32_t height, char const *title) {
 
   renderpass_create_main();
 
-  swapchain_create(3);
-
-  framebuffer_create_main();
-
+  swapchain_create();
+  framebuffer_create();
   renderer_create();
   dbgui_create();
 }
@@ -215,13 +213,15 @@ void window_run(void) {
       VK_CHECK(vkQueueWaitIdle(g_window.primary_queue));
       VK_CHECK(vkQueueWaitIdle(g_window.present_queue));
 
-      framebuffer_destroy_main();
+      framebuffer_destroy();
       swapchain_destroy();
 
       window_update_surface_capabilities();
 
-      swapchain_create(3);
-      framebuffer_create_main();
+      swapchain_create();
+      framebuffer_create();
+
+      renderer_update();
     }
 
     while (PeekMessageA(&g_window.window_message, 0, 0, 0, PM_REMOVE)) {
@@ -281,9 +281,7 @@ void window_destroy(void) {
 
   dbgui_destroy();
   renderer_destroy();
-
-  framebuffer_destroy_main();
-
+  framebuffer_destroy();
   swapchain_destroy();
 
   renderpass_destroy_main();
