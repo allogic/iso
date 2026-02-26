@@ -671,7 +671,7 @@ void renderer_draw(void) {
 
   renderer_record_compute_pass();
   renderer_record_main_pass();
-  renderer_record_ray_tracing_pass();
+  // renderer_record_ray_tracing_pass();
 
   {
     VkImageMemoryBarrier image_memory_barrier = {
@@ -810,11 +810,14 @@ void renderer_draw(void) {
 
   VK_CHECK(vkEndCommandBuffer(g_window.command_buffer));
 
-  VkPipelineStageFlags graphics_wait_stages[] = {
+  VkPipelineStageFlags primary_wait_stages[] = {
+    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
     VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+    VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+    VK_PIPELINE_STAGE_TRANSFER_BIT,
   };
 
-  VkSubmitInfo graphics_submit_info = {
+  VkSubmitInfo primary_submit_info = {
     .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
     .pWaitSemaphores = &s_image_available_semaphore,
     .waitSemaphoreCount = 1,
@@ -822,10 +825,10 @@ void renderer_draw(void) {
     .signalSemaphoreCount = 1,
     .pCommandBuffers = &g_window.command_buffer,
     .commandBufferCount = 1,
-    .pWaitDstStageMask = graphics_wait_stages,
+    .pWaitDstStageMask = primary_wait_stages,
   };
 
-  result = vkQueueSubmit(g_window.primary_queue, 1, &graphics_submit_info, s_frame_fence);
+  result = vkQueueSubmit(g_window.primary_queue, 1, &primary_submit_info, s_frame_fence);
 
   switch (result) {
     case VK_SUCCESS: {
