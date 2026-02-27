@@ -45,12 +45,12 @@ static void dynamic_vdb_destroy_tlas(void);
 
 // TODO: remove me..
 static VkAabbPositionsKHR s_aabb = {
-  .minX = -1.0f,
-  .minY = -1.0f,
-  .minZ = -1.0f,
-  .maxX = 1.0f,
-  .maxY = 1.0f,
-  .maxZ = 1.0f,
+  .minX = 0.0F,
+  .minY = 0.0F,
+  .minZ = 0.0F,
+  .maxX = 32.0F,
+  .maxY = 32.0F,
+  .maxZ = 32.0F,
 };
 
 static_vdb_t g_svdb = {

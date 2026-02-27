@@ -4,9 +4,9 @@
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_ray_tracing : require
 
-#include "../vdb/common.glsl"
+#include "../vdb/dynamic_common.glsl"
 
-layout (location = 0) rayPayloadInEXT ray_payload_t payload;
+layout (location = 0) rayPayloadInEXT dvdb_ray_payload_t payload;
 
 void main() {
 	payload.color = vec3(1, 0, 0);

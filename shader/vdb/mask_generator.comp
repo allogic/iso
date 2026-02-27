@@ -3,7 +3,7 @@
 #extension GL_ARB_shading_language_include : require
 #extension GL_EXT_nonuniform_qualifier : require
 
-#include "../vdb/common.glsl"
+#include "../vdb/static_common.glsl"
 
 layout (
 	local_size_x = 1,
@@ -11,17 +11,17 @@ layout (
 	local_size_z = 1
 ) in;
 
-layout (binding = 0, r32ui) uniform uimage3D voxel_data[];
-layout (binding = 1, std430) writeonly buffer chunk_mask_buffer_t {
-	chunk_mask_t chunk_mask[];
-} chunk_mask_buffer;
+layout (binding = 0, r32ui) uniform uimage3D svdb_voxel_data[];
+layout (binding = 1, std430) writeonly buffer svdb_chunk_mask_buffer_t {
+	svdb_chunk_mask_t chunk_mask[];
+} svdb_chunk_mask_buffer;
 
 layout (push_constant) uniform push_constant_t {
 	ivec3 chunk_position;
 	uint chunk_index;
 } pc;
 
-#include "../vdb/voxel_mod_multi.glsl"
+#include "../vdb/static_voxel_mod_multi.glsl"
 
 void main() {
 	uint slice = gl_GlobalInvocationID.x;
@@ -30,53 +30,53 @@ void main() {
 
 	uint mask = 0u;
 
-	for (uint bit = 0; bit < CHUNK_SIZE; bit++) {
+	for (uint bit = 0; bit < SVDB_CHUNK_SIZE; bit++) {
 
 		ivec3 p, n;
 
 		switch (face) {
-			case FACE_PX:
+			case SVDB_FACE_PX:
 				p = ivec3(slice, row, bit);
 				n = p + ivec3(1, 0, 0);
 				break;
-			case FACE_PY:
+			case SVDB_FACE_PY:
 				p = ivec3(row, slice, bit);
 				n = p + ivec3(0, 1, 0);
 				break;
-			case FACE_PZ:
+			case SVDB_FACE_PZ:
 				p = ivec3(row, bit, slice);
 				n = p + ivec3(0, 0, 1);
 				break;
-			case FACE_NX:
+			case SVDB_FACE_NX:
 				p = ivec3(slice, row, bit);
 				n = p + ivec3(-1, 0, 0);
 				break;
-			case FACE_NY:
+			case SVDB_FACE_NY:
 				p = ivec3(row, slice, bit);
 				n = p + ivec3(0, -1, 0);
 				break;
-			case FACE_NZ:
+			case SVDB_FACE_NZ:
 				p = ivec3(row, bit, slice);
 				n = p + ivec3(0, 0, -1);
 				break;
 		}
 
-		uint v = get_voxel(pc.chunk_position, p);
-		uint vn = get_voxel_safe(pc.chunk_position, n);
+		uint v = svdb_get_voxel(pc.chunk_position, p);
+		uint vn = svdb_get_voxel_safe(pc.chunk_position, n);
 
-		if (VOXEL_IS_SOLID(v) && VOXEL_IS_EMPTY(vn)) {
+		if (SVDB_IS_VOXEL_SOLID(v) && SVDB_IS_VOXEL_EMPTY(vn)) {
 			mask |= (1u << bit);
 		}
 	}
 
-	uint idx = slice * CHUNK_SIZE + row;
+	uint idx = slice * SVDB_CHUNK_SIZE + row;
 
 	switch (face) {
-		case FACE_PX: chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_px_mask[idx] = mask; break;
-		case FACE_PY: chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_py_mask[idx] = mask; break;
-		case FACE_PZ: chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_pz_mask[idx] = mask; break;
-		case FACE_NX: chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_nx_mask[idx] = mask; break;
-		case FACE_NY: chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_ny_mask[idx] = mask; break;
-		case FACE_NZ: chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_nz_mask[idx] = mask; break;
+		case SVDB_FACE_PX: svdb_chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_px_mask[idx] = mask; break;
+		case SVDB_FACE_PY: svdb_chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_py_mask[idx] = mask; break;
+		case SVDB_FACE_PZ: svdb_chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_pz_mask[idx] = mask; break;
+		case SVDB_FACE_NX: svdb_chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_nx_mask[idx] = mask; break;
+		case SVDB_FACE_NY: svdb_chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_ny_mask[idx] = mask; break;
+		case SVDB_FACE_NZ: svdb_chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_nz_mask[idx] = mask; break;
 	}
 }

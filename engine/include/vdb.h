@@ -1,6 +1,8 @@
 #ifndef VDB_H
 #define VDB_H
 
+// TODO: Refactor all "static_vdb" and "dynamic_vdb" to just "xvdb_"
+
 // TODO: add vkGetBufferDeviceAddress to buffer_t directly..
 
 // TODO: Implement hardware raytracing voxel renderer!

@@ -3,7 +3,7 @@
 #extension GL_ARB_shading_language_include : require
 #extension GL_EXT_nonuniform_qualifier : require
 
-#include "../vdb/common.glsl"
+#include "../vdb/static_common.glsl"
 
 layout (location = 0) in vec4 vertex_position;
 layout (location = 1) in vec4 vertex_color;
@@ -31,7 +31,7 @@ layout (push_constant) uniform push_constant_t {
 } pc;
 
 void main() {
-	vec4 world_position = vec4(pc.chunk_position * CHUNK_SIZE, 0) + vertex_position;
+	vec4 world_position = vec4(pc.chunk_position * SVDB_CHUNK_SIZE, 0) + vertex_position;
 	vec4 clip_position = camera_info.view_projection * world_position;
 
 	output_color = vertex_color;

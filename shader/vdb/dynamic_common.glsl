@@ -1,0 +1,31 @@
+#ifndef VDB_DYNAMIC_COMMON_H
+#define VDB_DYNAMIC_COMMON_H
+
+#define DVDB_IS_VOXEL_SOLID(VOXEL) \
+	((VOXEL & DVDB_VOXEL_SOLID_BIT) == DVDB_VOXEL_SOLID_BIT)
+
+#define DVDB_IS_VOXEL_EMPTY(VOXEL) \
+	((VOXEL & DVDB_VOXEL_SOLID_BIT) != DVDB_VOXEL_SOLID_BIT)
+
+#define DVDB_SET_VOXEL_SOLID(VOXEL) \
+	(VOXEL | DVDB_VOXEL_SOLID_BIT)
+
+const uint DVDB_DIM_X = 1;
+const uint DVDB_DIM_Y = 1;
+const uint DVDB_DIM_Z = 1;
+
+const ivec3 DVDB_DIMS = ivec3(DVDB_DIM_X, DVDB_DIM_Y, DVDB_DIM_Z);
+
+const uint DVDB_CHUNK_SIZE = 32;
+const uint DVDB_CHUNK_COUNT = DVDB_DIM_X * DVDB_DIM_Y * DVDB_DIM_Z;
+
+const uint DVDB_VOXEL_SOLID_BIT = 0x1;
+
+const uint SVDB_EMPTY_VOXEL = 0;
+
+struct dvdb_ray_payload_t {
+	vec3 color;
+	float t;
+};
+
+#endif // VDB_DYNAMIC_COMMON_H

@@ -9,7 +9,7 @@ glslangValidator -I"." -V --target-env vulkan1.3 -o vdb/dynamic_renderer.rgen.sp
 glslangValidator -I"." -V --target-env vulkan1.3 -o vdb/dynamic_renderer.rint.spv vdb/dynamic_renderer.rint
 glslangValidator -I"." -V --target-env vulkan1.3 -o vdb/dynamic_renderer.rmiss.spv vdb/dynamic_renderer.rmiss
 
-glslangValidator -I"." -V --target-env vulkan1.3 -o vdb/dda_tracer.comp.spv vdb/dda_tracer.comp
+glslangValidator -I"." -V --target-env vulkan1.3 -o vdb/static_voxel_selector.comp.spv vdb/static_voxel_selector.comp
 glslangValidator -I"." -V --target-env vulkan1.3 -o vdb/voxel_placer.comp.spv vdb/voxel_placer.comp
 glslangValidator -I"." -V --target-env vulkan1.3 -o vdb/world_generator.comp.spv vdb/world_generator.comp
 glslangValidator -I"." -V --target-env vulkan1.3 -o vdb/mask_generator.comp.spv vdb/mask_generator.comp

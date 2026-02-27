@@ -10,7 +10,7 @@
 #include "../noise/perlin.glsl"
 #include "../noise/simplex.glsl"
 
-#include "../vdb/common.glsl"
+#include "../vdb/static_common.glsl"
 
 layout (
 	local_size_x = 8,
@@ -18,7 +18,7 @@ layout (
 	local_size_z = 8
 ) in;
 
-layout (binding = 0, r32ui) uniform uimage3D voxel_data[];
+layout (binding = 0, r32ui) uniform uimage3D svdb_voxel_data[];
 
 layout (push_constant) uniform push_constant_t {
 	ivec3 chunk_position;
@@ -29,7 +29,7 @@ layout (push_constant) uniform push_constant_t {
 	uint reserved2;
 } pc;
 
-#include "../vdb/voxel_mod_multi.glsl"
+#include "../vdb/static_voxel_mod_multi.glsl"
 
 float default_terrain_density(vec3 sample_position, float ground_level, float global_height) {
 	float base = ground_level - sample_position.y;
@@ -59,32 +59,32 @@ float default_terrain_density(vec3 sample_position, float ground_level, float gl
 }
 
 void stage_0(ivec3 voxel_position) {
-	vec3 sample_position = vec3((pc.chunk_position * CHUNK_SIZE) + voxel_position);
+	vec3 sample_position = vec3((pc.chunk_position * SVDB_CHUNK_SIZE) + voxel_position);
 
-	float global_height = STATIC_VDB_DIM_Y * CHUNK_SIZE;
+	float global_height = SVDB_DIM_Y * SVDB_CHUNK_SIZE;
 	float ground_level = global_height * 0.2;
 
 	float density  = default_terrain_density(sample_position, ground_level, global_height);
 
-	uint voxel = EMPTY_VOXEL;
+	uint voxel = SVDB_EMPTY_VOXEL;
 
-	if (density > SURFACE_THRESHOLD) {
+	if (density > SVDB_SURFACE_THRESHOLD) {
 
-		voxel = VOXEL_SET_SOLID(voxel);
-		voxel = VOXEL_SET_BLOCK_TYPE(voxel, BLOCK_TYPE_DIRT);
+		voxel = SVDB_SET_VOXEL_SOLID(voxel);
+		voxel = SVDB_SET_VOXEL_BLOCK_TYPE(voxel, SVDB_BLOCK_TYPE_DIRT);
 	}
 
-	set_voxel(pc.chunk_position, voxel_position, voxel);
+	svdb_set_voxel(pc.chunk_position, voxel_position, voxel);
 }
 void stage_1(ivec3 voxel_position) {
-	uint voxel = get_voxel(pc.chunk_position, voxel_position);
-	uint voxel_above = get_voxel_safe(pc.chunk_position, voxel_position + ivec3(0, 1, 0));
+	uint voxel = svdb_get_voxel(pc.chunk_position, voxel_position);
+	uint voxel_above = svdb_get_voxel_safe(pc.chunk_position, voxel_position + ivec3(0, 1, 0));
 
-	if (VOXEL_IS_SOLID(voxel) && VOXEL_IS_EMPTY(voxel_above)) {
+	if (SVDB_IS_VOXEL_SOLID(voxel) && SVDB_IS_VOXEL_EMPTY(voxel_above)) {
 
-		voxel = VOXEL_SET_BLOCK_TYPE(voxel, BLOCK_TYPE_GRASSY_DIRT);
+		voxel = SVDB_SET_VOXEL_BLOCK_TYPE(voxel, SVDB_BLOCK_TYPE_GRASSY_DIRT);
 
-		set_voxel(pc.chunk_position, voxel_position, voxel);
+		svdb_set_voxel(pc.chunk_position, voxel_position, voxel);
 	}
 }
 

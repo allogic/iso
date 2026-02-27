@@ -4,9 +4,9 @@
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_ray_tracing : require
 
-#include "../vdb/common.glsl"
+#include "../vdb/dynamic_common.glsl"
 
-layout (location = 0) rayPayloadEXT ray_payload_t payload;
+layout (location = 0) rayPayloadEXT dvdb_ray_payload_t payload;
 
 layout (binding = 0) uniform accelerationStructureEXT tlas;
 layout (binding = 1) uniform camera_info_t {

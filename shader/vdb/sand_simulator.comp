@@ -3,14 +3,7 @@
 #extension GL_ARB_shading_language_include : require
 #extension GL_EXT_nonuniform_qualifier : require
 
-#include "../noise/cellular.glsl"
-#include "../noise/curl.glsl"
-#include "../noise/fbm.glsl"
-#include "../noise/gradient.glsl"
-#include "../noise/perlin.glsl"
-#include "../noise/simplex.glsl"
-
-#include "../vdb/common.glsl"
+#include "../vdb/dvdb.glsl"
 
 layout (
 	local_size_x = 8,
@@ -18,14 +11,14 @@ layout (
 	local_size_z = 8
 ) in;
 
-layout (binding = 0, r32ui) uniform uimage3D voxel_data[];
+layout (binding = 0, r32ui) uniform uimage3D dvdb_voxel_data[];
 
 layout (push_constant) uniform push_constant_t {
 	ivec3 chunk_position;
 	uint chunk_index;
 } pc;
 
-#include "../vdb/voxel_mod_multi.glsl"
+// #include "../vdb/dvdb_voxel_mod_multi.glsl"
 
 void main() {
 	ivec3 voxel_position = ivec3(gl_GlobalInvocationID.xyz);

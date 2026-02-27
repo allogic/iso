@@ -3,6 +3,9 @@
 #extension GL_ARB_shading_language_include : require
 #extension GL_EXT_nonuniform_qualifier : require
 
+#include "../vdb/static_common.glsl"
+
+// TODO: move these into "static_common.glsl"
 const uint ATLAS_SIZE = 512;
 const uint ATLAS_TILE_SIZE = 32;
 
@@ -15,7 +18,7 @@ layout (location = 2) in flat uint input_atlas_id;
 
 layout (location = 0) out vec4 output_color;
 
-layout (binding = 1) uniform sampler2D block_atlas; // TODO: add format..
+layout (binding = 1) uniform sampler2D block_atlas;
 
 void main() {
 	vec2 tile_uv = fract(input_uv / VOXELS_PER_TILE);

@@ -3,7 +3,7 @@
 #extension GL_ARB_shading_language_include : require
 #extension GL_EXT_nonuniform_qualifier : require
 
-#include "../vdb/common.glsl"
+#include "../vdb/static_common.glsl"
 
 layout (
 	local_size_x = 1,
@@ -11,47 +11,47 @@ layout (
 	local_size_z = 1
 ) in;
 
-layout (binding = 0, std430) readonly buffer chunk_mask_buffer_t {
-	chunk_mask_t chunk_mask[];
-} chunk_mask_buffer;
-layout (binding = 1, std430) writeonly buffer chunk_vertex_buffer_t {
-	chunk_vertex_t chunk_vertex[];
-} chunk_vertex_buffer;
-layout (binding = 2, std430) writeonly buffer chunk_index_buffer_t {
+layout (binding = 0, std430) readonly buffer svdb_chunk_mask_buffer_t {
+	svdb_chunk_mask_t chunk_mask[];
+} svdb_chunk_mask_buffer;
+layout (binding = 1, std430) writeonly buffer svdb_chunk_vertex_buffer_t {
+	svdb_chunk_vertex_t chunk_vertex[];
+} svdb_chunk_vertex_buffer;
+layout (binding = 2, std430) writeonly buffer svdb_chunk_index_buffer_t {
 	uint chunk_index[];
-} chunk_index_buffer;
-layout (binding = 3, std430) writeonly buffer chunk_info_buffer_t {
-	chunk_info_t chunk_info[];
-} chunk_info_buffer;
-layout (binding = 4, std430) readonly buffer block_buffer_t {
-	block_t block[];
-} block_buffer;
-layout (binding = 5, r32ui) uniform uimage3D voxel_data;
+} svdb_chunk_index_buffer;
+layout (binding = 3, std430) writeonly buffer svdb_chunk_info_buffer_t {
+	svdb_chunk_info_t chunk_info[];
+} svdb_chunk_info_buffer;
+layout (binding = 4, std430) readonly buffer svdb_block_buffer_t {
+	svdb_block_t block[];
+} svdb_block_buffer;
+layout (binding = 5, r32ui) uniform uimage3D svdb_voxel_data;
 
 layout (push_constant) uniform push_constant_t {
 	ivec3 chunk_position;
 	uint chunk_index;
 } pc;
 
-#include "../vdb/voxel_mod_single.glsl"
+#include "../vdb/static_voxel_mod_single.glsl"
 
 ivec3 face_world_position(uint face, uint slice, uint y, uint z) {
 	switch (face) {
-		case FACE_PX: return ivec3(slice + 1, y, z);
-		case FACE_PY: return ivec3(y, slice + 1, z);
-		case FACE_PZ: return ivec3(y, z, slice + 1);
-		case FACE_NX: return ivec3(slice, y, z);
-		case FACE_NY: return ivec3(y, slice, z);
-		case FACE_NZ: return ivec3(y, z, slice);
+		case SVDB_FACE_PX: return ivec3(slice + 1, y, z);
+		case SVDB_FACE_PY: return ivec3(y, slice + 1, z);
+		case SVDB_FACE_PZ: return ivec3(y, z, slice + 1);
+		case SVDB_FACE_NX: return ivec3(slice, y, z);
+		case SVDB_FACE_NY: return ivec3(y, slice, z);
+		case SVDB_FACE_NZ: return ivec3(y, z, slice);
 	}
 
 	return ivec3(0);
 }
 ivec3 face_voxel_position(uint face, uint slice, uint y, uint z) {
 	switch (face) {
-		case FACE_PX: case FACE_NX: return ivec3(slice, y, z);
-		case FACE_PY: case FACE_NY: return ivec3(y, slice, z);
-		case FACE_PZ: case FACE_NZ: return ivec3(y, z, slice);
+		case SVDB_FACE_PX: case SVDB_FACE_NX: return ivec3(slice, y, z);
+		case SVDB_FACE_PY: case SVDB_FACE_NY: return ivec3(y, slice, z);
+		case SVDB_FACE_PZ: case SVDB_FACE_NZ: return ivec3(y, z, slice);
 	}
 
 	return ivec3(0);
@@ -59,20 +59,20 @@ ivec3 face_voxel_position(uint face, uint slice, uint y, uint z) {
 
 uint get_block_type(uint face, uint slice, uint y, uint z) {
 	ivec3 voxel_position = face_voxel_position(face, slice, y, z);
-	uint voxel = get_voxel(voxel_position);
+	uint voxel = svdb_get_voxel(voxel_position);
 
-	return VOXEL_GET_BLOCK_TYPE(voxel);
+	return SVDB_GET_VOXEL_BLOCK_TYPE(voxel);
 }
 uint get_mask(uint face, uint slice, uint row) {
-	uint idx = slice * CHUNK_SIZE + row;
+	uint idx = slice * SVDB_CHUNK_SIZE + row;
 
 	switch (face) {
-		case FACE_PX: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_px_mask[idx];
-		case FACE_PY: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_py_mask[idx];
-		case FACE_PZ: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_pz_mask[idx];
-		case FACE_NX: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_nx_mask[idx];
-		case FACE_NY: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_ny_mask[idx];
-		case FACE_NZ: return chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_nz_mask[idx];
+		case SVDB_FACE_PX: return svdb_chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_px_mask[idx];
+		case SVDB_FACE_PY: return svdb_chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_py_mask[idx];
+		case SVDB_FACE_PZ: return svdb_chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_pz_mask[idx];
+		case SVDB_FACE_NX: return svdb_chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_nx_mask[idx];
+		case SVDB_FACE_NY: return svdb_chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_ny_mask[idx];
+		case SVDB_FACE_NZ: return svdb_chunk_mask_buffer.chunk_mask[pc.chunk_index].opaque_nz_mask[idx];
 	}
 
 	return 0;
@@ -80,22 +80,22 @@ uint get_mask(uint face, uint slice, uint row) {
 
 void compute_uv(uint face, uint width, uint height, out vec2 uv0, out vec2 uv1, out vec2 uv2, out vec2 uv3) {
 	switch (face) {
-		case FACE_PX:
-		case FACE_NX:
+		case SVDB_FACE_PX:
+		case SVDB_FACE_NX:
 			uv0 = vec2(0, height);
 			uv1 = vec2(width, height);
 			uv2 = vec2(width, 0);
 			uv3 = vec2(0, 0);
 			break;
-		case FACE_PY:
-		case FACE_NY:
+		case SVDB_FACE_PY:
+		case SVDB_FACE_NY:
 			uv0 = vec2(0, height);
 			uv1 = vec2(width, height);
 			uv2 = vec2(width, 0);
 			uv3 = vec2(0, 0);
 			break;
-		case FACE_PZ:
-		case FACE_NZ:
+		case SVDB_FACE_PZ:
+		case SVDB_FACE_NZ:
 			uv0 = vec2(0, width);
 			uv1 = vec2(0, 0);
 			uv2 = vec2(height, 0);
@@ -105,20 +105,20 @@ void compute_uv(uint face, uint width, uint height, out vec2 uv0, out vec2 uv1, 
 }
 vec3 compute_normal(uint face) {
 	switch (face) {
-		case FACE_PX: return vec3(0.5, 0, 0); // TODO: normalize these..
-		case FACE_PY: return vec3(0, 0.5, 0);
-		case FACE_PZ: return vec3(0, 0, 0.5);
-		case FACE_NX: return vec3(0.5, 0.5, 0);
-		case FACE_NY: return vec3(0, 0.5, 0.5);
-		case FACE_NZ: return vec3(0.5, 0, 0.5);
+		case SVDB_FACE_PX: return vec3(0.5, 0, 0); // TODO: normalize these..
+		case SVDB_FACE_PY: return vec3(0, 0.5, 0);
+		case SVDB_FACE_PZ: return vec3(0, 0, 0.5);
+		case SVDB_FACE_NX: return vec3(0.5, 0.5, 0);
+		case SVDB_FACE_NY: return vec3(0, 0.5, 0.5);
+		case SVDB_FACE_NZ: return vec3(0.5, 0, 0.5);
 	}
 
 	return vec3(0);
 }
 
 void emit_quad(uint face, uint slice, uint y, uint z, uint width, uint height, uint block_type) {
-	uint v = atomicAdd(chunk_info_buffer.chunk_info[pc.chunk_index].vertex_count, 4);
-	uint i = atomicAdd(chunk_info_buffer.chunk_info[pc.chunk_index].index_count, 6);
+	uint v = atomicAdd(svdb_chunk_info_buffer.chunk_info[pc.chunk_index].vertex_count, 4);
+	uint i = atomicAdd(svdb_chunk_info_buffer.chunk_info[pc.chunk_index].index_count, 6);
 
 	vec3 normal = compute_normal(face);
 
@@ -131,73 +131,73 @@ void emit_quad(uint face, uint slice, uint y, uint z, uint width, uint height, u
 	ivec3 p2 = face_world_position(face, slice, y + height, z + width);
 	ivec3 p3 = face_world_position(face, slice, y + height, z);
 
-	uint atlas_id = block_buffer.block[block_type].block_face_atlas_id[face];
+	uint atlas_id = svdb_block_buffer.block[block_type].block_face_atlas_id[face];
 
-	chunk_vertex_buffer.chunk_vertex[v + 0] = chunk_vertex_t(vec4(p0, 1), vec4(normal, 0), vec4(uv0, 0, 0), atlas_id, 0, 0, 0);
-	chunk_vertex_buffer.chunk_vertex[v + 1] = chunk_vertex_t(vec4(p1, 1), vec4(normal, 0), vec4(uv1, 0, 0), atlas_id, 0, 0, 0);
-	chunk_vertex_buffer.chunk_vertex[v + 2] = chunk_vertex_t(vec4(p2, 1), vec4(normal, 0), vec4(uv2, 0, 0), atlas_id, 0, 0, 0);
-	chunk_vertex_buffer.chunk_vertex[v + 3] = chunk_vertex_t(vec4(p3, 1), vec4(normal, 0), vec4(uv3, 0, 0), atlas_id, 0, 0, 0);
+	svdb_chunk_vertex_buffer.chunk_vertex[v + 0] = svdb_chunk_vertex_t(vec4(p0, 1), vec4(normal, 0), vec4(uv0, 0, 0), atlas_id, 0, 0, 0);
+	svdb_chunk_vertex_buffer.chunk_vertex[v + 1] = svdb_chunk_vertex_t(vec4(p1, 1), vec4(normal, 0), vec4(uv1, 0, 0), atlas_id, 0, 0, 0);
+	svdb_chunk_vertex_buffer.chunk_vertex[v + 2] = svdb_chunk_vertex_t(vec4(p2, 1), vec4(normal, 0), vec4(uv2, 0, 0), atlas_id, 0, 0, 0);
+	svdb_chunk_vertex_buffer.chunk_vertex[v + 3] = svdb_chunk_vertex_t(vec4(p3, 1), vec4(normal, 0), vec4(uv3, 0, 0), atlas_id, 0, 0, 0);
 
 	switch (face) {
-		case FACE_PX:
-			chunk_index_buffer.chunk_index[i + 0] = v + 0;
-			chunk_index_buffer.chunk_index[i + 1] = v + 2;
-			chunk_index_buffer.chunk_index[i + 2] = v + 1;
-			chunk_index_buffer.chunk_index[i + 3] = v + 0;
-			chunk_index_buffer.chunk_index[i + 4] = v + 3;
-			chunk_index_buffer.chunk_index[i + 5] = v + 2;
+		case SVDB_FACE_PX:
+			svdb_chunk_index_buffer.chunk_index[i + 0] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[i + 1] = v + 2;
+			svdb_chunk_index_buffer.chunk_index[i + 2] = v + 1;
+			svdb_chunk_index_buffer.chunk_index[i + 3] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[i + 4] = v + 3;
+			svdb_chunk_index_buffer.chunk_index[i + 5] = v + 2;
 			break;
-		case FACE_PY:
-			chunk_index_buffer.chunk_index[i + 0] = v + 0;
-			chunk_index_buffer.chunk_index[i + 1] = v + 1;
-			chunk_index_buffer.chunk_index[i + 2] = v + 2;
-			chunk_index_buffer.chunk_index[i + 3] = v + 0;
-			chunk_index_buffer.chunk_index[i + 4] = v + 2;
-			chunk_index_buffer.chunk_index[i + 5] = v + 3;
+		case SVDB_FACE_PY:
+			svdb_chunk_index_buffer.chunk_index[i + 0] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[i + 1] = v + 1;
+			svdb_chunk_index_buffer.chunk_index[i + 2] = v + 2;
+			svdb_chunk_index_buffer.chunk_index[i + 3] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[i + 4] = v + 2;
+			svdb_chunk_index_buffer.chunk_index[i + 5] = v + 3;
 			break;
-		case FACE_PZ:
-			chunk_index_buffer.chunk_index[i + 0] = v + 0;
-			chunk_index_buffer.chunk_index[i + 1] = v + 2;
-			chunk_index_buffer.chunk_index[i + 2] = v + 1;
-			chunk_index_buffer.chunk_index[i + 3] = v + 0;
-			chunk_index_buffer.chunk_index[i + 4] = v + 3;
-			chunk_index_buffer.chunk_index[i + 5] = v + 2;
+		case SVDB_FACE_PZ:
+			svdb_chunk_index_buffer.chunk_index[i + 0] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[i + 1] = v + 2;
+			svdb_chunk_index_buffer.chunk_index[i + 2] = v + 1;
+			svdb_chunk_index_buffer.chunk_index[i + 3] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[i + 4] = v + 3;
+			svdb_chunk_index_buffer.chunk_index[i + 5] = v + 2;
 			break;
-		case FACE_NX:
-			chunk_index_buffer.chunk_index[i + 0] = v + 0;
-			chunk_index_buffer.chunk_index[i + 1] = v + 1;
-			chunk_index_buffer.chunk_index[i + 2] = v + 2;
-			chunk_index_buffer.chunk_index[i + 3] = v + 0;
-			chunk_index_buffer.chunk_index[i + 4] = v + 2;
-			chunk_index_buffer.chunk_index[i + 5] = v + 3;
+		case SVDB_FACE_NX:
+			svdb_chunk_index_buffer.chunk_index[i + 0] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[i + 1] = v + 1;
+			svdb_chunk_index_buffer.chunk_index[i + 2] = v + 2;
+			svdb_chunk_index_buffer.chunk_index[i + 3] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[i + 4] = v + 2;
+			svdb_chunk_index_buffer.chunk_index[i + 5] = v + 3;
 			break;
-		case FACE_NY:
-			chunk_index_buffer.chunk_index[i + 0] = v + 0;
-			chunk_index_buffer.chunk_index[i + 1] = v + 2;
-			chunk_index_buffer.chunk_index[i + 2] = v + 1;
-			chunk_index_buffer.chunk_index[i + 3] = v + 0;
-			chunk_index_buffer.chunk_index[i + 4] = v + 3;
-			chunk_index_buffer.chunk_index[i + 5] = v + 2;
+		case SVDB_FACE_NY:
+			svdb_chunk_index_buffer.chunk_index[i + 0] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[i + 1] = v + 2;
+			svdb_chunk_index_buffer.chunk_index[i + 2] = v + 1;
+			svdb_chunk_index_buffer.chunk_index[i + 3] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[i + 4] = v + 3;
+			svdb_chunk_index_buffer.chunk_index[i + 5] = v + 2;
 			break;
-		case FACE_NZ:
-			chunk_index_buffer.chunk_index[i + 0] = v + 0;
-			chunk_index_buffer.chunk_index[i + 1] = v + 1;
-			chunk_index_buffer.chunk_index[i + 2] = v + 2;
-			chunk_index_buffer.chunk_index[i + 3] = v + 0;
-			chunk_index_buffer.chunk_index[i + 4] = v + 2;
-			chunk_index_buffer.chunk_index[i + 5] = v + 3;
+		case SVDB_FACE_NZ:
+			svdb_chunk_index_buffer.chunk_index[i + 0] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[i + 1] = v + 1;
+			svdb_chunk_index_buffer.chunk_index[i + 2] = v + 2;
+			svdb_chunk_index_buffer.chunk_index[i + 3] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[i + 4] = v + 2;
+			svdb_chunk_index_buffer.chunk_index[i + 5] = v + 3;
 			break;
 	}
 }
 
 void greedy_merge(uint face, uint slice) {
-	uint rows[CHUNK_SIZE];
+	uint rows[SVDB_CHUNK_SIZE];
 
-	for (uint y = 0; y < CHUNK_SIZE; y++) {
+	for (uint y = 0; y < SVDB_CHUNK_SIZE; y++) {
 		rows[y] = get_mask(face, slice, y);
 	}
 
-	for (uint y = 0; y < CHUNK_SIZE; y++) {
+	for (uint y = 0; y < SVDB_CHUNK_SIZE; y++) {
 
 		uint row = rows[y];
 
@@ -208,7 +208,7 @@ void greedy_merge(uint face, uint slice) {
 			uint block_type = get_block_type(face, slice, y, z);
 
 			uint z1 = z;
-			while (z1 + 1 < CHUNK_SIZE &&
+			while (z1 + 1 < SVDB_CHUNK_SIZE &&
 				((row >> (z1 + 1)) & 1u) == 1u &&
 				get_block_type(face, slice, y, z1 + 1) == block_type) {
 				z1++;
@@ -220,7 +220,7 @@ void greedy_merge(uint face, uint slice) {
 				: ((1u << width) - 1u) << z;
 
 			uint y1 = y;
-			while (y1 + 1 < CHUNK_SIZE) {
+			while (y1 + 1 < SVDB_CHUNK_SIZE) {
 
 				if ((rows[y1 + 1] & width_mask) != width_mask) {
 					break;

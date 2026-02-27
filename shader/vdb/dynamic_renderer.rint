@@ -4,31 +4,78 @@
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_ray_tracing : require
 
-hitAttributeEXT vec2 hit_attrib;
+#include "../vdb/dynamic_common.glsl"
+
+//layout (binding = 4, r32ui) uniform uimage3D dvdb_voxel_data[];
+//
+//#include "../vdb/dynamic_voxel_mod_single.glsl"
+
+hitAttributeEXT vec3 hit_normal;
+
+const int MAX_RAY_STEPS = 256; // TODO
+
+const float VOXEL_SIZE = 1; // TODO
 
 void main() {
-	vec3 center = vec3(0);
-
-	float radius = 1;
-
 	vec3 ray_origin = gl_WorldRayOriginEXT;
 	vec3 ray_direction = gl_WorldRayDirectionEXT;
 
-	vec3 l = ray_origin - center;
+	// vec3 ray_direction_inv = 1.0 / ray_direction;
+	// vec3 ray_direction_sign = sign(ray_direction);
 
-	float a = dot(ray_direction, ray_direction);
-	float b = 2 * dot(ray_direction, l);
-	float c = dot(l, l) - radius * radius;
+	vec3 world_position = ray_origin / VOXEL_SIZE;
+	vec3 delta_distance = abs(vec3(1) / ray_direction);
+	vec3 mask = vec3(0);
 
-	float disc = b * b - 4 * a * c;
+	ivec3 voxel_position = ivec3(floor(world_position));
+	ivec3 voxel_step = ivec3(0);
 
-	if (disc < 0) {
-		return;
+	// TODO: Make this pretty..
+	for (int i = 0; i < 3; i++) {
+		if (ray_direction[i] < 0) {
+			delta_distance[i] = (world_position[i] - float(voxel_position[i])) * delta_distance[i];
+		} else {
+			delta_distance[i] = (float(voxel_position[i] + 1) - world_position[i]) * delta_distance[i];
+		}
 	}
 
-	float t = (-b - sqrt(disc)) / (2 * a);
+	float t = 0;
 
-	if (t > 0) {
-		reportIntersectionEXT(t, 0);
+	for (int i = 0; i < MAX_RAY_STEPS; i++) {
+
+		//uint voxel = dvdb_get_voxel(voxel_position); // TODO: use "_safe" here..
+		//
+		//if (DVDB_IS_VOXEL_SOLID(voxel)) {
+		//
+		//	reportIntersectionEXT(t * VOXEL_SIZE, 0);
+		//
+		//	return;
+		//}
+
+		if (delta_distance.x < delta_distance.y) {
+			if (delta_distance.x < delta_distance.z) {
+				voxel_position.x += voxel_step.x;
+				t = delta_distance.x;
+				delta_distance.x += delta_distance.x;
+				hit_normal = vec3(-voxel_step.x, 0, 0);
+			} else {
+				voxel_position.z += voxel_step.z;
+				t = delta_distance.z;
+				delta_distance.z += delta_distance.z;
+				hit_normal = vec3(0, 0, -voxel_step.z);
+			}
+		} else {
+			if (delta_distance.y < delta_distance.z) {
+				voxel_position.y += voxel_step.y;
+				t = delta_distance.y;
+				delta_distance.y += delta_distance.y;
+				hit_normal = vec3(0, -voxel_step.y, 0);
+			} else {
+				voxel_position.z += voxel_step.z;
+				t = delta_distance.z;
+				delta_distance.z += delta_distance.z;
+				hit_normal = vec3(0, 0, -voxel_step.z);
+			}
+		}
 	}
 }
