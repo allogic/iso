@@ -10,7 +10,7 @@
 #include "../noise/perlin.glsl"
 #include "../noise/simplex.glsl"
 
-#include "../vdb/static_common.glsl"
+#include "../svdb/common.glsl"
 
 layout (
 	local_size_x = 8,
@@ -29,7 +29,7 @@ layout (push_constant) uniform push_constant_t {
 	uint reserved2;
 } pc;
 
-#include "../vdb/static_voxel_mod_multi.glsl"
+#include "../svdb/voxel_mod_array.glsl"
 
 float default_terrain_density(vec3 sample_position, float ground_level, float global_height) {
 	float base = ground_level - sample_position.y;

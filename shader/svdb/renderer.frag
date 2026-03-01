@@ -3,9 +3,9 @@
 #extension GL_ARB_shading_language_include : require
 #extension GL_EXT_nonuniform_qualifier : require
 
-#include "../vdb/static_common.glsl"
+#include "../svdb/common.glsl"
 
-// TODO: move these into "static_common.glsl"
+// TODO: move these into "common.glsl"
 const uint ATLAS_SIZE = 512;
 const uint ATLAS_TILE_SIZE = 32;
 

@@ -3,7 +3,7 @@
 #extension GL_ARB_shading_language_include : require
 #extension GL_EXT_nonuniform_qualifier : require
 
-#include "../vdb/static_common.glsl"
+#include "../svdb/common.glsl"
 
 layout (
 	local_size_x = 1,
@@ -33,7 +33,7 @@ layout (push_constant) uniform push_constant_t {
 	uint chunk_index;
 } pc;
 
-#include "../vdb/static_voxel_mod_single.glsl"
+#include "../svdb/voxel_mod.glsl"
 
 ivec3 face_world_position(uint face, uint slice, uint y, uint z) {
 	switch (face) {

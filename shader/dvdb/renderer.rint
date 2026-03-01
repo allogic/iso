@@ -4,11 +4,11 @@
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_ray_tracing : require
 
-#include "../vdb/dynamic_common.glsl"
+#include "../dvdb/common.glsl"
 
 //layout (binding = 4, r32ui) uniform uimage3D dvdb_voxel_data[];
 //
-//#include "../vdb/dynamic_voxel_mod_single.glsl"
+//#include "../dvdb/voxel_mod.glsl"
 
 hitAttributeEXT vec3 hit_normal;
 

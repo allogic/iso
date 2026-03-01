@@ -153,8 +153,6 @@ void window_create(uint32_t width, uint32_t height, char const *title) {
   window_update_surface_capabilities();
 
   structure_create();
-  static_vdb_create();
-  dynamic_vdb_create();
   renderpass_create();
   swapchain_create();
   framebuffer_create();
@@ -212,7 +210,7 @@ void window_run(void) {
       swapchain_create();
       framebuffer_create();
 
-      renderer_update();
+      renderer_update_descriptors();
     }
 
     while (PeekMessageA(&g_window.window_message, 0, 0, 0, PM_REMOVE)) {
@@ -223,9 +221,7 @@ void window_run(void) {
 
     player_update();
 
-    static_vdb_debug();
-    dynamic_vdb_debug();
-
+    renderer_debug();
     renderer_draw();
 
     QueryPerformanceCounter(&g_window.time_curr);
@@ -277,8 +273,6 @@ void window_destroy(void) {
   framebuffer_destroy();
   swapchain_destroy();
   renderpass_destroy();
-  dynamic_vdb_destroy();
-  static_vdb_destroy();
   structure_destroy();
 
   window_destroy_command_buffer();

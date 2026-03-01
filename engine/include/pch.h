@@ -47,9 +47,11 @@
 #include <image.h>
 #include <pipeline.h>
 
+#include <svdb.h>
+#include <dvdb.h>
+
 #include <block.h>
 #include <structure.h>
-#include <vdb.h>
 #include <swapchain.h>
 #include <framebuffer.h>
 #include <player.h>

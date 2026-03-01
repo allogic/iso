@@ -21,19 +21,10 @@ typedef struct camera_info_t {
   matrix4_t view_projection_inv;
   vector4_t frustum_plane[FRUSTUM_PLANE_COUNT];
 } camera_info_t;
-typedef struct place_info_t {
-  ivector3_t voxel_position;
-  uint32_t voxel_id;
-} place_info_t;
-typedef struct place_result_t {
-  uint32_t is_obstructed;
-} place_result_t;
 
 STATIC_ASSERT(ALIGNOF(time_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(screen_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(camera_info_t) == 4);
-STATIC_ASSERT(ALIGNOF(place_info_t) == 4);
-STATIC_ASSERT(ALIGNOF(place_result_t) == 4);
 
 typedef struct full_screen_vertex_t {
   vector4_t position;
@@ -53,19 +44,14 @@ typedef struct renderer_t {
   uint32_t is_debug_enabled;
   uint32_t rebuild_world;
   uint32_t image_index;
-  pipeline_t static_vdb_voxel_placer_pipeline;
-  pipeline_t static_vdb_world_generator_pipeline;
-  pipeline_t static_vdb_mask_generator_pipeline;
-  pipeline_t static_vdb_mesh_generator_pipeline;
-  pipeline_t static_vdb_renderer_pipeline;
-  pipeline_t dynamic_vdb_renderer_pipeline;
-  pipeline_t debug_line_renderer_pipeline;
   time_info_t *time_info;
   screen_info_t *screen_info;
   mouse_info_t *mouse_info;
   camera_info_t *camera_info;
-  place_info_t *place_info;
-  place_result_t *place_result;
+  VkDescriptorBufferInfo time_info_descriptor_buffer_info;
+  VkDescriptorBufferInfo screen_info_descriptor_buffer_info;
+  VkDescriptorBufferInfo mouse_info_descriptor_buffer_info;
+  VkDescriptorBufferInfo camera_info_descriptor_buffer_info;
 } renderer_t;
 
 #ifdef __cplusplus
@@ -75,8 +61,9 @@ extern "C" {
 extern renderer_t g_renderer;
 
 void renderer_create(void);
+void renderer_update_descriptors(void);
 void renderer_draw(void);
-void renderer_update(void);
+void renderer_debug(void);
 void renderer_destroy(void);
 
 void renderer_draw_debug_line(vector3_t from, vector3_t to, vector4_t color);

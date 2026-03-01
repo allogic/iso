@@ -3,7 +3,7 @@
 #extension GL_ARB_shading_language_include : require
 #extension GL_EXT_nonuniform_qualifier : require
 
-#include "../vdb/static_common.glsl"
+#include "../svdb/common.glsl"
 
 // const uint MAX_RAY_STEPS = 1000;
 
@@ -35,7 +35,7 @@ layout (binding = 4, std430) writeonly buffer trace_result_buffer_t {
 	int intersection;
 } trace_result_buffer;
 
-#include "../vdb/static_voxel_mod_multi.glsl"
+#include "../svdb/voxel_mod_array.glsl"
 
 void dda_trace(vec3 ray_origin, vec3 ray_direction, inout vec3 hit_voxel, inout bool intersection) {
 	//vec3 ray_direction_inv = 1.0 / ray_direction;

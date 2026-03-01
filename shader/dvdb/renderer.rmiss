@@ -4,11 +4,11 @@
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_ray_tracing : require
 
-#include "../vdb/dynamic_common.glsl"
+#include "../dvdb/common.glsl"
 
 layout (location = 0) rayPayloadInEXT dvdb_ray_payload_t payload;
 
 void main() {
-	payload.color = vec3(1, 0, 0);
-	payload.t = gl_HitTEXT;
+	payload.color = vec3(0);
+	payload.t = 1E30;
 }

@@ -1,14 +1,14 @@
-#ifndef VDB_STATIC_VOXEL_MOD_MULTI_H
-#define VDB_STATIC_VOXEL_MOD_MULTI_H
+#ifndef SVDB_VOXEL_MOD_ARRAY_H
+#define SVDB_VOXEL_MOD_ARRAY_H
 
-#include "../vdb/static_common.glsl"
+#include "../svdb/common.glsl"
 
-uint svdb_get_chunk_position_to_index(ivec3 chunk_position) {
+uint svdb_chunk_position_to_index(ivec3 chunk_position) {
 	return (chunk_position.x) + (chunk_position.y * SVDB_DIM_X) + (chunk_position.z * SVDB_DIM_X * SVDB_DIM_Y);
 }
 
 uint svdb_get_voxel(ivec3 chunk_position, ivec3 voxel_position) {
-	uint chunk_index = svdb_get_chunk_position_to_index(chunk_position);
+	uint chunk_index = svdb_chunk_position_to_index(chunk_position);
 
 	return uint(imageLoad(svdb_voxel_data[chunk_index], voxel_position).r);
 }
@@ -26,7 +26,7 @@ uint svdb_get_voxel_safe(ivec3 chunk_position, ivec3 voxel_position) {
 
 	if (all(greaterThanEqual(chunk_position, ivec3(0))) && all(lessThan(chunk_position, SVDB_DIMS))) {
 		
-		uint chunk_index = svdb_get_chunk_position_to_index(chunk_position);
+		uint chunk_index = svdb_chunk_position_to_index(chunk_position);
 
 		voxel = uint(imageLoad(svdb_voxel_data[chunk_index], voxel_position).r);
 	}
@@ -35,7 +35,7 @@ uint svdb_get_voxel_safe(ivec3 chunk_position, ivec3 voxel_position) {
 }
 
 void svdb_set_voxel(ivec3 chunk_position, ivec3 voxel_position, uint voxel) {
-	uint chunk_index = svdb_get_chunk_position_to_index(chunk_position);
+	uint chunk_index = svdb_chunk_position_to_index(chunk_position);
 
 	imageStore(svdb_voxel_data[chunk_index], voxel_position, uvec4(voxel, 0, 0, 0));
 }
@@ -51,10 +51,10 @@ void svdb_set_voxel_safe(ivec3 chunk_position, ivec3 voxel_position, uint voxel)
 
 	if (all(greaterThanEqual(chunk_position, ivec3(0))) && all(lessThan(chunk_position, SVDB_DIMS))) {
 		
-		uint chunk_index = svdb_get_chunk_position_to_index(chunk_position);
+		uint chunk_index = svdb_chunk_position_to_index(chunk_position);
 
 		imageStore(svdb_voxel_data[chunk_index], voxel_position, uvec4(voxel, 0, 0, 0));
 	}
 }
 
-#endif // VDB_STATIC_VOXEL_MOD_MULTI_H
+#endif // SVDB_VOXEL_MOD_ARRAY_H

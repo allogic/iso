@@ -3,7 +3,7 @@
 #extension GL_ARB_shading_language_include : require
 #extension GL_EXT_nonuniform_qualifier : require
 
-#include "../vdb/static_common.glsl"
+#include "../svdb/common.glsl"
 
 layout (location = 0) in vec4 vertex_position;
 layout (location = 1) in vec4 vertex_color;

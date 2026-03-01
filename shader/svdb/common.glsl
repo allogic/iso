@@ -1,7 +1,5 @@
-#ifndef VDB_STATIC_COMMON_H
-#define VDB_STATIC_COMMON_H
-
-// TODO: rename these macro functions..
+#ifndef SVDB_COMMON_H
+#define SVDB_COMMON_H
 
 #define SVDB_IS_VOXEL_SOLID(VOXEL) \
 	((VOXEL & SVDB_VOXEL_SOLID_BIT) == SVDB_VOXEL_SOLID_BIT)
@@ -90,4 +88,4 @@ struct svdb_block_t {
 	uint block_face_atlas_id[SVDB_BLOCK_FACE_COUNT];
 };
 
-#endif // VDB_STATIC_COMMON_H
+#endif // SVDB_COMMON_H
