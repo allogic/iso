@@ -73,6 +73,22 @@ struct svdb_chunk_mask_t {
 	uint opaque_nz_mask[SVDB_CHUNK_SIZE * SVDB_CHUNK_SIZE];
 };
 
+struct svdb_select_result_t {
+	ivec3 hit_position;
+	uint hit_voxel;
+	ivec3 place_position;
+	uint place_voxel;
+};
+
+struct svdb_place_info_t {
+	ivec3 voxel_position;
+	uint voxel;
+};
+
+struct svdb_place_result_t {
+	uint is_obstructed;
+};
+
 struct svdb_chunk_vertex_t {
 	vec4 position;
 	vec4 color;

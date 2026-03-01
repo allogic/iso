@@ -5,7 +5,9 @@
 
 #include "../svdb/common.glsl"
 
-// const uint MAX_RAY_STEPS = 1000;
+const uint MAX_RAY_STEPS = 100;
+
+const float VOXEL_SIZE = 1;
 
 layout (
 	local_size_x = 1,
@@ -15,6 +17,7 @@ layout (
 
 layout (binding = 0) uniform camera_info_t {
 	vec4 position;
+	vec4 direction;
 	mat4 view;
 	mat4 view_inv;
 	mat4 projection;
@@ -23,76 +26,75 @@ layout (binding = 0) uniform camera_info_t {
 	mat4 view_projection_inv;
 	vec4 frustum_plane[6];
 } camera_info;
-layout (binding = 1) uniform screen_info_t {
-	ivec2 resolution;
-} screen_info;
-layout (binding = 2) uniform mouse_info_t {
-	ivec2 position;
-} mouse_info;
-layout (binding = 3, r32ui) uniform uimage3D svdb_voxel_data[];
-layout (binding = 4, std430) writeonly buffer trace_result_buffer_t {
-	ivec3 voxel_position;
-	int intersection;
-} trace_result_buffer;
+layout (binding = 1, r32ui) uniform uimage3D svdb_voxel_data[];
+layout (binding = 2, std430) writeonly buffer svdb_select_result_buffer_t {
+	svdb_select_result_t select_result;
+} svdb_select_result_buffer;
 
 #include "../svdb/voxel_mod_array.glsl"
 
-void dda_trace(vec3 ray_origin, vec3 ray_direction, inout vec3 hit_voxel, inout bool intersection) {
-	//vec3 ray_direction_inv = 1.0 / ray_direction;
-	//vec3 ray_direction_sign = sign(ray_direction);
-	//
-	//vec3 sample_position = floor(ray_origin);
-	//vec3 side_distance = (sample_position - ray_origin + 0.5 + ray_direction_sign * 0.5) * ray_direction_inv;
-	//
-	//uint ray_step_index = 0;
-	//
-	//while (ray_step_index < MAX_RAY_STEPS)
-	//{
-	//	uint voxel = get_voxel(ivec3(0), ivec3(sample_position)); // TODO
-	//
-	//	if (VOXEL_IS_SOLID(voxel))
-	//	{
-	//		intersection = true;
-	//
-	//		break;
-	//	}
-	//
-	//	vec3 mask = step(side_distance.xyz, side_distance.yzx) * step(side_distance.xyz, side_distance.zxy);
-	//
-	//	sample_position += mask * ray_direction_sign;
-	//	side_distance += mask * ray_direction_sign * ray_direction_inv;
-	//
-	//	ray_step_index++;
-	//}
-	//
-	//hit_voxel = sample_position;
-}
-
 void main() {
-	ivec3 chunk_position = ivec3(0); // TODO
+	vec3 ray_origin = camera_info.position.xyz;
+	vec3 ray_direction = camera_info.direction.xyz;
 
-	//float mouse_ndc_x = (2 * float(mouse_info.position.x)) / float(screen_info.resolution.x) - 1;
-	//float mouse_ndc_y = 1 - (2 * float(mouse_info.position.y)) / float(screen_info.resolution.y);
-	//
-	//vec4 ray_clip_near = vec4(mouse_ndc_x, mouse_ndc_y, -1, 1);
-	//vec4 ray_clip_far = vec4(mouse_ndc_x, mouse_ndc_y,  1, 1);
-	//
-	//vec4 ray_world_near = camera_info.view_projection_inv * ray_clip_near;
-	//vec4 ray_world_far = camera_info.view_projection_inv * ray_clip_far;
-	//
-	//ray_world_near /= ray_world_near.w;
-	//ray_world_far /= ray_world_far.w;
-	//
-	//vec3 ray_origin = ray_world_near.xyz;
-	//vec3 ray_direction = normalize(ray_world_far.xyz - ray_world_near.xyz);
-	//
-	//vec3 hit_voxel = vec3(0);
-	//bool intersection = false;
-	//
-	//dda_trace(ray_origin, ray_direction, hit_voxel, intersection);
-	//
-	//trace_result_buffer.voxel_position = ivec3(hit_voxel);
-	//trace_result_buffer.intersection = int(intersection);
+	vec3 world_position = ray_origin / VOXEL_SIZE;
 
-	// TODO: put ray_origin and ray_direction into trace_result_buffer and check on CPU..
+	ivec3 chunk_position = ivec3(floor(world_position)); // TODO
+	ivec3 voxel_position = ivec3(floor(world_position));
+	ivec3 voxel_step = ivec3(sign(ray_direction));
+
+	vec3 t_delta = abs(vec3(1) / ray_direction);
+	vec3 t_max = vec3(0);
+
+	// TODO: Make this pretty..
+	for (int i = 0; i < 3; i++) {
+		if (ray_direction[i] > 0) {
+			t_max[i] = (float(voxel_position[i] + 1) - world_position[i]) * t_delta[i];
+		} else {
+			t_max[i] = (world_position[i] - float(voxel_position[i])) * t_delta[i];
+		}
+	}
+
+	int last_axis = -1;
+
+	for (int i = 0; i < MAX_RAY_STEPS; i++) {
+
+		uint voxel = svdb_get_voxel_safe(ivec3(0), voxel_position); // TODO
+
+		if (SVDB_IS_VOXEL_SOLID(voxel)) {
+
+			ivec3 normal = ivec3(0);
+
+			switch (last_axis) {
+				case 0: normal.x = -voxel_step.x; break;
+				case 1: normal.y = -voxel_step.y; break;
+				case 2: normal.z = -voxel_step.z; break;
+			}
+
+			ivec3 place_position = voxel_position + normal;
+
+			uint place_voxel = svdb_get_voxel_safe(ivec3(0), place_position); // TODO
+
+			svdb_select_result_buffer.select_result.hit_position = voxel_position;
+			svdb_select_result_buffer.select_result.hit_voxel = voxel;
+			svdb_select_result_buffer.select_result.place_position = place_position;
+			svdb_select_result_buffer.select_result.place_voxel = place_voxel;
+
+			return;
+		}
+
+		if (t_max.x < t_max.y && t_max.x < t_max.z) {
+			voxel_position.x += voxel_step.x;
+			t_max.x += t_delta.x;
+			last_axis = 0;
+		} else if (t_max.y < t_max.z) {
+			voxel_position.y += voxel_step.y;
+			t_max.y += t_delta.y;
+			last_axis = 1;
+		} else {
+			voxel_position.z += voxel_step.z;
+			t_max.z += t_delta.z;
+			last_axis = 2;
+		}
+	}
 }

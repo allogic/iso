@@ -6,6 +6,8 @@ static void player_handle_rotation(void);
 static void player_handle_linear_velocity(void);
 static void player_handle_angular_velocity(void);
 
+static void player_handle_voxel_placement(void);
+
 player_t g_player = {
   .transform = {
     .local_position = {0.0F, 0.0F, -10.0F},
@@ -38,6 +40,8 @@ void player_update(void) {
 
   player_handle_linear_velocity();
   player_handle_angular_velocity();
+
+  player_handle_voxel_placement();
 
   transform_compute_world_position(&g_player.transform);
   transform_compute_world_rotation(&g_player.transform);
@@ -119,4 +123,51 @@ static void player_handle_angular_velocity(void) {
 
   g_player.transform.local_rotation = quaternion_norm(quaternion_mul(q, g_player.transform.local_rotation));
   g_player.angular_velocity = vector3_muls(g_player.angular_velocity, angular_damping);
+}
+
+static void player_handle_voxel_placement(void) {
+  {
+    ivector3_t hit_position = g_svdb.select_result->hit_position;
+
+    renderer_draw_debug_box(
+      (vector3_t){(float)hit_position.x, (float)hit_position.y, (float)hit_position.z},
+      (vector3_t){1.0F, 1.0F, 1.0F},
+      (vector4_t){0.0F, 1.0F, 1.0F, 1.0F});
+  }
+
+  {
+    ivector3_t place_position = g_svdb.select_result->place_position;
+
+    renderer_draw_debug_box(
+      (vector3_t){(float)place_position.x, (float)place_position.y, (float)place_position.z},
+      (vector3_t){1.0F, 1.0F, 1.0F},
+      (vector4_t){1.0F, 1.0F, 0.0F, 1.0F});
+  }
+
+  static uint32_t is_placing = 1;
+
+  if (window_is_keyboard_key_pressed(KEYBOARD_KEY_TAB)) {
+    is_placing = !is_placing;
+  }
+
+  if (window_is_mouse_key_pressed(MOUSE_KEY_LEFT)) {
+
+    uint32_t voxel = SVDB_EMPTY_VOXEL;
+
+    if (is_placing) {
+
+      voxel = SVDB_SET_VOXEL_SOLID(voxel);
+      voxel = SVDB_SET_VOXEL_BLOCK_TYPE(voxel, BLOCK_TYPE_STONE);
+
+      g_svdb.place_info->voxel_position = g_svdb.select_result->place_position;
+      g_svdb.place_info->voxel = voxel;
+
+    } else {
+
+      g_svdb.place_info->voxel_position = g_svdb.select_result->hit_position;
+      g_svdb.place_info->voxel = voxel;
+    }
+
+    g_player.place_voxel = 1;
+  }
 }

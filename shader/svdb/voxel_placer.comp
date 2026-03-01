@@ -11,18 +11,11 @@ layout (
 	local_size_z = 1
 ) in;
 
-layout (binding = 0) uniform place_info_t {
-	ivec3 voxel_position;
-	uint voxel_id;
-} place_info;
+layout (binding = 0) uniform place_info_uniform_t {	svdb_place_info_t place_info; } place_info_uniform;
 layout (binding = 1, r32ui) uniform uimage3D svdb_voxel_data[];
-layout (binding = 2, std430) writeonly buffer place_result_buffer_t {
-	uint is_obstructed;
-} place_result_buffer;
+layout (binding = 2, std430) writeonly buffer svdb_place_result_buffer_t { svdb_place_result_t place_result; } svdb_place_result_buffer;
 
 #include "../svdb/voxel_mod_array.glsl"
-
-// TODO: globally remove "voxel" naming..
 
 //uint is_structure_obstructed(ivec3 tile_position, uint tile_id, tile_t tile) {
 //	uint is_obstructed = 0;
@@ -57,8 +50,6 @@ layout (binding = 2, std430) writeonly buffer place_result_buffer_t {
 //}
 
 void main() {
-	ivec3 chunk_position = ivec3(0); // TODO
-
 	//tile_t tile = tile_lut_buffer.tile_lut[place_info.tile_id];
 	//
 	//uint is_obstructed = is_structure_obstructed(place_info.tile_position, place_info.tile_id, tile);
@@ -69,6 +60,11 @@ void main() {
 	//}
 	//
 	//place_structure(place_info.tile_position, place_info.tile_id, tile);
-	//
-	//place_result_buffer.is_obstructed = is_obstructed;
+
+	ivec3 voxel_position = place_info_uniform.place_info.voxel_position;
+	uint voxel = place_info_uniform.place_info.voxel;
+
+	svdb_set_voxel(ivec3(0), voxel_position, voxel);
+
+	svdb_place_result_buffer.place_result.is_obstructed = 0;
 }

@@ -168,7 +168,6 @@ renderer_t g_renderer = {0};
 
 void renderer_create(void) {
   g_renderer.is_debug_enabled = 1;
-  g_renderer.rebuild_world = 1;
 
   renderer_create_sync_object();
   renderer_create_coherent_buffer();
@@ -689,7 +688,11 @@ static void renderer_update_coherent_buffer(void) {
 
   g_renderer.mouse_info->position = (ivector2_t){g_window.mouse_position_x, g_window.mouse_position_y};
 
-  g_renderer.camera_info->position = (vector4_t){g_player.transform.world_position.x, g_player.transform.world_position.y, g_player.transform.world_position.z, 0.0F};
+  vector3_t camera_position = g_player.transform.world_position;
+  vector3_t camera_direction = quaternion_front(g_player.transform.world_rotation);
+
+  g_renderer.camera_info->position = (vector4_t){camera_position.x, camera_position.y, camera_position.z, 0.0F};
+  g_renderer.camera_info->direction = (vector4_t){camera_direction.x, camera_direction.y, camera_direction.z, 0.0F};
   g_renderer.camera_info->view = g_player.camera.view;
   g_renderer.camera_info->view_inv = g_player.camera.view_inv;
   g_renderer.camera_info->projection = g_player.camera.projection;
@@ -699,11 +702,34 @@ static void renderer_update_coherent_buffer(void) {
 }
 
 static void renderer_record_compute_pass(void) {
-  if (g_renderer.rebuild_world) {
+  if (g_svdb.generate_world) {
 
-    g_renderer.rebuild_world = 0;
+    g_svdb.generate_world = 0;
 
-    svdb_build();
+    svdb_generate_world();
+    svdb_generate_mask();
+    svdb_generate_mesh();
+  }
+
+  if (g_svdb.rebuild_chunk) {
+
+    g_svdb.rebuild_chunk = 0;
+
+    svdb_generate_mask();
+    svdb_generate_mesh();
+  }
+
+  // TODO
+
+  svdb_select_voxel();
+
+  if (g_player.place_voxel) {
+
+    g_player.place_voxel = 0;
+
+    svdb_place_voxel();
+
+    g_svdb.rebuild_chunk = 1;
   }
 }
 static void renderer_record_main_pass(void) {

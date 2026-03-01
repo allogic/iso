@@ -13,6 +13,7 @@ typedef struct mouse_info_t {
 } mouse_info_t;
 typedef struct camera_info_t {
   vector4_t position;
+  vector4_t direction;
   matrix4_t view;
   matrix4_t view_inv;
   matrix4_t projection;
@@ -42,7 +43,6 @@ typedef uint32_t debug_line_index_t;
 
 typedef struct renderer_t {
   uint32_t is_debug_enabled;
-  uint32_t rebuild_world;
   uint32_t image_index;
   time_info_t *time_info;
   screen_info_t *screen_info;

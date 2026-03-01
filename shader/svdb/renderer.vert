@@ -16,6 +16,7 @@ layout (location = 2) out uint output_atlas_id;
 
 layout (binding = 0) uniform camera_info_t {
 	vec4 position;
+	vec4 direction;
 	mat4 view;
 	mat4 view_inv;
 	mat4 projection;

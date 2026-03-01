@@ -1,5 +1,7 @@
 #include <pch.h>
 
+// TODO: refactor uniforms with "_uniform_t" and make structs..
+
 // TODO: add vkGetBufferDeviceAddress to buffer_t directly..
 
 // TODO: Implement hardware raytracing voxel renderer!

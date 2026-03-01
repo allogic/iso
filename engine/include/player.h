@@ -14,6 +14,7 @@ typedef struct player_t {
   float mouse_rotation_speed;
   float linear_drag;
   float angular_drag;
+  uint32_t place_voxel;
 } player_t;
 
 #ifdef __cplusplus

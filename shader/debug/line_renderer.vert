@@ -10,6 +10,7 @@ layout (location = 0) out vec4 output_color;
 
 layout (binding = 0) uniform camera_info_t {
 	vec4 position;
+	vec4 direction;
 	mat4 view;
 	mat4 view_inv;
 	mat4 projection;

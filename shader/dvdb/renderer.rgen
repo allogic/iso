@@ -11,6 +11,7 @@ layout (location = 0) rayPayloadEXT dvdb_ray_payload_t payload;
 layout (binding = 0) uniform accelerationStructureEXT tlas;
 layout (binding = 1) uniform camera_info_t {
 	vec4 position;
+	vec4 direction;
 	mat4 view;
 	mat4 view_inv;
 	mat4 projection;
