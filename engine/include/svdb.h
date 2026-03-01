@@ -71,6 +71,7 @@ typedef struct svdb_chunk_info_t {
   uint32_t is_dirty;
   uint32_t vertex_count;
   uint32_t index_count;
+  uint32_t reserved0;
 } svdb_chunk_info_t;
 typedef struct svdb_chunk_mask_t {
   uint32_t any_px_faces; // TODO: implement these..
@@ -107,9 +108,9 @@ STATIC_ASSERT(ALIGNOF(svdb_place_info_t) == 4);
 STATIC_ASSERT(ALIGNOF(svdb_place_result_t) == 4);
 
 typedef struct svdb_t {
+  uint32_t is_dirty;
   uint32_t generate_world;
   uint32_t rebuild_chunk;
-  svdb_chunk_info_t *chunk_info;
   svdb_select_result_t *select_result;
   svdb_place_info_t *place_info;
   svdb_place_result_t *place_result;
@@ -133,6 +134,8 @@ void svdb_place_voxel(void);
 void svdb_generate_world(void);
 void svdb_generate_mask(void);
 void svdb_generate_mesh(void);
+
+void svdb_swap_buffer(void);
 
 uint32_t svdb_chunk_position_to_index(ivector3_t chunk_position);
 ivector3_t svdb_chunk_index_to_position(uint32_t chunk_index);

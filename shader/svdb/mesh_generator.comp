@@ -11,21 +11,11 @@ layout (
 	local_size_z = 1
 ) in;
 
-layout (binding = 0, std430) readonly buffer svdb_chunk_mask_buffer_t {
-	svdb_chunk_mask_t chunk_mask[];
-} svdb_chunk_mask_buffer;
-layout (binding = 1, std430) writeonly buffer svdb_chunk_vertex_buffer_t {
-	svdb_chunk_vertex_t chunk_vertex[];
-} svdb_chunk_vertex_buffer;
-layout (binding = 2, std430) writeonly buffer svdb_chunk_index_buffer_t {
-	uint chunk_index[];
-} svdb_chunk_index_buffer;
-layout (binding = 3, std430) writeonly buffer svdb_chunk_info_buffer_t {
-	svdb_chunk_info_t chunk_info[];
-} svdb_chunk_info_buffer;
-layout (binding = 4, std430) readonly buffer svdb_block_buffer_t {
-	svdb_block_t block[];
-} svdb_block_buffer;
+layout (binding = 0, std430) readonly buffer svdb_chunk_mask_buffer_t { svdb_chunk_mask_t chunk_mask[]; } svdb_chunk_mask_buffer;
+layout (binding = 1, std430) writeonly buffer svdb_chunk_vertex_buffer_t { svdb_chunk_vertex_t chunk_vertex[]; } svdb_chunk_vertex_buffer;
+layout (binding = 2, std430) writeonly buffer svdb_chunk_index_buffer_t { uint chunk_index[]; } svdb_chunk_index_buffer;
+layout (binding = 3, std430) writeonly buffer svdb_chunk_info_buffer_t { svdb_chunk_info_t chunk_info[]; } svdb_chunk_info_buffer;
+layout (binding = 4, std430) readonly buffer svdb_block_buffer_t { svdb_block_t block[]; } svdb_block_buffer;
 layout (binding = 5, r32ui) uniform uimage3D svdb_voxel_data;
 
 layout (push_constant) uniform push_constant_t {

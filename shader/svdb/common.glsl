@@ -56,6 +56,7 @@ struct svdb_chunk_info_t {
 	uint is_dirty;
 	uint vertex_count;
 	uint index_count;
+	uint reserved0;
 };
 
 struct svdb_chunk_mask_t {

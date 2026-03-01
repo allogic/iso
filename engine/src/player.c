@@ -135,15 +135,6 @@ static void player_handle_voxel_placement(void) {
       (vector4_t){0.0F, 1.0F, 1.0F, 1.0F});
   }
 
-  {
-    ivector3_t place_position = g_svdb.select_result->place_position;
-
-    renderer_draw_debug_box(
-      (vector3_t){(float)place_position.x, (float)place_position.y, (float)place_position.z},
-      (vector3_t){1.0F, 1.0F, 1.0F},
-      (vector4_t){1.0F, 1.0F, 0.0F, 1.0F});
-  }
-
   static uint32_t is_placing = 1;
 
   if (window_is_keyboard_key_pressed(KEYBOARD_KEY_TAB)) {

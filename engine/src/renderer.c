@@ -203,6 +203,8 @@ void renderer_draw(void) {
 #endif // BUILD_DEBUG
   }
 
+  svdb_swap_buffer();
+
   result = vkResetFences(g_window.device, 1, &s_frame_fence);
 
   switch (result) {
@@ -705,6 +707,7 @@ static void renderer_record_compute_pass(void) {
   if (g_svdb.generate_world) {
 
     g_svdb.generate_world = 0;
+    g_svdb.is_dirty = 1;
 
     svdb_generate_world();
     svdb_generate_mask();
@@ -714,6 +717,7 @@ static void renderer_record_compute_pass(void) {
   if (g_svdb.rebuild_chunk) {
 
     g_svdb.rebuild_chunk = 0;
+    g_svdb.is_dirty = 1;
 
     svdb_generate_mask();
     svdb_generate_mesh();

@@ -8,6 +8,9 @@
 #define WORST_CASE_GREEDY_MESH_VERTEX_COUNT (400000)
 #define WORST_CASE_GREEDY_MESH_INDEX_COUNT (600000)
 
+typedef buffer_t double_buffer_t[2];
+typedef VkDescriptorBufferInfo VkDoubleDescriptorBufferInfo[2];
+
 static void svdb_create_chunk_info_buffer(void);
 static void svdb_create_chunk_mask_buffer(void);
 static void svdb_create_chunk_vertex_buffer(void);
@@ -29,6 +32,8 @@ static void svdb_update_renderer_descriptor_set(void);
 
 static void svdb_destroy_buffer(void);
 static void svdb_destroy_image(void);
+
+static uint32_t s_active_buffer = 0;
 
 static VkVertexInputBindingDescription const s_chunk_vertex_input_binding_description[] = {
   {
@@ -112,11 +117,11 @@ static VkDescriptorPoolSize const s_mask_generator_descriptor_pool_size[] = {
 static VkDescriptorPoolSize const s_mesh_generator_descriptor_pool_size[] = {
   {
     .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-    .descriptorCount = 5,
+    .descriptorCount = 5 * 2,
   },
   {
     .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-    .descriptorCount = 1,
+    .descriptorCount = 1 * 2,
   },
 };
 static VkDescriptorPoolSize const s_renderer_descriptor_pool_size[] = {
@@ -291,18 +296,25 @@ static VkPushConstantRange const s_renderer_push_constant_range[] = {
   },
 };
 
-static buffer_t s_chunk_info_buffer = {
-  .size = sizeof(svdb_chunk_info_t) * SVDB_CHUNK_COUNT,
-  .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-  .memory_property_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+static double_buffer_t s_chunk_info_buffer = {
+  {
+    .size = sizeof(svdb_chunk_info_t) * SVDB_CHUNK_COUNT,
+    .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+    .memory_property_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+  },
+  {
+    .size = sizeof(svdb_chunk_info_t) * SVDB_CHUNK_COUNT,
+    .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+    .memory_property_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+  },
 };
+static double_buffer_t *s_chunk_vertex_buffer = 0;
+static double_buffer_t *s_chunk_index_buffer = 0;
 static buffer_t s_chunk_mask_buffer = {
   .size = sizeof(svdb_chunk_mask_t) * SVDB_CHUNK_COUNT,
   .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
   .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 };
-static buffer_t *s_chunk_vertex_buffer = 0;
-static buffer_t *s_chunk_index_buffer = 0;
 static buffer_t s_select_result_buffer = {
   .size = sizeof(svdb_select_result_t),
   .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
@@ -341,10 +353,10 @@ static image_t s_block_atlas_image = {
   .image_tiling = VK_IMAGE_TILING_OPTIMAL,
 };
 
-static VkDescriptorBufferInfo s_chunk_info_descriptor_buffer_info = {0};
+static VkDoubleDescriptorBufferInfo s_chunk_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_chunk_mask_descriptor_buffer_info = {0};
-static VkDescriptorBufferInfo *s_chunk_vertex_descriptor_buffer_info = 0;
-static VkDescriptorBufferInfo *s_chunk_index_descriptor_buffer_info = 0;
+static VkDoubleDescriptorBufferInfo *s_chunk_vertex_descriptor_buffer_info = 0;
+static VkDoubleDescriptorBufferInfo *s_chunk_index_descriptor_buffer_info = 0;
 static VkDescriptorBufferInfo s_select_result_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_place_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_place_result_descriptor_buffer_info = {0};
@@ -402,7 +414,7 @@ static pipeline_t s_mesh_generator_pipeline = {
   .descriptor_pool_size_count = ARRAY_COUNT(s_mesh_generator_descriptor_pool_size),
   .descriptor_set_layout_binding = s_mesh_generator_descriptor_set_layout_binding,
   .descriptor_set_layout_binding_count = ARRAY_COUNT(s_mesh_generator_descriptor_set_layout_binding),
-  .descriptor_set_count = SVDB_CHUNK_COUNT,
+  .descriptor_set_count = SVDB_CHUNK_COUNT * 2,
 };
 static pipeline_t s_renderer_pipeline = {
   .pipeline_type = PIPELINE_TYPE_DFLT,
@@ -470,23 +482,19 @@ void svdb_debug(void) {
 
     ivector3_t chunk_position = svdb_chunk_index_to_position(chunk_index);
 
-    vector4_t chunk_color = {0};
-
-    if (g_svdb.chunk_info[chunk_index].is_dirty) {
-      chunk_color = vector4_xyzw(1.0F, 0.0F, 0.0F, 1.0F);
-    } else {
-      chunk_color = vector4_xyzw(1.0F, 1.0F, 1.0F, 1.0F);
-    }
-
     renderer_draw_debug_box(
       (vector3_t){(float)chunk_position.x * SVDB_CHUNK_SIZE, (float)chunk_position.y * SVDB_CHUNK_SIZE, (float)chunk_position.z * SVDB_CHUNK_SIZE},
       (vector3_t){(float)SVDB_CHUNK_SIZE, (float)SVDB_CHUNK_SIZE, (float)SVDB_CHUNK_SIZE},
-      chunk_color);
+      (vector4_t){1.0F, 1.0F, 1.0F, 1.0F});
 
     chunk_index++;
   }
 }
 void svdb_draw(void) {
+  uint32_t front_buffer = s_active_buffer;
+
+  svdb_chunk_info_t *chunk_info = (svdb_chunk_info_t *)s_chunk_info_buffer[front_buffer].device_data;
+
   vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_renderer_pipeline.pipeline_handle);
 
   svdb_renderer_push_constant_t svdb_renderer_push_constant = {0};
@@ -501,11 +509,11 @@ void svdb_draw(void) {
 
     VkDeviceSize vertex_offset[] = {0};
 
-    vkCmdBindVertexBuffers(g_window.command_buffer, 0, 1, &s_chunk_vertex_buffer[chunk_index].buffer_handle, vertex_offset);
-    vkCmdBindIndexBuffer(g_window.command_buffer, s_chunk_index_buffer[chunk_index].buffer_handle, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindVertexBuffers(g_window.command_buffer, 0, 1, &s_chunk_vertex_buffer[chunk_index][front_buffer].buffer_handle, vertex_offset);
+    vkCmdBindIndexBuffer(g_window.command_buffer, s_chunk_index_buffer[chunk_index][front_buffer].buffer_handle, 0, VK_INDEX_TYPE_UINT32);
     vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_renderer_pipeline.pipeline_layout, 0, 1, &s_renderer_pipeline.descriptor_set[chunk_index], 0, 0);
     vkCmdPushConstants(g_window.command_buffer, s_renderer_pipeline.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(svdb_renderer_push_constant), &svdb_renderer_push_constant);
-    vkCmdDrawIndexed(g_window.command_buffer, g_svdb.chunk_info[chunk_index].index_count, 1, 0, 0, 0);
+    vkCmdDrawIndexed(g_window.command_buffer, chunk_info[chunk_index].index_count, 1, 0, 0, 0);
 
     chunk_index++;
   }
@@ -702,6 +710,10 @@ void svdb_generate_mask(void) {
     0);
 }
 void svdb_generate_mesh(void) {
+  uint32_t back_buffer = !s_active_buffer;
+
+  svdb_chunk_info_t *chunk_info = (svdb_chunk_info_t *)s_chunk_info_buffer[back_buffer].device_data;
+
   vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_mesh_generator_pipeline.pipeline_handle);
 
   svdb_mesh_generator_push_constant_t svdb_mesh_generator_push_constant = {0};
@@ -711,14 +723,15 @@ void svdb_generate_mesh(void) {
 
   while (chunk_index < chunk_count) {
 
-    // TODO: find a clean way to reset these counters..
-    g_svdb.chunk_info[chunk_index].vertex_count = 0;
-    g_svdb.chunk_info[chunk_index].index_count = 0;
+    uint32_t chunk_descriptor_index = chunk_index + (back_buffer * SVDB_CHUNK_COUNT);
+
+    chunk_info[chunk_index].vertex_count = 0;
+    chunk_info[chunk_index].index_count = 0;
 
     svdb_mesh_generator_push_constant.chunk_position = svdb_chunk_index_to_position(chunk_index);
     svdb_mesh_generator_push_constant.chunk_index = chunk_index;
 
-    vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_mesh_generator_pipeline.pipeline_layout, 0, 1, &s_mesh_generator_pipeline.descriptor_set[chunk_index], 0, 0);
+    vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_mesh_generator_pipeline.pipeline_layout, 0, 1, &s_mesh_generator_pipeline.descriptor_set[chunk_descriptor_index], 0, 0);
     vkCmdPushConstants(g_window.command_buffer, s_mesh_generator_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(svdb_mesh_generator_push_constant), &svdb_mesh_generator_push_constant);
     vkCmdDispatch(g_window.command_buffer, SVDB_CHUNK_SIZE, 1, 6);
 
@@ -729,7 +742,7 @@ void svdb_generate_mesh(void) {
         .dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT,
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .buffer = s_chunk_vertex_buffer[chunk_index].buffer_handle,
+        .buffer = s_chunk_vertex_buffer[chunk_index][back_buffer].buffer_handle,
         .offset = 0,
         .size = VK_WHOLE_SIZE,
       },
@@ -739,7 +752,17 @@ void svdb_generate_mesh(void) {
         .dstAccessMask = VK_ACCESS_INDEX_READ_BIT,
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .buffer = s_chunk_index_buffer[chunk_index].buffer_handle,
+        .buffer = s_chunk_index_buffer[chunk_index][back_buffer].buffer_handle,
+        .offset = 0,
+        .size = VK_WHOLE_SIZE,
+      },
+      {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .buffer = s_chunk_info_buffer[back_buffer].buffer_handle,
         .offset = 0,
         .size = VK_WHOLE_SIZE,
       },
@@ -761,6 +784,15 @@ void svdb_generate_mesh(void) {
   }
 }
 
+void svdb_swap_buffer(void) {
+  if (g_svdb.is_dirty) {
+
+    g_svdb.is_dirty = 0;
+
+    s_active_buffer = !s_active_buffer;
+  }
+}
+
 uint32_t svdb_chunk_position_to_index(ivector3_t chunk_position) {
   return (chunk_position.x) +
          (chunk_position.y * SVDB_DIM_X) +
@@ -775,15 +807,19 @@ ivector3_t svdb_chunk_index_to_position(uint32_t chunk_index) {
 }
 
 static void svdb_create_chunk_info_buffer(void) {
-  buffer_create(&s_chunk_info_buffer);
+  buffer_create(&s_chunk_info_buffer[0]);
+  buffer_create(&s_chunk_info_buffer[1]);
 
-  buffer_map(&s_chunk_info_buffer);
+  buffer_map(&s_chunk_info_buffer[0]);
+  buffer_map(&s_chunk_info_buffer[1]);
 
-  g_svdb.chunk_info = (svdb_chunk_info_t *)s_chunk_info_buffer.device_data;
+  s_chunk_info_descriptor_buffer_info[0].offset = 0;
+  s_chunk_info_descriptor_buffer_info[0].buffer = s_chunk_info_buffer[0].buffer_handle;
+  s_chunk_info_descriptor_buffer_info[0].range = VK_WHOLE_SIZE;
 
-  s_chunk_info_descriptor_buffer_info.offset = 0;
-  s_chunk_info_descriptor_buffer_info.buffer = s_chunk_info_buffer.buffer_handle;
-  s_chunk_info_descriptor_buffer_info.range = VK_WHOLE_SIZE;
+  s_chunk_info_descriptor_buffer_info[1].offset = 0;
+  s_chunk_info_descriptor_buffer_info[1].buffer = s_chunk_info_buffer[1].buffer_handle;
+  s_chunk_info_descriptor_buffer_info[1].range = VK_WHOLE_SIZE;
 }
 static void svdb_create_chunk_mask_buffer(void) {
   buffer_create(&s_chunk_mask_buffer);
@@ -793,45 +829,63 @@ static void svdb_create_chunk_mask_buffer(void) {
   s_chunk_mask_descriptor_buffer_info.range = VK_WHOLE_SIZE;
 }
 static void svdb_create_chunk_vertex_buffer(void) {
-  s_chunk_vertex_buffer = (buffer_t *)HEAP_ALLOC(sizeof(buffer_t) * SVDB_CHUNK_COUNT, 1, 0);
-  s_chunk_vertex_descriptor_buffer_info = (VkDescriptorBufferInfo *)HEAP_ALLOC(sizeof(VkDescriptorBufferInfo) * SVDB_CHUNK_COUNT, 1, 0);
+  s_chunk_vertex_buffer = (double_buffer_t *)HEAP_ALLOC(sizeof(double_buffer_t) * SVDB_CHUNK_COUNT, 1, 0);
+  s_chunk_vertex_descriptor_buffer_info = (VkDoubleDescriptorBufferInfo *)HEAP_ALLOC(sizeof(VkDoubleDescriptorBufferInfo) * SVDB_CHUNK_COUNT, 1, 0);
 
   uint32_t chunk_index = 0;
   uint32_t chunk_count = SVDB_CHUNK_COUNT;
 
   while (chunk_index < chunk_count) {
 
-    s_chunk_vertex_buffer[chunk_index].size = sizeof(svdb_chunk_vertex_t) * WORST_CASE_GREEDY_MESH_VERTEX_COUNT;
-    s_chunk_vertex_buffer[chunk_index].buffer_usage_flags = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-    s_chunk_vertex_buffer[chunk_index].memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+    s_chunk_vertex_buffer[chunk_index][0].size = sizeof(svdb_chunk_vertex_t) * WORST_CASE_GREEDY_MESH_VERTEX_COUNT;
+    s_chunk_vertex_buffer[chunk_index][0].buffer_usage_flags = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    s_chunk_vertex_buffer[chunk_index][0].memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-    buffer_create(&s_chunk_vertex_buffer[chunk_index]);
+    s_chunk_vertex_buffer[chunk_index][1].size = sizeof(svdb_chunk_vertex_t) * WORST_CASE_GREEDY_MESH_VERTEX_COUNT;
+    s_chunk_vertex_buffer[chunk_index][1].buffer_usage_flags = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    s_chunk_vertex_buffer[chunk_index][1].memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-    s_chunk_vertex_descriptor_buffer_info[chunk_index].offset = 0;
-    s_chunk_vertex_descriptor_buffer_info[chunk_index].buffer = s_chunk_vertex_buffer[chunk_index].buffer_handle;
-    s_chunk_vertex_descriptor_buffer_info[chunk_index].range = VK_WHOLE_SIZE;
+    buffer_create(&s_chunk_vertex_buffer[chunk_index][0]);
+    buffer_create(&s_chunk_vertex_buffer[chunk_index][1]);
+
+    s_chunk_vertex_descriptor_buffer_info[chunk_index][0].offset = 0;
+    s_chunk_vertex_descriptor_buffer_info[chunk_index][0].buffer = s_chunk_vertex_buffer[chunk_index][0].buffer_handle;
+    s_chunk_vertex_descriptor_buffer_info[chunk_index][0].range = VK_WHOLE_SIZE;
+
+    s_chunk_vertex_descriptor_buffer_info[chunk_index][1].offset = 0;
+    s_chunk_vertex_descriptor_buffer_info[chunk_index][1].buffer = s_chunk_vertex_buffer[chunk_index][1].buffer_handle;
+    s_chunk_vertex_descriptor_buffer_info[chunk_index][1].range = VK_WHOLE_SIZE;
 
     chunk_index++;
   }
 }
 static void svdb_create_chunk_index_buffer(void) {
-  s_chunk_index_buffer = (buffer_t *)HEAP_ALLOC(sizeof(buffer_t) * SVDB_CHUNK_COUNT, 1, 0);
-  s_chunk_index_descriptor_buffer_info = (VkDescriptorBufferInfo *)HEAP_ALLOC(sizeof(VkDescriptorBufferInfo) * SVDB_CHUNK_COUNT, 1, 0);
+  s_chunk_index_buffer = (double_buffer_t *)HEAP_ALLOC(sizeof(double_buffer_t) * SVDB_CHUNK_COUNT, 1, 0);
+  s_chunk_index_descriptor_buffer_info = (VkDoubleDescriptorBufferInfo *)HEAP_ALLOC(sizeof(VkDoubleDescriptorBufferInfo) * SVDB_CHUNK_COUNT, 1, 0);
 
   uint32_t chunk_index = 0;
   uint32_t chunk_count = SVDB_CHUNK_COUNT;
 
   while (chunk_index < chunk_count) {
 
-    s_chunk_index_buffer[chunk_index].size = sizeof(svdb_chunk_index_t) * WORST_CASE_GREEDY_MESH_INDEX_COUNT;
-    s_chunk_index_buffer[chunk_index].buffer_usage_flags = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-    s_chunk_index_buffer[chunk_index].memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+    s_chunk_index_buffer[chunk_index][0].size = sizeof(svdb_chunk_index_t) * WORST_CASE_GREEDY_MESH_INDEX_COUNT;
+    s_chunk_index_buffer[chunk_index][0].buffer_usage_flags = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    s_chunk_index_buffer[chunk_index][0].memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-    buffer_create(&s_chunk_index_buffer[chunk_index]);
+    s_chunk_index_buffer[chunk_index][1].size = sizeof(svdb_chunk_index_t) * WORST_CASE_GREEDY_MESH_INDEX_COUNT;
+    s_chunk_index_buffer[chunk_index][1].buffer_usage_flags = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    s_chunk_index_buffer[chunk_index][1].memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-    s_chunk_index_descriptor_buffer_info[chunk_index].offset = 0;
-    s_chunk_index_descriptor_buffer_info[chunk_index].buffer = s_chunk_index_buffer[chunk_index].buffer_handle;
-    s_chunk_index_descriptor_buffer_info[chunk_index].range = VK_WHOLE_SIZE;
+    buffer_create(&s_chunk_index_buffer[chunk_index][0]);
+    buffer_create(&s_chunk_index_buffer[chunk_index][1]);
+
+    s_chunk_index_descriptor_buffer_info[chunk_index][0].offset = 0;
+    s_chunk_index_descriptor_buffer_info[chunk_index][0].buffer = s_chunk_index_buffer[chunk_index][0].buffer_handle;
+    s_chunk_index_descriptor_buffer_info[chunk_index][0].range = VK_WHOLE_SIZE;
+
+    s_chunk_index_descriptor_buffer_info[chunk_index][1].offset = 0;
+    s_chunk_index_descriptor_buffer_info[chunk_index][1].buffer = s_chunk_index_buffer[chunk_index][1].buffer_handle;
+    s_chunk_index_descriptor_buffer_info[chunk_index][1].range = VK_WHOLE_SIZE;
 
     chunk_index++;
   }
@@ -1057,89 +1111,97 @@ static void svdb_update_mask_generator_descriptor_set(void) {
   vkUpdateDescriptorSets(g_window.device, ARRAY_COUNT(write_descriptor_set), write_descriptor_set, 0, 0);
 }
 static void svdb_update_mesh_generator_descriptor_set(void) {
-  uint32_t chunk_index = 0;
-  uint32_t chunk_count = SVDB_CHUNK_COUNT;
+  uint32_t buffer_index = 0;
+  uint32_t buffer_count = 2;
 
-  while (chunk_index < chunk_count) {
+  while (buffer_index < buffer_count) {
 
-    VkWriteDescriptorSet write_descriptor_set[] = {
-      {
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .pNext = 0,
-        .dstSet = s_mesh_generator_pipeline.descriptor_set[chunk_index],
-        .dstBinding = 0,
-        .dstArrayElement = 0,
-        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-        .descriptorCount = 1,
-        .pImageInfo = 0,
-        .pBufferInfo = &s_chunk_mask_descriptor_buffer_info,
-        .pTexelBufferView = 0,
-      },
-      {
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .pNext = 0,
-        .dstSet = s_mesh_generator_pipeline.descriptor_set[chunk_index],
-        .dstBinding = 1,
-        .dstArrayElement = 0,
-        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-        .descriptorCount = 1,
-        .pImageInfo = 0,
-        .pBufferInfo = &s_chunk_vertex_descriptor_buffer_info[chunk_index],
-        .pTexelBufferView = 0,
-      },
-      {
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .pNext = 0,
-        .dstSet = s_mesh_generator_pipeline.descriptor_set[chunk_index],
-        .dstBinding = 2,
-        .dstArrayElement = 0,
-        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-        .descriptorCount = 1,
-        .pImageInfo = 0,
-        .pBufferInfo = &s_chunk_index_descriptor_buffer_info[chunk_index],
-        .pTexelBufferView = 0,
-      },
-      {
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .pNext = 0,
-        .dstSet = s_mesh_generator_pipeline.descriptor_set[chunk_index],
-        .dstBinding = 3,
-        .dstArrayElement = 0,
-        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-        .descriptorCount = 1,
-        .pImageInfo = 0,
-        .pBufferInfo = &s_chunk_info_descriptor_buffer_info,
-        .pTexelBufferView = 0,
-      },
-      {
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .pNext = 0,
-        .dstSet = s_mesh_generator_pipeline.descriptor_set[chunk_index],
-        .dstBinding = 4,
-        .dstArrayElement = 0,
-        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-        .descriptorCount = 1,
-        .pImageInfo = 0,
-        .pBufferInfo = &s_block_descriptor_buffer_info,
-        .pTexelBufferView = 0,
-      },
-      {
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .pNext = 0,
-        .dstSet = s_mesh_generator_pipeline.descriptor_set[chunk_index],
-        .dstBinding = 5,
-        .dstArrayElement = 0,
-        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-        .descriptorCount = 1,
-        .pImageInfo = &s_chunk_voxel_descriptor_image_info[chunk_index],
-        .pBufferInfo = 0,
-        .pTexelBufferView = 0,
-      },
-    };
+    uint32_t chunk_index = 0;
+    uint32_t chunk_count = SVDB_CHUNK_COUNT;
 
-    vkUpdateDescriptorSets(g_window.device, ARRAY_COUNT(write_descriptor_set), write_descriptor_set, 0, 0);
+    while (chunk_index < chunk_count) {
 
-    chunk_index++;
+      VkWriteDescriptorSet write_descriptor_set[] = {
+        {
+          .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+          .pNext = 0,
+          .dstSet = s_mesh_generator_pipeline.descriptor_set[chunk_index * 2 + buffer_index],
+          .dstBinding = 0,
+          .dstArrayElement = 0,
+          .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+          .descriptorCount = 1,
+          .pImageInfo = 0,
+          .pBufferInfo = &s_chunk_mask_descriptor_buffer_info,
+          .pTexelBufferView = 0,
+        },
+        {
+          .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+          .pNext = 0,
+          .dstSet = s_mesh_generator_pipeline.descriptor_set[chunk_index * 2 + buffer_index],
+          .dstBinding = 1,
+          .dstArrayElement = 0,
+          .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+          .descriptorCount = 1,
+          .pImageInfo = 0,
+          .pBufferInfo = &s_chunk_vertex_descriptor_buffer_info[chunk_index][buffer_index],
+          .pTexelBufferView = 0,
+        },
+        {
+          .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+          .pNext = 0,
+          .dstSet = s_mesh_generator_pipeline.descriptor_set[chunk_index * 2 + buffer_index],
+          .dstBinding = 2,
+          .dstArrayElement = 0,
+          .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+          .descriptorCount = 1,
+          .pImageInfo = 0,
+          .pBufferInfo = &s_chunk_index_descriptor_buffer_info[chunk_index][buffer_index],
+          .pTexelBufferView = 0,
+        },
+        {
+          .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+          .pNext = 0,
+          .dstSet = s_mesh_generator_pipeline.descriptor_set[chunk_index * 2 + buffer_index],
+          .dstBinding = 3,
+          .dstArrayElement = 0,
+          .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+          .descriptorCount = 1,
+          .pImageInfo = 0,
+          .pBufferInfo = &s_chunk_info_descriptor_buffer_info[buffer_index],
+          .pTexelBufferView = 0,
+        },
+        {
+          .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+          .pNext = 0,
+          .dstSet = s_mesh_generator_pipeline.descriptor_set[chunk_index * 2 + buffer_index],
+          .dstBinding = 4,
+          .dstArrayElement = 0,
+          .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+          .descriptorCount = 1,
+          .pImageInfo = 0,
+          .pBufferInfo = &s_block_descriptor_buffer_info,
+          .pTexelBufferView = 0,
+        },
+        {
+          .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+          .pNext = 0,
+          .dstSet = s_mesh_generator_pipeline.descriptor_set[chunk_index * 2 + buffer_index],
+          .dstBinding = 5,
+          .dstArrayElement = 0,
+          .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+          .descriptorCount = 1,
+          .pImageInfo = &s_chunk_voxel_descriptor_image_info[chunk_index],
+          .pBufferInfo = 0,
+          .pTexelBufferView = 0,
+        },
+      };
+
+      vkUpdateDescriptorSets(g_window.device, ARRAY_COUNT(write_descriptor_set), write_descriptor_set, 0, 0);
+
+      chunk_index++;
+    }
+
+    buffer_index++;
   }
 }
 static void svdb_update_renderer_descriptor_set(void) {
@@ -1182,7 +1244,8 @@ static void svdb_update_renderer_descriptor_set(void) {
 }
 
 static void svdb_destroy_buffer(void) {
-  buffer_destroy(&s_chunk_info_buffer);
+  buffer_destroy(&s_chunk_info_buffer[0]);
+  buffer_destroy(&s_chunk_info_buffer[1]);
   buffer_destroy(&s_chunk_mask_buffer);
   buffer_destroy(&s_select_result_buffer);
   buffer_destroy(&s_place_info_buffer);
@@ -1194,8 +1257,11 @@ static void svdb_destroy_buffer(void) {
 
   while (chunk_index < chunk_count) {
 
-    buffer_destroy(&s_chunk_vertex_buffer[chunk_index]);
-    buffer_destroy(&s_chunk_index_buffer[chunk_index]);
+    buffer_destroy(&s_chunk_vertex_buffer[chunk_index][0]);
+    buffer_destroy(&s_chunk_vertex_buffer[chunk_index][1]);
+
+    buffer_destroy(&s_chunk_index_buffer[chunk_index][0]);
+    buffer_destroy(&s_chunk_index_buffer[chunk_index][1]);
 
     chunk_index++;
   }
