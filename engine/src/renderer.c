@@ -3,8 +3,6 @@
 #define DEBUG_LINE_VERTEX_COUNT (0xFFFFF)
 #define DEBUG_LINE_INDEX_COUNT (0xFFFFF)
 
-#define MAKE_GROUP_COUNT(GLOBAL_SIZE, LOCAL_SIZE) ((int32_t)ceilf(((float)(GLOBAL_SIZE)) / (LOCAL_SIZE)))
-
 static void renderer_create_sync_object(void);
 static void renderer_create_coherent_buffer(void);
 static void renderer_create_debug_line_buffer(void);
@@ -495,8 +493,8 @@ void renderer_draw(void) {
   }
 }
 void renderer_debug(void) {
-  svdb_debug();
-  dvdb_debug();
+  // svdb_debug();
+  // dvdb_debug();
 }
 void renderer_destroy(void) {
   dvdb_destroy();
@@ -709,9 +707,17 @@ static void renderer_record_compute_pass(void) {
     g_svdb.generate_world = 0;
     g_svdb.is_dirty = 1;
 
-    svdb_generate_world();
-    svdb_generate_mask();
-    svdb_generate_mesh();
+    uint32_t chunk_index = 0;
+    uint32_t chunk_count = SVDB_CHUNK_COUNT;
+
+    while (chunk_index < chunk_count) {
+
+      svdb_generate_world(chunk_index);
+      svdb_generate_mask(chunk_index);
+      svdb_generate_mesh(chunk_index);
+
+      chunk_index++;
+    }
   }
 
   if (g_svdb.rebuild_chunk) {
@@ -719,12 +725,12 @@ static void renderer_record_compute_pass(void) {
     g_svdb.rebuild_chunk = 0;
     g_svdb.is_dirty = 1;
 
-    svdb_generate_mask();
-    svdb_generate_mesh();
+    // TODO: handle rebuild depending for surrounding chunks..
+    svdb_generate_mask(0);
+    svdb_generate_mesh(0);
   }
 
-  // TODO
-
+  // TODO: handle selection that go outside the current chunk..
   svdb_select_voxel();
 
   if (g_player.place_voxel) {

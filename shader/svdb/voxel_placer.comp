@@ -2,6 +2,11 @@
 
 #extension GL_ARB_shading_language_include : require
 #extension GL_EXT_nonuniform_qualifier : require
+#extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+
+#include "../global.glsl"
 
 #include "../svdb/common.glsl"
 
@@ -12,59 +17,16 @@ layout (
 ) in;
 
 layout (binding = 0) uniform place_info_uniform_t {	svdb_place_info_t place_info; } place_info_uniform;
-layout (binding = 1, r32ui) uniform uimage3D svdb_voxel_data[];
+layout (binding = 1, r32ui) uniform uimage3D svdb_voxel_data;
 layout (binding = 2, std430) writeonly buffer svdb_place_result_buffer_t { svdb_place_result_t place_result; } svdb_place_result_buffer;
 
-#include "../svdb/voxel_mod_array.glsl"
-
-//uint is_structure_obstructed(ivec3 tile_position, uint tile_id, tile_t tile) {
-//	uint is_obstructed = 0;
-//
-//	for (uint z = 0; z < tile.tile_size_z; z++) {
-//		for (uint x = 0; x < tile.tile_size_x; x++) {
-//			
-//			ivec3 voxel_position = tile_position + ivec3(x, 0, z);
-//
-//			uint voxel = get_voxel(voxel_position);
-//
-//			if (VOXEL_IS_SOLID(voxel)) {
-//				is_obstructed |= 1;
-//			}
-//		}
-//	}
-//
-//	return is_obstructed;
-//}
-
-//void place_structure(ivec3 tile_position, uint tile_id, tile_t tile) {
-//	uint voxel = EMPTY_VOXEL;
-//
-//	if (tile.atlas_id != 255) {
-//
-//		voxel = VOXEL_SET_SOLID(voxel);
-//		voxel = VOXEL_SET_TILE_ID(voxel, tile_id);
-//
-//	}
-//
-//	set_voxel(tile_position, voxel);
-//}
+#include "../svdb/voxel_modifier.glsl"
 
 void main() {
-	//tile_t tile = tile_lut_buffer.tile_lut[place_info.tile_id];
-	//
-	//uint is_obstructed = is_structure_obstructed(place_info.tile_position, place_info.tile_id, tile);
-	//
-	//if (is_obstructed == 0) {
-	//
-	//	// TODO
-	//}
-	//
-	//place_structure(place_info.tile_position, place_info.tile_id, tile);
-
 	ivec3 voxel_position = place_info_uniform.place_info.voxel_position;
 	uint voxel = place_info_uniform.place_info.voxel;
 
-	svdb_set_voxel(ivec3(0), voxel_position, voxel);
+	svdb_set_voxel(voxel_position, voxel);
 
 	svdb_place_result_buffer.place_result.is_obstructed = 0;
 }

@@ -16,9 +16,9 @@
 #define SVDB_SET_VOXEL_BLOCK_TYPE(VOXEL, BLOCK_TYPE) \
 	((VOXEL & ~(0xFF << 8)) | ((BLOCK_TYPE & 0xFF) << 8))
 
-const uint SVDB_DIM_X = 1;
-const uint SVDB_DIM_Y = 1;
-const uint SVDB_DIM_Z = 1;
+const uint SVDB_DIM_X = 30;
+const uint SVDB_DIM_Y = 3;
+const uint SVDB_DIM_Z = 30;
 
 const ivec3 SVDB_DIMS = ivec3(SVDB_DIM_X, SVDB_DIM_Y, SVDB_DIM_Z);
 
@@ -60,12 +60,6 @@ struct svdb_chunk_info_t {
 };
 
 struct svdb_chunk_mask_t {
-	uint any_px_faces; // TODO: implement these..
-	uint any_py_faces;
-	uint any_pz_faces;
-	uint any_nx_faces; // TODO: implement these..
-	uint any_ny_faces;
-	uint any_nz_faces;
 	uint opaque_px_mask[SVDB_CHUNK_SIZE * SVDB_CHUNK_SIZE];
 	uint opaque_py_mask[SVDB_CHUNK_SIZE * SVDB_CHUNK_SIZE];
 	uint opaque_pz_mask[SVDB_CHUNK_SIZE * SVDB_CHUNK_SIZE];
@@ -90,14 +84,14 @@ struct svdb_place_result_t {
 	uint is_obstructed;
 };
 
+// bits 15..13 : face     (3 bits)
+// bits 12..7  : atlas_id (6 bits)
+// bits 6..0   : flags    (7 bits)
 struct svdb_chunk_vertex_t {
-	vec4 position;
-	vec4 color;
-	vec4 uv;
-	uint atlas_id;
-	uint reverved0;
-	uint reverved1;
-	uint reverved2;
+	uint word0;
+	uint word1;
+	uint word2;
+	uint word3;
 };
 
 struct svdb_block_t {

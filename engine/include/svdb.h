@@ -20,21 +20,29 @@
 
 #define SVDB_EMPTY_VOXEL (0)
 
-#define SVDB_DIM_X (1)
-#define SVDB_DIM_Y (1)
-#define SVDB_DIM_Z (1)
+#define SVDB_DIM_X (30)
+#define SVDB_DIM_Y (3)
+#define SVDB_DIM_Z (30)
 
 #define SVDB_CHUNK_SIZE (32)
-#define SVDB_CHUNK_COUNT (1)
+#define SVDB_CHUNK_COUNT (2700)
 
+// bits 15..13 : face     (3 bits)
+// bits 12..7  : atlas_id (6 bits)
+// bits 6..0   : flags    (7 bits)
+// typedef struct svdb_chunk_vertex_t {
+//  uint16_t position[3];
+//  uint16_t color;
+//  uint16_t uv;
+//  uint16_t auxiliary;
+//  uint16_t reserved0;
+//  uint16_t reserved1;
+//} svdb_chunk_vertex_t;
 typedef struct svdb_chunk_vertex_t {
-  vector4_t position;
-  vector4_t color;
-  vector4_t uv;
-  uint32_t atlas_id;
-  uint32_t reserved0;
-  uint32_t reserved1;
-  uint32_t reserved2;
+  uint32_t word0;
+  uint32_t word1;
+  uint32_t word2;
+  uint32_t word3;
 } svdb_chunk_vertex_t;
 
 STATIC_ASSERT(ALIGNOF(svdb_chunk_vertex_t) == 4);
@@ -74,12 +82,6 @@ typedef struct svdb_chunk_info_t {
   uint32_t reserved0;
 } svdb_chunk_info_t;
 typedef struct svdb_chunk_mask_t {
-  uint32_t any_px_faces; // TODO: implement these..
-  uint32_t any_py_faces;
-  uint32_t any_pz_faces;
-  uint32_t any_nx_faces; // TODO: implement these..
-  uint32_t any_ny_faces;
-  uint32_t any_nz_faces;
   uint32_t opaque_px_mask[SVDB_CHUNK_SIZE * SVDB_CHUNK_SIZE];
   uint32_t opaque_py_mask[SVDB_CHUNK_SIZE * SVDB_CHUNK_SIZE];
   uint32_t opaque_pz_mask[SVDB_CHUNK_SIZE * SVDB_CHUNK_SIZE];
@@ -131,9 +133,9 @@ void svdb_destroy(void);
 void svdb_select_voxel(void);
 void svdb_place_voxel(void);
 
-void svdb_generate_world(void);
-void svdb_generate_mask(void);
-void svdb_generate_mesh(void);
+void svdb_generate_world(uint32_t chunk_index);
+void svdb_generate_mask(uint32_t chunk_index);
+void svdb_generate_mesh(uint32_t chunk_index);
 
 void svdb_swap_buffer(void);
 

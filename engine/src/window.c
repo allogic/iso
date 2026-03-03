@@ -65,37 +65,29 @@ VkPhysicalDeviceRayTracingPipelinePropertiesKHR g_physical_device_ray_tracing_pi
   .pNext = 0,
 };
 
+VkPhysicalDeviceVulkan12Features g_physical_device_vulkan_12_features = {
+  .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+  .pNext = 0,
+};
 VkPhysicalDeviceRayTracingPipelineFeaturesKHR g_physical_device_ray_tracing_pipeline_features = {
   .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
-  .pNext = 0,
+  .pNext = &g_physical_device_vulkan_12_features,
 };
 VkPhysicalDeviceAccelerationStructureFeaturesKHR g_physical_device_acceleration_structure_features = {
   .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
   .pNext = &g_physical_device_ray_tracing_pipeline_features,
 };
-VkPhysicalDevice8BitStorageFeatures g_physical_device_8bit_storage_features = {
-  .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_8BIT_STORAGE_FEATURES,
+VkPhysicalDevice16BitStorageFeatures g_physical_device_16bit_storage_features = {
+  .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES,
   .pNext = &g_physical_device_acceleration_structure_features,
 };
-VkPhysicalDeviceBufferDeviceAddressFeatures g_physical_device_buffer_device_address_freatures = {
-  .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
-  .pNext = &g_physical_device_8bit_storage_features,
-};
-VkPhysicalDeviceVulkanMemoryModelFeatures g_physical_device_vulkan_memory_model_features = {
-  .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_MEMORY_MODEL_FEATURES,
-  .pNext = &g_physical_device_buffer_device_address_freatures,
-};
-VkPhysicalDeviceTimelineSemaphoreFeatures g_physical_device_timeline_semaphore_features = {
-  .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES,
-  .pNext = &g_physical_device_vulkan_memory_model_features,
-};
-VkPhysicalDeviceMaintenance4Features g_physical_device_maintenance4_features = {
+VkPhysicalDeviceMaintenance4Features g_physical_device_maintenance_4_features = {
   .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_4_FEATURES,
-  .pNext = &g_physical_device_timeline_semaphore_features,
+  .pNext = &g_physical_device_16bit_storage_features,
 };
 VkPhysicalDeviceFragmentShadingRateFeaturesKHR g_physical_device_fragment_shading_rate_features = {
   .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_FEATURES_KHR,
-  .pNext = &g_physical_device_maintenance4_features,
+  .pNext = &g_physical_device_maintenance_4_features,
 };
 VkPhysicalDeviceMultiviewFeatures g_physical_device_multiview_features = {
   .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES,
@@ -104,10 +96,6 @@ VkPhysicalDeviceMultiviewFeatures g_physical_device_multiview_features = {
 VkPhysicalDeviceMeshShaderFeaturesEXT g_physical_device_mesh_shader_features = {
   .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT,
   .pNext = &g_physical_device_multiview_features,
-};
-VkPhysicalDeviceDescriptorIndexingFeatures g_physical_device_descriptor_indexing_features = {
-  .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
-  .pNext = &g_physical_device_mesh_shader_features,
 };
 
 window_t g_window = {0};
@@ -699,7 +687,7 @@ static void window_find_physical_device(void) {
     VkPhysicalDevice physical_device = physical_devices[physical_device_index];
 
     g_window.physical_device_features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-    g_window.physical_device_features2.pNext = &g_physical_device_descriptor_indexing_features;
+    g_window.physical_device_features2.pNext = &g_physical_device_mesh_shader_features;
 
     g_window.physical_device_properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
     g_window.physical_device_properties2.pNext = &g_physical_device_ray_tracing_pipeline_properties;
@@ -874,10 +862,14 @@ static void window_check_physical_device_features(void) {
   printf("Required Device Features\n");
   printf("  VkPhysicalDeviceMeshShaderFeaturesEXT::taskShader: %d\n", g_physical_device_mesh_shader_features.taskShader);
   printf("  VkPhysicalDeviceMeshShaderFeaturesEXT::meshShader: %d\n", g_physical_device_mesh_shader_features.meshShader);
-  printf("  VkPhysicalDeviceDescriptorIndexingFeatures::runtimeDescriptorArray: %d\n", g_physical_device_descriptor_indexing_features.runtimeDescriptorArray);
-  printf("  VkPhysicalDeviceBufferDeviceAddressFeatures::bufferDeviceAddress: %d\n", g_physical_device_buffer_device_address_freatures.bufferDeviceAddress);
   printf("  VkPhysicalDeviceRayTracingPipelineFeaturesKHR::rayTracingPipeline: %d\n", g_physical_device_ray_tracing_pipeline_features.rayTracingPipeline);
   printf("  VkPhysicalDeviceAccelerationStructureFeaturesKHR::accelerationStructure: %d\n", g_physical_device_acceleration_structure_features.accelerationStructure);
+  printf("  VkPhysicalDevice16BitStorageFeatures::storageInputOutput16: %d\n", g_physical_device_16bit_storage_features.storageInputOutput16);
+  printf("  VkPhysicalDevice16BitStorageFeatures::storageBuffer16BitAccess: %d\n", g_physical_device_16bit_storage_features.storageBuffer16BitAccess);
+  printf("  VkPhysicalDeviceVulkan12Features::runtimeDescriptorArray: %d\n", g_physical_device_vulkan_12_features.runtimeDescriptorArray);
+  printf("  VkPhysicalDeviceVulkan12Features::bufferDeviceAddress: %d\n", g_physical_device_vulkan_12_features.bufferDeviceAddress);
+  printf("  VkPhysicalDeviceVulkan12Features::storageBuffer8BitAccess: %d\n", g_physical_device_vulkan_12_features.storageBuffer8BitAccess);
+  printf("  VkPhysicalDeviceVulkan12Features::shaderFloat16: %d\n", g_physical_device_vulkan_12_features.shaderFloat16);
   printf("\n");
 #endif // BUILD_DEBUG
 }
