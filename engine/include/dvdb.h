@@ -12,7 +12,7 @@ typedef struct dvdb_chunk_info_t {
   uint32_t is_dirty;
 } dvdb_chunk_info_t;
 
-STATIC_ASSERT(ALIGNOF(dvdb_chunk_info_t) == 4);
+STATIC_ASSERT(ALIGN_OF(dvdb_chunk_info_t) == 4);
 
 typedef struct dvdb_t {
   uint32_t geometry_count;

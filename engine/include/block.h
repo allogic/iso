@@ -26,7 +26,7 @@ typedef struct block_t {
   uint32_t block_face_atlas_id[BLOCK_FACE_COUNT];
 } block_t;
 
-STATIC_ASSERT(ALIGNOF(block_t) == 4);
+STATIC_ASSERT(ALIGN_OF(block_t) == 4);
 
 #ifdef __cplusplus
 extern "C" {

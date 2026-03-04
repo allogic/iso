@@ -28,6 +28,8 @@ __forceinline ivector3_t ivector3_divs(ivector3_t a, int32_t b);
 __forceinline float ivector3_dot(ivector3_t a, ivector3_t b);
 __forceinline float ivector3_length(ivector3_t a);
 __forceinline float ivector3_length2(ivector3_t a);
+__forceinline uint32_t ivector3_hash32(ivector3_t a);
+__forceinline uint32_t iveczor3_equal(ivector3_t a, ivector3_t b);
 __forceinline void ivector3_print(ivector3_t a);
 
 #ifdef __cplusplus

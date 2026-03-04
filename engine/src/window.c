@@ -145,13 +145,16 @@ void window_create(uint32_t width, uint32_t height, char const *title) {
   swapchain_create();
   framebuffer_create();
   renderer_create();
+  chunkmgr_create();
   dbgui_create();
-}
-void window_run(void) {
+
   QueryPerformanceFrequency(&g_window.time_freq);
   QueryPerformanceCounter(&g_window.time_prev);
+}
+void window_run(void) {
+  chunkmgr_start();
 
-  while (g_window.is_window_running) {
+  while (g_window.is_running) {
 
     g_window.mouse_wheel_delta = 0;
 
@@ -251,12 +254,15 @@ void window_run(void) {
 
     g_window.is_first_frame = 0;
   }
+
+  chunkmgr_stop();
 }
 void window_destroy(void) {
   VK_CHECK(vkQueueWaitIdle(g_window.primary_queue));
   VK_CHECK(vkQueueWaitIdle(g_window.present_queue));
 
   dbgui_destroy();
+  chunkmgr_destroy();
   renderer_destroy();
   framebuffer_destroy();
   swapchain_destroy();
@@ -300,13 +306,13 @@ static LRESULT window_native_message_proc(HWND window_handle, UINT window_messag
 
     case WM_CREATE: {
 
-      window->is_window_running = 1;
+      window->is_running = 1;
 
       break;
     }
     case WM_CLOSE: {
 
-      window->is_window_running = 0;
+      window->is_running = 0;
 
       break;
     }

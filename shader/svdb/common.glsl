@@ -16,9 +16,9 @@
 #define SVDB_SET_VOXEL_BLOCK_TYPE(VOXEL, BLOCK_TYPE) \
 	((VOXEL & ~(0xFF << 8)) | ((BLOCK_TYPE & 0xFF) << 8))
 
-const uint SVDB_DIM_X = 30;
+const uint SVDB_DIM_X = 3;
 const uint SVDB_DIM_Y = 3;
-const uint SVDB_DIM_Z = 30;
+const uint SVDB_DIM_Z = 3;
 
 const ivec3 SVDB_DIMS = ivec3(SVDB_DIM_X, SVDB_DIM_Y, SVDB_DIM_Z);
 
@@ -84,9 +84,6 @@ struct svdb_place_result_t {
 	uint is_obstructed;
 };
 
-// bits 15..13 : face     (3 bits)
-// bits 12..7  : atlas_id (6 bits)
-// bits 6..0   : flags    (7 bits)
 struct svdb_chunk_vertex_t {
 	uint word0;
 	uint word1;

@@ -38,15 +38,12 @@ __forceinline float signf(float a) {
   return (a > 0.0F) - (a < 0.0F);
 }
 
-__forceinline int32_t vec_to_index(ivector3_t position, ivector3_t size) {
-  return (position.x) +
-         (position.y * size.x) +
-         (position.z * size.x * size.y);
-}
-__forceinline ivector3_t index_to_vec(int32_t index, ivector3_t size) {
-  return (ivector3_t){
-    index % size.x,
-    (index / size.x) % size.y,
-    index / (size.x * size.y),
-  };
+__forceinline int32_t floor_div32(float x) {
+  int32_t i = (int32_t)x;
+
+  if (x < 0.0f && x != (float)i) {
+    i--;
+  }
+
+  return i >> 5;
 }

@@ -476,6 +476,8 @@ void svdb_create(void) {
 
   svdb_update_descriptors();
 }
+void svdb_update(void) {
+}
 void svdb_update_descriptors(void) {
   svdb_update_voxel_selector_descriptor_set();
   svdb_update_voxel_placer_descriptor_set();
@@ -604,6 +606,12 @@ void svdb_generate_world(uint32_t chunk_index) {
   vkCmdPipelineBarrier(g_window.command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &voxel_image_memory_barrier);
 
   push_constant.stage = 1;
+
+  vkCmdPushConstants(g_window.command_buffer, s_world_generator_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constant), &push_constant);
+  vkCmdDispatch(g_window.command_buffer, 5, 5, 5);
+  vkCmdPipelineBarrier(g_window.command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &voxel_image_memory_barrier);
+
+  push_constant.stage = 2;
 
   vkCmdPushConstants(g_window.command_buffer, s_world_generator_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constant), &push_constant);
   vkCmdDispatch(g_window.command_buffer, 5, 5, 5);

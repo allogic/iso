@@ -20,24 +20,13 @@
 
 #define SVDB_EMPTY_VOXEL (0)
 
-#define SVDB_DIM_X (30)
+#define SVDB_DIM_X (3)
 #define SVDB_DIM_Y (3)
-#define SVDB_DIM_Z (30)
+#define SVDB_DIM_Z (3)
 
 #define SVDB_CHUNK_SIZE (32)
-#define SVDB_CHUNK_COUNT (2700)
+#define SVDB_CHUNK_COUNT (27)
 
-// bits 15..13 : face     (3 bits)
-// bits 12..7  : atlas_id (6 bits)
-// bits 6..0   : flags    (7 bits)
-// typedef struct svdb_chunk_vertex_t {
-//  uint16_t position[3];
-//  uint16_t color;
-//  uint16_t uv;
-//  uint16_t auxiliary;
-//  uint16_t reserved0;
-//  uint16_t reserved1;
-//} svdb_chunk_vertex_t;
 typedef struct svdb_chunk_vertex_t {
   uint32_t word0;
   uint32_t word1;
@@ -45,7 +34,7 @@ typedef struct svdb_chunk_vertex_t {
   uint32_t word3;
 } svdb_chunk_vertex_t;
 
-STATIC_ASSERT(ALIGNOF(svdb_chunk_vertex_t) == 4);
+STATIC_ASSERT(ALIGN_OF(svdb_chunk_vertex_t) == 4);
 
 typedef uint32_t svdb_chunk_index_t;
 
@@ -70,10 +59,10 @@ typedef struct svdb_renderer_push_constant_t {
   uint32_t chunk_index;
 } svdb_renderer_push_constant_t;
 
-STATIC_ASSERT(ALIGNOF(svdb_world_generator_push_constant_t) == 4);
-STATIC_ASSERT(ALIGNOF(svdb_mask_generator_push_constant_t) == 4);
-STATIC_ASSERT(ALIGNOF(svdb_mesh_generator_push_constant_t) == 4);
-STATIC_ASSERT(ALIGNOF(svdb_renderer_push_constant_t) == 4);
+STATIC_ASSERT(ALIGN_OF(svdb_world_generator_push_constant_t) == 4);
+STATIC_ASSERT(ALIGN_OF(svdb_mask_generator_push_constant_t) == 4);
+STATIC_ASSERT(ALIGN_OF(svdb_mesh_generator_push_constant_t) == 4);
+STATIC_ASSERT(ALIGN_OF(svdb_renderer_push_constant_t) == 4);
 
 typedef struct svdb_chunk_info_t {
   uint32_t is_dirty;
@@ -103,11 +92,11 @@ typedef struct svdb_place_result_t {
   uint32_t is_obstructed;
 } svdb_place_result_t;
 
-STATIC_ASSERT(ALIGNOF(svdb_chunk_info_t) == 4);
-STATIC_ASSERT(ALIGNOF(svdb_chunk_mask_t) == 4);
-STATIC_ASSERT(ALIGNOF(svdb_select_result_t) == 4);
-STATIC_ASSERT(ALIGNOF(svdb_place_info_t) == 4);
-STATIC_ASSERT(ALIGNOF(svdb_place_result_t) == 4);
+STATIC_ASSERT(ALIGN_OF(svdb_chunk_info_t) == 4);
+STATIC_ASSERT(ALIGN_OF(svdb_chunk_mask_t) == 4);
+STATIC_ASSERT(ALIGN_OF(svdb_select_result_t) == 4);
+STATIC_ASSERT(ALIGN_OF(svdb_place_info_t) == 4);
+STATIC_ASSERT(ALIGN_OF(svdb_place_result_t) == 4);
 
 typedef struct svdb_t {
   uint32_t is_dirty;
@@ -125,6 +114,7 @@ extern "C" {
 extern svdb_t g_svdb;
 
 void svdb_create(void);
+void svdb_update(void);
 void svdb_update_descriptors(void);
 void svdb_draw(void);
 void svdb_debug(void);

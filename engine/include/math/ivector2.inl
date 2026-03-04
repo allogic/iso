@@ -135,6 +135,17 @@ __forceinline float ivector2_length(ivector2_t a) {
 __forceinline float ivector2_length2(ivector2_t a) {
   return ivector2_dot(a, a);
 }
+__forceinline uint32_t ivector2_hash32(ivector2_t a) {
+  uint32_t h = 2166136261U;
+
+  h = (h ^ a.x) * 16777619U;
+  h = (h ^ a.y) * 16777619U;
+
+  return h;
+}
+__forceinline uint32_t iveczor2_equal(ivector2_t a, ivector2_t b) {
+  return (a.x == b.x) && (a.y == b.y);
+}
 __forceinline void ivector2_print(ivector2_t a) {
   printf("[%d, %d]\n", a.x, a.y);
 }

@@ -493,6 +493,7 @@ void renderer_draw(void) {
   }
 }
 void renderer_debug(void) {
+  // TODO
   // svdb_debug();
   // dvdb_debug();
 }

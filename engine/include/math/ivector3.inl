@@ -169,6 +169,18 @@ __forceinline float ivector3_length(ivector3_t a) {
 __forceinline float ivector3_length2(ivector3_t a) {
   return ivector3_dot(a, a);
 }
+__forceinline uint32_t ivector3_hash32(ivector3_t a) {
+  uint32_t h = 2166136261U;
+
+  h = (h ^ a.x) * 16777619U;
+  h = (h ^ a.y) * 16777619U;
+  h = (h ^ a.z) * 16777619U;
+
+  return h;
+}
+__forceinline uint32_t ivector3_equal(ivector3_t a, ivector3_t b) {
+  return (a.x == b.x) && (a.y == b.y) && (a.z == b.z);
+}
 __forceinline void ivector3_print(ivector3_t a) {
   printf("[%d, %d, %d]\n", a.x, a.y, a.z);
 }

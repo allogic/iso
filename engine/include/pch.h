@@ -22,6 +22,8 @@
 #include <fwd.h>
 #include <heap.h>
 
+#include <container/map.h>
+
 #include <math/constant.h>
 #include <math/misc.h>
 #include <math/vector2.h>
@@ -46,6 +48,8 @@
 #include <buffer.h>
 #include <image.h>
 #include <pipeline.h>
+
+#include <chunkmgr.h>
 
 #include <svdb.h>
 #include <dvdb.h>

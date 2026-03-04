@@ -23,9 +23,9 @@ typedef struct camera_info_t {
   vector4_t frustum_plane[FRUSTUM_PLANE_COUNT];
 } camera_info_t;
 
-STATIC_ASSERT(ALIGNOF(time_info_t) == 4);
-STATIC_ASSERT(ALIGNOF(screen_info_t) == 4);
-STATIC_ASSERT(ALIGNOF(camera_info_t) == 4);
+STATIC_ASSERT(ALIGN_OF(time_info_t) == 4);
+STATIC_ASSERT(ALIGN_OF(screen_info_t) == 4);
+STATIC_ASSERT(ALIGN_OF(camera_info_t) == 4);
 
 typedef struct full_screen_vertex_t {
   vector4_t position;
@@ -35,8 +35,8 @@ typedef struct debug_line_vertex_t {
   vector4_t color;
 } debug_line_vertex_t;
 
-STATIC_ASSERT(ALIGNOF(full_screen_vertex_t) == 4);
-STATIC_ASSERT(ALIGNOF(debug_line_vertex_t) == 4);
+STATIC_ASSERT(ALIGN_OF(full_screen_vertex_t) == 4);
+STATIC_ASSERT(ALIGN_OF(debug_line_vertex_t) == 4);
 
 typedef uint32_t full_screen_index_t;
 typedef uint32_t debug_line_index_t;

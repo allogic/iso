@@ -127,6 +127,19 @@ __forceinline float ivector4_length(ivector4_t a) {
 __forceinline float ivector4_length2(ivector4_t a) {
   return ivector4_dot(a, a);
 }
+__forceinline uint32_t ivector4_hash32(ivector4_t a) {
+  uint32_t h = 2166136261U;
+
+  h = (h ^ a.x) * 16777619U;
+  h = (h ^ a.y) * 16777619U;
+  h = (h ^ a.z) * 16777619U;
+  h = (h ^ a.w) * 16777619U;
+
+  return h;
+}
+__forceinline uint32_t iveczor4_equal(ivector4_t a, ivector4_t b) {
+  return (a.x == b.x) && (a.y == b.y) && (a.z == b.z) && (a.w == b.w);
+}
 __forceinline void ivector4_print(ivector4_t a) {
   printf("[%d, %d, %d, %d]\n", a.x, a.y, a.z, a.w);
 }

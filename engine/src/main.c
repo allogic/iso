@@ -1,5 +1,6 @@
 #include <pch.h>
 
+// TODO: check out face buffers so vertex cost can be further minimized..
 // TODO: refactor uniforms with "_uniform_t" and make structs..
 
 // TODO: add vkGetBufferDeviceAddress to buffer_t directly..

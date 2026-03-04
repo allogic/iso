@@ -22,6 +22,8 @@ __forceinline ivector4_t ivector4_divs(ivector4_t a, int32_t b);
 __forceinline float ivector4_dot(ivector4_t a, ivector4_t b);
 __forceinline float ivector4_length(ivector4_t a);
 __forceinline float ivector4_length2(ivector4_t a);
+__forceinline uint32_t ivector4_hash32(ivector4_t a);
+__forceinline uint32_t iveczor4_equal(ivector4_t a, ivector4_t b);
 __forceinline void ivector4_print(ivector4_t a);
 
 #ifdef __cplusplus
