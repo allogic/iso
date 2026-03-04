@@ -1,5 +1,5 @@
-#ifndef CONTAINER_MAP_H
-#define CONTAINER_MAP_H
+#ifndef MAP_H
+#define MAP_H
 
 typedef void (*map_proc_t)(ivector3_t key, uint32_t value);
 
@@ -11,7 +11,7 @@ typedef struct map_entry_t {
 } map_entry_t;
 
 typedef struct map_t {
-  map_entry_t *entries;
+  map_entry_t *entry;
   uint32_t capacity;
   uint32_t count;
 } map_t;
@@ -32,4 +32,4 @@ void map_destroy(map_t *map);
 }
 #endif // __cplusplus
 
-#endif // CONTAINER_MAP_H
+#endif // MAP_H

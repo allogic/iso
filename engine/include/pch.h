@@ -22,8 +22,6 @@
 #include <fwd.h>
 #include <heap.h>
 
-#include <container/map.h>
-
 #include <math/constant.h>
 #include <math/misc.h>
 #include <math/vector2.h>
@@ -38,6 +36,8 @@
 #include <physic/plane.h>
 #include <physic/ray.h>
 
+#include <map.h>
+
 #include <fsutil.h>
 #include <imgutil.h>
 #include <vkutil.h>
@@ -49,6 +49,8 @@
 #include <image.h>
 #include <pipeline.h>
 
+#include <chunk.h>
+#include <chunkpool.h>
 #include <chunkmgr.h>
 
 #include <svdb.h>

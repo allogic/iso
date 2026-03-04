@@ -118,12 +118,7 @@ void image_create(image_t *image) {
     staging_buffer.device_data = 0;
   }
 
-  VkCommandBufferBeginInfo command_buffer_begin_info = {
-    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-    .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-  };
-
-  VK_CHECK(vkBeginCommandBuffer(g_window.command_buffer, &command_buffer_begin_info));
+  VkCommandBuffer command_buffer = vkutil_primary_command_buffer_record_immediate();
 
   {
     VkImageMemoryBarrier image_memory_barrier = {
@@ -144,17 +139,7 @@ void image_create(image_t *image) {
       .dstAccessMask = VK_ACCESS_NONE,
     };
 
-    vkCmdPipelineBarrier(
-      g_window.command_buffer,
-      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      &image_memory_barrier);
+    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, 0, 0, 0, 1, &image_memory_barrier);
   }
 
   VkBufferImageCopy buffer_image_copy = {
@@ -179,7 +164,7 @@ void image_create(image_t *image) {
     },
   };
 
-  vkCmdCopyBufferToImage(g_window.command_buffer, staging_buffer.buffer_handle, image->image_handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &buffer_image_copy);
+  vkCmdCopyBufferToImage(command_buffer, staging_buffer.buffer_handle, image->image_handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &buffer_image_copy);
 
   {
     VkImageMemoryBarrier image_memory_barrier = {
@@ -200,29 +185,10 @@ void image_create(image_t *image) {
       .dstAccessMask = VK_ACCESS_NONE,
     };
 
-    vkCmdPipelineBarrier(
-      g_window.command_buffer,
-      VK_PIPELINE_STAGE_TRANSFER_BIT,
-      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      &image_memory_barrier);
+    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, 0, 0, 0, 1, &image_memory_barrier);
   }
 
-  VK_CHECK(vkEndCommandBuffer(g_window.command_buffer));
-
-  VkSubmitInfo submit_info = {
-    .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-    .commandBufferCount = 1,
-    .pCommandBuffers = &g_window.command_buffer,
-  };
-
-  VK_CHECK(vkQueueSubmit(g_window.primary_queue, 1, &submit_info, 0));
-  VK_CHECK(vkQueueWaitIdle(g_window.primary_queue));
+  vkutil_primary_command_buffer_submit_immediate(command_buffer);
 
   vkFreeMemory(g_window.device, staging_buffer.device_memory, 0);
   vkDestroyBuffer(g_window.device, staging_buffer.buffer_handle, 0);

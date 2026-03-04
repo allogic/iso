@@ -202,15 +202,15 @@ void dvdb_update_descriptors(void) {
   dvdb_update_renderer_descriptor_set();
 }
 void dvdb_draw(void) {
-  vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, s_renderer_pipeline.pipeline_handle);
-  vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, s_renderer_pipeline.pipeline_layout, 0, 1, &s_renderer_pipeline.descriptor_set[g_renderer.image_index], 0, 0);
+  vkCmdBindPipeline(g_renderer.command_buffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, s_renderer_pipeline.pipeline_handle);
+  vkCmdBindDescriptorSets(g_renderer.command_buffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, s_renderer_pipeline.pipeline_layout, 0, 1, &s_renderer_pipeline.descriptor_set[g_renderer.image_index], 0, 0);
 
   VkStridedDeviceAddressRegionKHR *ray_gen_region = &s_renderer_pipeline.ray_gen_region;
   VkStridedDeviceAddressRegionKHR *ray_miss_region = &s_renderer_pipeline.ray_miss_region;
   VkStridedDeviceAddressRegionKHR *ray_hit_region = &s_renderer_pipeline.ray_hit_region;
   VkStridedDeviceAddressRegionKHR *callable_region = &s_renderer_pipeline.callable_region;
 
-  vkCmdTraceRaysKHR_proc(g_window.command_buffer, ray_gen_region, ray_miss_region, ray_hit_region, callable_region, g_window.window_width, g_window.window_height, 1);
+  vkCmdTraceRaysKHR_proc(g_renderer.command_buffer, ray_gen_region, ray_miss_region, ray_hit_region, callable_region, g_window.window_width, g_window.window_height, 1);
 }
 void dvdb_debug(void) {
   uint32_t chunk_index = 0;
@@ -476,25 +476,11 @@ static void dvdb_build_blas(void) {
     &dflt_acceleration_structure_build_range_info,
   };
 
-  VkCommandBufferBeginInfo command_buffer_begin_info = {
-    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-    .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-  };
+  VkCommandBuffer command_buffer = vkutil_primary_command_buffer_record_immediate();
 
-  VK_CHECK(vkBeginCommandBuffer(g_window.command_buffer, &command_buffer_begin_info));
+  vkCmdBuildAccelerationStructuresKHR_proc(command_buffer, 1, &s_blas_build_geometry_info, acceleration_structure_build_range_info);
 
-  vkCmdBuildAccelerationStructuresKHR_proc(g_window.command_buffer, 1, &s_blas_build_geometry_info, acceleration_structure_build_range_info);
-
-  VK_CHECK(vkEndCommandBuffer(g_window.command_buffer));
-
-  VkSubmitInfo submit_info = {
-    .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-    .commandBufferCount = 1,
-    .pCommandBuffers = &g_window.command_buffer,
-  };
-
-  VK_CHECK(vkQueueSubmit(g_window.primary_queue, 1, &submit_info, 0));
-  VK_CHECK(vkQueueWaitIdle(g_window.primary_queue));
+  vkutil_primary_command_buffer_submit_immediate(command_buffer);
 }
 static void dvdb_build_tlas(void) {
   VkBufferDeviceAddressInfo tlas_buffer_device_address_info = {
@@ -516,25 +502,11 @@ static void dvdb_build_tlas(void) {
     &dflt_acceleration_structure_build_range_info,
   };
 
-  VkCommandBufferBeginInfo command_buffer_begin_info = {
-    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-    .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-  };
+  VkCommandBuffer command_buffer = vkutil_primary_command_buffer_record_immediate();
 
-  VK_CHECK(vkBeginCommandBuffer(g_window.command_buffer, &command_buffer_begin_info));
+  vkCmdBuildAccelerationStructuresKHR_proc(command_buffer, 1, &s_tlas_build_geometry_info, acceleration_structure_build_range_info);
 
-  vkCmdBuildAccelerationStructuresKHR_proc(g_window.command_buffer, 1, &s_tlas_build_geometry_info, acceleration_structure_build_range_info);
-
-  VK_CHECK(vkEndCommandBuffer(g_window.command_buffer));
-
-  VkSubmitInfo submit_info = {
-    .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-    .commandBufferCount = 1,
-    .pCommandBuffers = &g_window.command_buffer,
-  };
-
-  VK_CHECK(vkQueueSubmit(g_window.primary_queue, 1, &submit_info, 0));
-  VK_CHECK(vkQueueWaitIdle(g_window.primary_queue));
+  vkutil_primary_command_buffer_submit_immediate(command_buffer);
 }
 
 static void dvdb_update_renderer_descriptor_set(void) {

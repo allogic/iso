@@ -67,7 +67,7 @@ void dbgui_draw(void) {
 
   ImDrawData *draw_data = ImGui::GetDrawData();
 
-  ImGui_ImplVulkan_RenderDrawData(draw_data, g_window.command_buffer);
+  ImGui_ImplVulkan_RenderDrawData(draw_data, g_renderer.command_buffer);
 }
 void dbgui_message(HWND window_handle, UINT window_message, WPARAM w_param, LPARAM l_param) {
   ImGui_ImplWin32_WndProcHandler(window_handle, window_message, w_param, l_param);

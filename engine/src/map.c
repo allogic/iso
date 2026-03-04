@@ -7,7 +7,7 @@ static uint32_t map_probe_distance(uint32_t slot, uint32_t ideal, uint32_t capac
 void map_create(map_t *map) {
   ASSERT((map->capacity & (map->capacity - 1)) == 0);
 
-  map->entries = (map_entry_t *)HEAP_ALLOC(sizeof(map_entry_t) * map->capacity, 1, 0);
+  map->entry = (map_entry_t *)HEAP_ALLOC(sizeof(map_entry_t) * map->capacity, 1, 0);
 }
 uint32_t *map_lookup(map_t *map, ivector3_t key) {
   uint32_t hash = ivector3_hash32(key);
@@ -16,7 +16,7 @@ uint32_t *map_lookup(map_t *map, ivector3_t key) {
 
   while (1) {
 
-    map_entry_t *e = &map->entries[index];
+    map_entry_t *e = &map->entry[index];
 
     if (e->occupied == 0) {
 
@@ -47,7 +47,7 @@ void map_insert(map_t *map, ivector3_t key, uint32_t value) {
 
   while (1) {
 
-    map_entry_t *e = &map->entries[index];
+    map_entry_t *e = &map->entry[index];
 
     if (e->occupied == 0) {
 
@@ -84,7 +84,7 @@ void map_remove(map_t *map, ivector3_t key) {
 
   while (1) {
 
-    map_entry_t *e = &map->entries[index];
+    map_entry_t *e = &map->entry[index];
 
     if (e->occupied == 0) {
 
@@ -104,7 +104,7 @@ void map_remove(map_t *map, ivector3_t key) {
 
   while (1) {
 
-    map_entry_t *e = &map->entries[next];
+    map_entry_t *e = &map->entry[next];
 
     if (e->occupied == 0) {
 
@@ -116,13 +116,13 @@ void map_remove(map_t *map, ivector3_t key) {
       break;
     }
 
-    map->entries[curr] = *e;
+    map->entry[curr] = *e;
     curr = next;
 
     next = (next + 1) & mask;
   }
 
-  map->entries[curr].occupied = 0;
+  map->entry[curr].occupied = 0;
   map->count--;
 }
 void map_iterate(map_t *map, map_proc_t proc) {
@@ -131,7 +131,7 @@ void map_iterate(map_t *map, map_proc_t proc) {
 
   while (index < count) {
 
-    map_entry_t *e = &map->entries[index];
+    map_entry_t *e = &map->entry[index];
 
     if (e->occupied) {
 
@@ -144,8 +144,8 @@ void map_iterate(map_t *map, map_proc_t proc) {
 void map_clear(map_t *map) {
   map->count = 0;
 
-  memset(map->entries, 0, sizeof(map_entry_t) * map->capacity);
+  memset(map->entry, 0, sizeof(map_entry_t) * map->capacity);
 }
 void map_destroy(map_t *map) {
-  HEAP_FREE(map->entries);
+  HEAP_FREE(map->entry);
 }

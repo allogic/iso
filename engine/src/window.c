@@ -17,8 +17,6 @@ static void window_create_native(void);
 static void window_create_instance(void);
 static void window_create_surface(void);
 static void window_create_device(void);
-static void window_create_command_pool(void);
-static void window_create_command_buffer(void);
 
 static void window_find_physical_device(void);
 static void window_find_physical_device_queue_families(void);
@@ -32,8 +30,6 @@ static void window_destroy_native(void);
 static void window_destroy_instance(void);
 static void window_destroy_surface(void);
 static void window_destroy_device(void);
-static void window_destroy_command_pool(void);
-static void window_destroy_command_buffer(void);
 
 static char const *s_window_class = "ENGINE_WND_CLASS";
 
@@ -135,8 +131,6 @@ void window_create(uint32_t width, uint32_t height, char const *title) {
   window_check_physical_device_features();
 
   window_create_device();
-  window_create_command_pool();
-  window_create_command_buffer();
 
   window_update_surface_capabilities();
 
@@ -269,8 +263,6 @@ void window_destroy(void) {
   renderpass_destroy();
   structure_destroy();
 
-  window_destroy_command_buffer();
-  window_destroy_command_pool();
   window_destroy_device();
   window_destroy_surface();
   window_destroy_instance();
@@ -659,25 +651,6 @@ static void window_create_device(void) {
 
   vkDestroyAccelerationStructureKHR_proc = (PFN_vkDestroyAccelerationStructureKHR)vkGetDeviceProcAddr(g_window.device, "vkDestroyAccelerationStructureKHR");
 }
-static void window_create_command_pool(void) {
-  VkCommandPoolCreateInfo command_pool_create_info = {
-    .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-    .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-    .queueFamilyIndex = g_window.primary_queue_index,
-  };
-
-  VK_CHECK(vkCreateCommandPool(g_window.device, &command_pool_create_info, 0, &g_window.command_pool));
-}
-static void window_create_command_buffer(void) {
-  VkCommandBufferAllocateInfo command_buffer_allocate_info = {
-    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-    .commandPool = g_window.command_pool,
-    .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-    .commandBufferCount = 1,
-  };
-
-  VK_CHECK(vkAllocateCommandBuffers(g_window.device, &command_buffer_allocate_info, &g_window.command_buffer));
-}
 
 static void window_find_physical_device(void) {
   uint32_t physical_device_index = 0;
@@ -907,10 +880,4 @@ static void window_destroy_surface(void) {
 }
 static void window_destroy_device(void) {
   vkDestroyDevice(g_window.device, 0);
-}
-static void window_destroy_command_pool(void) {
-  vkDestroyCommandPool(g_window.device, g_window.command_pool, 0);
-}
-static void window_destroy_command_buffer(void) {
-  vkFreeCommandBuffers(g_window.device, g_window.command_pool, 1, &g_window.command_buffer);
 }

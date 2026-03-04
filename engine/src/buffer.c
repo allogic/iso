@@ -79,16 +79,11 @@ void buffer_create(buffer_t *buffer) {
     staging_buffer.device_data = 0;
   }
 
-  VkCommandBufferBeginInfo command_buffer_begin_info = {
-    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-    .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-  };
-
-  VK_CHECK(vkBeginCommandBuffer(g_window.command_buffer, &command_buffer_begin_info));
+  VkCommandBuffer command_buffer = vkutil_primary_command_buffer_record_immediate();
 
   if (buffer->zero_data) {
 
-    vkCmdFillBuffer(g_window.command_buffer, buffer->buffer_handle, 0, buffer->size, 0);
+    vkCmdFillBuffer(command_buffer, buffer->buffer_handle, 0, buffer->size, 0);
   }
 
   VkBufferCopy buffer_copy = {
@@ -97,18 +92,9 @@ void buffer_create(buffer_t *buffer) {
     .size = buffer->size,
   };
 
-  vkCmdCopyBuffer(g_window.command_buffer, staging_buffer.buffer_handle, buffer->buffer_handle, 1, &buffer_copy);
+  vkCmdCopyBuffer(command_buffer, staging_buffer.buffer_handle, buffer->buffer_handle, 1, &buffer_copy);
 
-  VK_CHECK(vkEndCommandBuffer(g_window.command_buffer));
-
-  VkSubmitInfo submit_info = {
-    .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-    .commandBufferCount = 1,
-    .pCommandBuffers = &g_window.command_buffer,
-  };
-
-  VK_CHECK(vkQueueSubmit(g_window.primary_queue, 1, &submit_info, 0));
-  VK_CHECK(vkQueueWaitIdle(g_window.primary_queue));
+  vkutil_primary_command_buffer_submit_immediate(command_buffer);
 
   vkFreeMemory(g_window.device, staging_buffer.device_memory, 0);
   vkDestroyBuffer(g_window.device, staging_buffer.buffer_handle, 0);

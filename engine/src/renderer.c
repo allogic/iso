@@ -4,6 +4,8 @@
 #define DEBUG_LINE_INDEX_COUNT (0xFFFFF)
 
 static void renderer_create_sync_object(void);
+static void renderer_create_command_pool(void);
+static void renderer_create_command_buffer(void);
 static void renderer_create_coherent_buffer(void);
 static void renderer_create_debug_line_buffer(void);
 static void renderer_create_full_screen_buffer(void);
@@ -17,6 +19,8 @@ static void renderer_record_main_pass(void);
 static void renderer_record_ray_tracing_pass(void);
 
 static void renderer_destroy_sync_object(void);
+static void renderer_destroy_command_pool(void);
+static void renderer_destroy_command_buffer(void);
 static void renderer_destroy_buffer(void);
 
 static uint32_t s_debug_line_vertex_offset = 0;
@@ -168,6 +172,8 @@ void renderer_create(void) {
   g_renderer.is_debug_enabled = 1;
 
   renderer_create_sync_object();
+  renderer_create_command_pool();
+  renderer_create_command_buffer();
   renderer_create_coherent_buffer();
   renderer_create_debug_line_buffer();
   renderer_create_full_screen_buffer();
@@ -187,9 +193,7 @@ void renderer_update_descriptors(void) {
 }
 void renderer_draw(void) {
   VK_CHECK(vkWaitForFences(g_window.device, 1, &s_frame_fence, 1, UINT64_MAX));
-
   VK_CHECK(vkResetFences(g_window.device, 1, &s_frame_fence));
-  VK_CHECK(vkResetCommandBuffer(g_window.command_buffer, 0));
 
   g_chunkmgr.state = CHUNKMGR_STATE_IDLE;
 
@@ -205,11 +209,12 @@ void renderer_draw(void) {
     .pInheritanceInfo = 0,
   };
 
-  VK_CHECK(vkBeginCommandBuffer(g_window.command_buffer, &command_buffer_begin_info));
+  VK_CHECK(vkResetCommandBuffer(g_renderer.command_buffer, 0));
+  VK_CHECK(vkBeginCommandBuffer(g_renderer.command_buffer, &command_buffer_begin_info));
 
   if (g_chunkmgr.state == CHUNKMGR_STATE_READY) {
 
-    vkCmdExecuteCommands(g_window.command_buffer, 1, &g_chunkmgr.command_buffer);
+    vkCmdExecuteCommands(g_renderer.command_buffer, 1, &g_chunkmgr.command_buffer);
 
     g_chunkmgr.state = CHUNKMGR_STATE_IN_FLIGHT;
   }
@@ -237,17 +242,7 @@ void renderer_draw(void) {
       .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
     };
 
-    vkCmdPipelineBarrier(
-      g_window.command_buffer,
-      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-      VK_PIPELINE_STAGE_TRANSFER_BIT,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      &image_memory_barrier);
+    vkCmdPipelineBarrier(g_renderer.command_buffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, 1, &image_memory_barrier);
   }
 
   {
@@ -269,17 +264,7 @@ void renderer_draw(void) {
       .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
     };
 
-    vkCmdPipelineBarrier(
-      g_window.command_buffer,
-      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-      VK_PIPELINE_STAGE_TRANSFER_BIT,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      &image_memory_barrier);
+    vkCmdPipelineBarrier(g_renderer.command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, 1, &image_memory_barrier);
   }
 
   VkImageCopy image_copy = {
@@ -312,7 +297,7 @@ void renderer_draw(void) {
     },
   };
 
-  vkCmdCopyImage(g_window.command_buffer, g_framebuffer.color_image[g_renderer.image_index], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, g_swapchain.image[g_renderer.image_index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &image_copy);
+  vkCmdCopyImage(g_renderer.command_buffer, g_framebuffer.color_image[g_renderer.image_index], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, g_swapchain.image[g_renderer.image_index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &image_copy);
 
   {
     VkImageMemoryBarrier image_memory_barrier = {
@@ -333,17 +318,7 @@ void renderer_draw(void) {
       .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
     };
 
-    vkCmdPipelineBarrier(
-      g_window.command_buffer,
-      VK_PIPELINE_STAGE_TRANSFER_BIT,
-      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      &image_memory_barrier);
+    vkCmdPipelineBarrier(g_renderer.command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, 0, 0, 0, 1, &image_memory_barrier);
   }
 
   {
@@ -365,20 +340,10 @@ void renderer_draw(void) {
       .dstAccessMask = VK_ACCESS_NONE,
     };
 
-    vkCmdPipelineBarrier(
-      g_window.command_buffer,
-      VK_PIPELINE_STAGE_TRANSFER_BIT,
-      VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      &image_memory_barrier);
+    vkCmdPipelineBarrier(g_renderer.command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, 0, 0, 0, 1, &image_memory_barrier);
   }
 
-  VK_CHECK(vkEndCommandBuffer(g_window.command_buffer));
+  VK_CHECK(vkEndCommandBuffer(g_renderer.command_buffer));
 
   VkPipelineStageFlags primary_wait_stages[] = {
     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -393,7 +358,7 @@ void renderer_draw(void) {
     .waitSemaphoreCount = 1,
     .pSignalSemaphores = &s_render_finished_semaphore[g_renderer.image_index],
     .signalSemaphoreCount = 1,
-    .pCommandBuffers = &g_window.command_buffer,
+    .pCommandBuffers = &g_renderer.command_buffer,
     .commandBufferCount = 1,
     .pWaitDstStageMask = primary_wait_stages,
   };
@@ -432,8 +397,10 @@ void renderer_destroy(void) {
 
   pipeline_destroy(&s_debug_line_renderer_pipeline);
 
-  renderer_destroy_sync_object();
   renderer_destroy_buffer();
+  renderer_destroy_command_buffer();
+  renderer_destroy_command_pool();
+  renderer_destroy_sync_object();
 }
 
 void renderer_draw_debug_line(vector3_t from, vector3_t to, vector4_t color) {
@@ -546,6 +513,25 @@ static void renderer_create_sync_object(void) {
 
   VK_CHECK(vkCreateSemaphore(g_window.device, &semaphore_create_info, 0, &s_image_available_semaphore));
   VK_CHECK(vkCreateFence(g_window.device, &fence_create_info, 0, &s_frame_fence));
+}
+static void renderer_create_command_pool(void) {
+  VkCommandPoolCreateInfo command_pool_create_info = {
+    .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+    .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+    .queueFamilyIndex = g_window.primary_queue_index,
+  };
+
+  VK_CHECK(vkCreateCommandPool(g_window.device, &command_pool_create_info, 0, &g_renderer.command_pool));
+}
+static void renderer_create_command_buffer(void) {
+  VkCommandBufferAllocateInfo command_buffer_allocate_info = {
+    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+    .commandPool = g_renderer.command_pool,
+    .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+    .commandBufferCount = 1,
+  };
+
+  VK_CHECK(vkAllocateCommandBuffers(g_window.device, &command_buffer_allocate_info, &g_renderer.command_buffer));
 }
 static void renderer_create_coherent_buffer(void) {
   buffer_create(&s_time_info_buffer);
@@ -710,7 +696,7 @@ static void renderer_record_main_pass(void) {
     .clearValueCount = ARRAY_COUNT(clear_values),
   };
 
-  vkCmdBeginRenderPass(g_window.command_buffer, &render_pass_create_info, VK_SUBPASS_CONTENTS_INLINE);
+  vkCmdBeginRenderPass(g_renderer.command_buffer, &render_pass_create_info, VK_SUBPASS_CONTENTS_INLINE);
 
   VkViewport viewport = {
     .x = 0.0F,
@@ -721,7 +707,7 @@ static void renderer_record_main_pass(void) {
     .maxDepth = 1.0F,
   };
 
-  vkCmdSetViewport(g_window.command_buffer, 0, 1, &viewport);
+  vkCmdSetViewport(g_renderer.command_buffer, 0, 1, &viewport);
 
   VkRect2D scissor = {
     .offset.x = 0,
@@ -732,7 +718,7 @@ static void renderer_record_main_pass(void) {
     },
   };
 
-  vkCmdSetScissor(g_window.command_buffer, 0, 1, &scissor);
+  vkCmdSetScissor(g_renderer.command_buffer, 0, 1, &scissor);
 
   svdb_draw();
 
@@ -740,11 +726,11 @@ static void renderer_record_main_pass(void) {
 
     VkDeviceSize vertex_offset[] = {0};
 
-    vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_debug_line_renderer_pipeline.pipeline_handle);
-    vkCmdBindVertexBuffers(g_window.command_buffer, 0, 1, &s_debug_line_vertex_buffer.buffer_handle, vertex_offset);
-    vkCmdBindIndexBuffer(g_window.command_buffer, s_debug_line_index_buffer.buffer_handle, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_debug_line_renderer_pipeline.pipeline_layout, 0, 1, &s_debug_line_renderer_pipeline.descriptor_set[0], 0, 0);
-    vkCmdDrawIndexed(g_window.command_buffer, s_debug_line_index_offset, 1, 0, 0, 0);
+    vkCmdBindPipeline(g_renderer.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_debug_line_renderer_pipeline.pipeline_handle);
+    vkCmdBindVertexBuffers(g_renderer.command_buffer, 0, 1, &s_debug_line_vertex_buffer.buffer_handle, vertex_offset);
+    vkCmdBindIndexBuffer(g_renderer.command_buffer, s_debug_line_index_buffer.buffer_handle, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindDescriptorSets(g_renderer.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_debug_line_renderer_pipeline.pipeline_layout, 0, 1, &s_debug_line_renderer_pipeline.descriptor_set[0], 0, 0);
+    vkCmdDrawIndexed(g_renderer.command_buffer, s_debug_line_index_offset, 1, 0, 0, 0);
 
     s_debug_line_vertex_offset = 0;
     s_debug_line_index_offset = 0;
@@ -752,7 +738,7 @@ static void renderer_record_main_pass(void) {
 
   dbgui_draw();
 
-  vkCmdEndRenderPass(g_window.command_buffer);
+  vkCmdEndRenderPass(g_renderer.command_buffer);
 }
 static void renderer_record_ray_tracing_pass(void) {
   {
@@ -774,17 +760,7 @@ static void renderer_record_ray_tracing_pass(void) {
       .dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
     };
 
-    vkCmdPipelineBarrier(
-      g_window.command_buffer,
-      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-      VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      &image_memory_barrier);
+    vkCmdPipelineBarrier(g_renderer.command_buffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 0, 0, 0, 0, 1, &image_memory_barrier);
   }
 
   {
@@ -806,17 +782,7 @@ static void renderer_record_ray_tracing_pass(void) {
       .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
     };
 
-    vkCmdPipelineBarrier(
-      g_window.command_buffer,
-      VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-      VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      &image_memory_barrier);
+    vkCmdPipelineBarrier(g_renderer.command_buffer, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 0, 0, 0, 0, 1, &image_memory_barrier);
   }
 
   dvdb_draw();
@@ -840,17 +806,7 @@ static void renderer_record_ray_tracing_pass(void) {
       .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
     };
 
-    vkCmdPipelineBarrier(
-      g_window.command_buffer,
-      VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
-      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      &image_memory_barrier);
+    vkCmdPipelineBarrier(g_renderer.command_buffer, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, 0, 0, 0, 1, &image_memory_barrier);
   }
 
   {
@@ -872,17 +828,7 @@ static void renderer_record_ray_tracing_pass(void) {
       .dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
     };
 
-    vkCmdPipelineBarrier(
-      g_window.command_buffer,
-      VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
-      VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      &image_memory_barrier);
+    vkCmdPipelineBarrier(g_renderer.command_buffer, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, 0, 0, 0, 0, 0, 1, &image_memory_barrier);
   }
 }
 
@@ -899,6 +845,12 @@ static void renderer_destroy_sync_object(void) {
 
   vkDestroySemaphore(g_window.device, s_image_available_semaphore, 0);
   vkDestroyFence(g_window.device, s_frame_fence, 0);
+}
+static void renderer_destroy_command_pool(void) {
+  vkDestroyCommandPool(g_window.device, g_renderer.command_pool, 0);
+}
+static void renderer_destroy_command_buffer(void) {
+  vkFreeCommandBuffers(g_window.device, g_renderer.command_pool, 1, &g_renderer.command_buffer);
 }
 static void renderer_destroy_buffer(void) {
   buffer_destroy(&s_debug_line_vertex_buffer);

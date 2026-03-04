@@ -52,6 +52,8 @@ typedef struct renderer_t {
   VkDescriptorBufferInfo screen_info_descriptor_buffer_info;
   VkDescriptorBufferInfo mouse_info_descriptor_buffer_info;
   VkDescriptorBufferInfo camera_info_descriptor_buffer_info;
+  VkCommandPool command_pool;
+  VkCommandBuffer command_buffer;
 } renderer_t;
 
 #ifdef __cplusplus

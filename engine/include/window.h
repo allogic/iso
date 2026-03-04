@@ -169,8 +169,6 @@ typedef struct window_t {
   VkDevice device;
   VkQueue primary_queue;
   VkQueue present_queue;
-  VkCommandPool command_pool;
-  VkCommandBuffer command_buffer;
 } window_t;
 
 #ifdef __cplusplus

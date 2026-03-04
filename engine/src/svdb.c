@@ -507,7 +507,7 @@ void svdb_draw(void) {
 
   svdb_chunk_info_t *chunk_info = (svdb_chunk_info_t *)s_chunk_info_buffer[front_buffer].device_data;
 
-  vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_renderer_pipeline.pipeline_handle);
+  vkCmdBindPipeline(g_renderer.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_renderer_pipeline.pipeline_handle);
 
   svdb_renderer_push_constant_t svdb_renderer_push_constant = {0};
 
@@ -521,11 +521,11 @@ void svdb_draw(void) {
 
     VkDeviceSize vertex_offset[] = {0};
 
-    vkCmdBindVertexBuffers(g_window.command_buffer, 0, 1, &s_chunk_vertex_buffer[front_buffer][chunk_index].buffer_handle, vertex_offset);
-    vkCmdBindIndexBuffer(g_window.command_buffer, s_chunk_index_buffer[front_buffer][chunk_index].buffer_handle, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_renderer_pipeline.pipeline_layout, 0, 1, &s_renderer_pipeline.descriptor_set[chunk_index], 0, 0);
-    vkCmdPushConstants(g_window.command_buffer, s_renderer_pipeline.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(svdb_renderer_push_constant), &svdb_renderer_push_constant);
-    vkCmdDrawIndexed(g_window.command_buffer, chunk_info[chunk_index].index_count, 1, 0, 0, 0);
+    vkCmdBindVertexBuffers(g_renderer.command_buffer, 0, 1, &s_chunk_vertex_buffer[front_buffer][chunk_index].buffer_handle, vertex_offset);
+    vkCmdBindIndexBuffer(g_renderer.command_buffer, s_chunk_index_buffer[front_buffer][chunk_index].buffer_handle, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindDescriptorSets(g_renderer.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_renderer_pipeline.pipeline_layout, 0, 1, &s_renderer_pipeline.descriptor_set[chunk_index], 0, 0);
+    vkCmdPushConstants(g_renderer.command_buffer, s_renderer_pipeline.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(svdb_renderer_push_constant), &svdb_renderer_push_constant);
+    vkCmdDrawIndexed(g_renderer.command_buffer, chunk_info[chunk_index].index_count, 1, 0, 0, 0);
 
     chunk_index++;
   }
@@ -543,9 +543,9 @@ void svdb_destroy(void) {
 }
 
 void svdb_select_voxel(void) {
-  vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_voxel_selector_pipeline.pipeline_handle);
-  vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_voxel_selector_pipeline.pipeline_layout, 0, 1, &s_voxel_selector_pipeline.descriptor_set[0], 0, 0);
-  vkCmdDispatch(g_window.command_buffer, 1, 1, 1);
+  vkCmdBindPipeline(g_renderer.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_voxel_selector_pipeline.pipeline_handle);
+  vkCmdBindDescriptorSets(g_renderer.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_voxel_selector_pipeline.pipeline_layout, 0, 1, &s_voxel_selector_pipeline.descriptor_set[0], 0, 0);
+  vkCmdDispatch(g_renderer.command_buffer, 1, 1, 1);
 }
 void svdb_place_voxel(void) {
   VkImageMemoryBarrier voxel_image_memory_barrier = {
@@ -566,10 +566,10 @@ void svdb_place_voxel(void) {
     .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
   };
 
-  vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_voxel_placer_pipeline.pipeline_handle);
-  vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_voxel_placer_pipeline.pipeline_layout, 0, 1, &s_voxel_placer_pipeline.descriptor_set[0], 0, 0);
-  vkCmdDispatch(g_window.command_buffer, 1, 1, 1);
-  vkCmdPipelineBarrier(g_window.command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &voxel_image_memory_barrier);
+  vkCmdBindPipeline(g_renderer.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_voxel_placer_pipeline.pipeline_handle);
+  vkCmdBindDescriptorSets(g_renderer.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_voxel_placer_pipeline.pipeline_layout, 0, 1, &s_voxel_placer_pipeline.descriptor_set[0], 0, 0);
+  vkCmdDispatch(g_renderer.command_buffer, 1, 1, 1);
+  vkCmdPipelineBarrier(g_renderer.command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &voxel_image_memory_barrier);
 }
 
 void svdb_generate_world(uint32_t chunk_index) {
@@ -596,26 +596,26 @@ void svdb_generate_world(uint32_t chunk_index) {
     .chunk_index = chunk_index,
   };
 
-  vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_world_generator_pipeline.pipeline_handle);
-  vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_world_generator_pipeline.pipeline_layout, 0, 1, &s_world_generator_pipeline.descriptor_set[0], 0, 0);
+  vkCmdBindPipeline(g_renderer.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_world_generator_pipeline.pipeline_handle);
+  vkCmdBindDescriptorSets(g_renderer.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_world_generator_pipeline.pipeline_layout, 0, 1, &s_world_generator_pipeline.descriptor_set[0], 0, 0);
 
   push_constant.stage = 0;
 
-  vkCmdPushConstants(g_window.command_buffer, s_world_generator_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constant), &push_constant);
-  vkCmdDispatch(g_window.command_buffer, 5, 5, 5);
-  vkCmdPipelineBarrier(g_window.command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &voxel_image_memory_barrier);
+  vkCmdPushConstants(g_renderer.command_buffer, s_world_generator_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constant), &push_constant);
+  vkCmdDispatch(g_renderer.command_buffer, 5, 5, 5);
+  vkCmdPipelineBarrier(g_renderer.command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &voxel_image_memory_barrier);
 
   push_constant.stage = 1;
 
-  vkCmdPushConstants(g_window.command_buffer, s_world_generator_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constant), &push_constant);
-  vkCmdDispatch(g_window.command_buffer, 5, 5, 5);
-  vkCmdPipelineBarrier(g_window.command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &voxel_image_memory_barrier);
+  vkCmdPushConstants(g_renderer.command_buffer, s_world_generator_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constant), &push_constant);
+  vkCmdDispatch(g_renderer.command_buffer, 5, 5, 5);
+  vkCmdPipelineBarrier(g_renderer.command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &voxel_image_memory_barrier);
 
   push_constant.stage = 2;
 
-  vkCmdPushConstants(g_window.command_buffer, s_world_generator_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constant), &push_constant);
-  vkCmdDispatch(g_window.command_buffer, 5, 5, 5);
-  vkCmdPipelineBarrier(g_window.command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &voxel_image_memory_barrier);
+  vkCmdPushConstants(g_renderer.command_buffer, s_world_generator_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constant), &push_constant);
+  vkCmdDispatch(g_renderer.command_buffer, 5, 5, 5);
+  vkCmdPipelineBarrier(g_renderer.command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &voxel_image_memory_barrier);
 }
 void svdb_generate_mask(uint32_t chunk_index) {
   VkBufferMemoryBarrier mask_buffer_memory_barrier = {
@@ -634,11 +634,11 @@ void svdb_generate_mask(uint32_t chunk_index) {
     .chunk_index = chunk_index,
   };
 
-  vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_mask_generator_pipeline.pipeline_handle);
-  vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_mask_generator_pipeline.pipeline_layout, 0, 1, &s_mask_generator_pipeline.descriptor_set[0], 0, 0);
-  vkCmdPushConstants(g_window.command_buffer, s_mask_generator_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constant), &push_constant);
-  vkCmdDispatch(g_window.command_buffer, SVDB_CHUNK_SIZE, SVDB_CHUNK_SIZE, 6);
-  vkCmdPipelineBarrier(g_window.command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 1, &mask_buffer_memory_barrier, 0, 0);
+  vkCmdBindPipeline(g_renderer.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_mask_generator_pipeline.pipeline_handle);
+  vkCmdBindDescriptorSets(g_renderer.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_mask_generator_pipeline.pipeline_layout, 0, 1, &s_mask_generator_pipeline.descriptor_set[0], 0, 0);
+  vkCmdPushConstants(g_renderer.command_buffer, s_mask_generator_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constant), &push_constant);
+  vkCmdDispatch(g_renderer.command_buffer, SVDB_CHUNK_SIZE, SVDB_CHUNK_SIZE, 6);
+  vkCmdPipelineBarrier(g_renderer.command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 1, &mask_buffer_memory_barrier, 0, 0);
 }
 void svdb_generate_mesh(uint32_t chunk_index) {
   uint32_t back_buffer = !s_active_buffer;
@@ -687,11 +687,11 @@ void svdb_generate_mesh(uint32_t chunk_index) {
     .chunk_index = chunk_index,
   };
 
-  vkCmdBindPipeline(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_mesh_generator_pipeline.pipeline_handle);
-  vkCmdBindDescriptorSets(g_window.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_mesh_generator_pipeline.pipeline_layout, 0, 1, &s_mesh_generator_pipeline.descriptor_set[chunk_descriptor_index], 0, 0);
-  vkCmdPushConstants(g_window.command_buffer, s_mesh_generator_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constant), &push_constant);
-  vkCmdDispatch(g_window.command_buffer, SVDB_CHUNK_SIZE, 1, 6);
-  vkCmdPipelineBarrier(g_window.command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, 0, ARRAY_COUNT(buffer_memory_barrier), buffer_memory_barrier, 0, 0);
+  vkCmdBindPipeline(g_renderer.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_mesh_generator_pipeline.pipeline_handle);
+  vkCmdBindDescriptorSets(g_renderer.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s_mesh_generator_pipeline.pipeline_layout, 0, 1, &s_mesh_generator_pipeline.descriptor_set[chunk_descriptor_index], 0, 0);
+  vkCmdPushConstants(g_renderer.command_buffer, s_mesh_generator_pipeline.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constant), &push_constant);
+  vkCmdDispatch(g_renderer.command_buffer, SVDB_CHUNK_SIZE, 1, 6);
+  vkCmdPipelineBarrier(g_renderer.command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, 0, ARRAY_COUNT(buffer_memory_barrier), buffer_memory_barrier, 0, 0);
 }
 
 void svdb_swap_buffer(void) {
