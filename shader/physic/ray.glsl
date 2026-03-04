@@ -1,5 +1,5 @@
-#ifndef MATH_AABB_H
-#define MATH_AABB_H
+#ifndef PHYSIC_RAY_H
+#define PHYSIC_RAY_H
 
 #include "../math/constants.glsl"
 
@@ -106,4 +106,4 @@ bool ray_aabb_intersect(vec3 ray_origin, vec3 ray_direction, vec3 box_min, vec3 
 	return true;
 }
 
-#endif // MATH_AABB_H
+#endif // PHYSIC_RAY_H

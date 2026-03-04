@@ -35,6 +35,23 @@ static map_t *s_prev_active_position_ptr = &s_prev_active_position;
 chunkmgr_t g_chunkmgr = {0};
 
 void chunkmgr_create(void) {
+  VkCommandPoolCreateInfo command_pool_create_info = {
+    .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+    .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+    .queueFamilyIndex = g_window.primary_queue_index,
+  };
+
+  VK_CHECK(vkCreateCommandPool(g_window.device, &command_pool_create_info, 0, &g_chunkmgr.command_pool));
+
+  VkCommandBufferAllocateInfo command_buffer_allocate_info = {
+    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+    .commandPool = g_chunkmgr.command_pool,
+    .level = VK_COMMAND_BUFFER_LEVEL_SECONDARY,
+    .commandBufferCount = 1,
+  };
+
+  VK_CHECK(vkAllocateCommandBuffers(g_window.device, &command_buffer_allocate_info, &g_chunkmgr.command_buffer));
+
   map_create(&s_curr_active_position);
   map_create(&s_prev_active_position);
   map_create(&s_load_position);
@@ -57,39 +74,61 @@ void chunkmgr_destroy(void) {
   map_destroy(&s_prev_active_position);
   map_destroy(&s_load_position);
   map_destroy(&s_store_position);
+
+  vkFreeCommandBuffers(g_window.device, g_chunkmgr.command_pool, 1, &g_chunkmgr.command_buffer);
+  vkDestroyCommandPool(g_window.device, g_chunkmgr.command_pool, 0);
 }
 
 DWORD WINAPI chunkmgr_worker(LPVOID param) {
-
   while (g_chunkmgr.is_running) {
 
-    g_chunkmgr.prev_chunk_position = g_chunkmgr.curr_chunk_position;
-    g_chunkmgr.curr_chunk_position = (ivector3_t){
-      floor_div32(g_player.transform.world_position.x),
-      floor_div32(g_player.transform.world_position.y),
-      floor_div32(g_player.transform.world_position.z),
-    };
+    if (g_chunkmgr.state == CHUNKMGR_STATE_IDLE) {
 
-    if (ivector3_equal(g_chunkmgr.prev_chunk_position, g_chunkmgr.curr_chunk_position) == 0) {
+      g_chunkmgr.state = CHUNKMGR_STATE_RECORDING;
 
-      map_t *tmp = s_prev_active_position_ptr;
-      s_prev_active_position_ptr = s_curr_active_position_ptr;
-      s_curr_active_position_ptr = tmp;
+      VkCommandBufferInheritanceInfo command_buffer_inheritance_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO};
 
-      map_clear(s_curr_active_position_ptr);
-      map_clear(&s_load_position);
-      map_clear(&s_store_position);
+      VkCommandBufferBeginInfo command_buffer_begin_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        .pInheritanceInfo = &command_buffer_inheritance_info,
+      };
 
-      chunkmgr_collect_positions_in_ellipsoid(CHUNKMGR_CHUNK_RADIUS_X, CHUNKMGR_CHUNK_RADIUS_Y, CHUNKMGR_CHUNK_RADIUS_Z);
+      VK_CHECK(vkBeginCommandBuffer(g_chunkmgr.command_buffer, &command_buffer_begin_info));
 
-      g_chunkmgr.chunk_count = s_curr_active_position_ptr->count;
+      g_chunkmgr.prev_chunk_position = g_chunkmgr.curr_chunk_position;
+      g_chunkmgr.curr_chunk_position = (ivector3_t){
+        floor_div32(g_player.transform.world_position.x),
+        floor_div32(g_player.transform.world_position.y),
+        floor_div32(g_player.transform.world_position.z),
+      };
 
-      // map_iterate(s_curr_active_position_ptr, chunkmgr_find_load_chunks);
-      // map_iterate(s_prev_active_position_ptr, chunkmgr_find_store_chunks);
+      if (ivector3_equal(g_chunkmgr.prev_chunk_position, g_chunkmgr.curr_chunk_position) == 0) {
+
+        map_t *tmp = s_prev_active_position_ptr;
+        s_prev_active_position_ptr = s_curr_active_position_ptr;
+        s_curr_active_position_ptr = tmp;
+
+        map_clear(s_curr_active_position_ptr);
+        map_clear(&s_load_position);
+        map_clear(&s_store_position);
+
+        chunkmgr_collect_positions_in_ellipsoid(CHUNKMGR_CHUNK_RADIUS_X, CHUNKMGR_CHUNK_RADIUS_Y, CHUNKMGR_CHUNK_RADIUS_Z);
+
+        g_chunkmgr.chunk_count = s_curr_active_position_ptr->count;
+
+        // map_iterate(s_curr_active_position_ptr, chunkmgr_find_load_chunks);
+        // map_iterate(s_prev_active_position_ptr, chunkmgr_find_store_chunks);
+      }
+
+      map_iterate(&s_load_position, chunkmgr_draw_load_chunks);
+      map_iterate(&s_store_position, chunkmgr_draw_store_chunks);
+
+      VK_CHECK(vkEndCommandBuffer(g_chunkmgr.command_buffer));
+
+      g_chunkmgr.state = CHUNKMGR_STATE_READY;
     }
-
-    map_iterate(&s_load_position, chunkmgr_draw_load_chunks);
-    map_iterate(&s_store_position, chunkmgr_draw_store_chunks);
   }
 
   return 0;

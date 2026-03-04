@@ -22,10 +22,10 @@ static void renderer_destroy_buffer(void);
 static uint32_t s_debug_line_vertex_offset = 0;
 static uint32_t s_debug_line_index_offset = 0;
 
+static VkFence s_frame_fence = 0;
+
 static VkSemaphore s_render_finished_semaphore[SWAPCHAIN_MAX_IMAGE_COUNT] = {0};
 static VkSemaphore s_image_available_semaphore = {0};
-
-static VkFence s_frame_fence = {0};
 
 static full_screen_vertex_t const s_full_screen_vertices[] = {
   {-1.0F, -1.0F, 0.0F, 1.0F},
@@ -186,68 +186,16 @@ void renderer_update_descriptors(void) {
   dvdb_update_descriptors();
 }
 void renderer_draw(void) {
-  VkResult result = VK_SUCCESS;
+  VK_CHECK(vkWaitForFences(g_window.device, 1, &s_frame_fence, 1, UINT64_MAX));
 
-  result = vkWaitForFences(g_window.device, 1, &s_frame_fence, 1, UINT64_MAX);
+  VK_CHECK(vkResetFences(g_window.device, 1, &s_frame_fence));
+  VK_CHECK(vkResetCommandBuffer(g_window.command_buffer, 0));
 
-  switch (result) {
-    case VK_SUCCESS: {
-      break;
-    }
-#ifdef BUILD_DEBUG
-    default: {
-      __debugbreak();
-    }
-#endif // BUILD_DEBUG
-  }
+  g_chunkmgr.state = CHUNKMGR_STATE_IDLE;
 
   svdb_swap_buffer();
 
-  result = vkResetFences(g_window.device, 1, &s_frame_fence);
-
-  switch (result) {
-    case VK_SUCCESS: {
-      break;
-    }
-#ifdef BUILD_DEBUG
-    default: {
-      __debugbreak();
-    }
-#endif // BUILD_DEBUG
-  }
-
-  result = vkResetCommandBuffer(g_window.command_buffer, 0);
-
-  switch (result) {
-    case VK_SUCCESS: {
-      break;
-    }
-#ifdef BUILD_DEBUG
-    default: {
-      __debugbreak();
-    }
-#endif // BUILD_DEBUG
-  }
-
-  result = vkAcquireNextImageKHR(g_window.device, g_swapchain.handle, UINT64_MAX, s_image_available_semaphore, 0, &g_renderer.image_index);
-
-  switch (result) {
-    case VK_SUCCESS: {
-      break;
-    }
-    case VK_ERROR_OUT_OF_DATE_KHR:
-    case VK_SUBOPTIMAL_KHR: {
-
-      g_swapchain.is_dirty = 1;
-
-      return;
-    }
-#ifdef BUILD_DEBUG
-    default: {
-      __debugbreak();
-    }
-#endif // BUILD_DEBUG
-  }
+  VK_CHECK(vkAcquireNextImageKHR(g_window.device, g_swapchain.handle, UINT64_MAX, s_image_available_semaphore, 0, &g_renderer.image_index));
 
   renderer_update_coherent_buffer();
 
@@ -258,6 +206,13 @@ void renderer_draw(void) {
   };
 
   VK_CHECK(vkBeginCommandBuffer(g_window.command_buffer, &command_buffer_begin_info));
+
+  if (g_chunkmgr.state == CHUNKMGR_STATE_READY) {
+
+    vkCmdExecuteCommands(g_window.command_buffer, 1, &g_chunkmgr.command_buffer);
+
+    g_chunkmgr.state = CHUNKMGR_STATE_IN_FLIGHT;
+  }
 
   renderer_record_compute_pass();
   renderer_record_main_pass();
@@ -357,14 +312,7 @@ void renderer_draw(void) {
     },
   };
 
-  vkCmdCopyImage(
-    g_window.command_buffer,
-    g_framebuffer.color_image[g_renderer.image_index],
-    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-    g_swapchain.image[g_renderer.image_index],
-    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-    1,
-    &image_copy);
+  vkCmdCopyImage(g_window.command_buffer, g_framebuffer.color_image[g_renderer.image_index], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, g_swapchain.image[g_renderer.image_index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &image_copy);
 
   {
     VkImageMemoryBarrier image_memory_barrier = {
@@ -450,18 +398,7 @@ void renderer_draw(void) {
     .pWaitDstStageMask = primary_wait_stages,
   };
 
-  result = vkQueueSubmit(g_window.primary_queue, 1, &primary_submit_info, s_frame_fence);
-
-  switch (result) {
-    case VK_SUCCESS: {
-      break;
-    }
-#ifdef BUILD_DEBUG
-    default: {
-      __debugbreak();
-    }
-#endif // BUILD_DEBUG
-  }
+  VK_CHECK(vkQueueSubmit(g_window.primary_queue, 1, &primary_submit_info, s_frame_fence));
 
   VkPresentInfoKHR present_info = {
     .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
@@ -472,24 +409,16 @@ void renderer_draw(void) {
     .pImageIndices = &g_renderer.image_index,
   };
 
-  result = vkQueuePresentKHR(g_window.present_queue, &present_info);
+  VkResult result = vkQueuePresentKHR(g_window.present_queue, &present_info);
 
   switch (result) {
-    case VK_SUCCESS: {
-      break;
-    }
-    case VK_ERROR_OUT_OF_DATE_KHR:
-    case VK_SUBOPTIMAL_KHR: {
+    case VK_SUBOPTIMAL_KHR:
+    case VK_ERROR_OUT_OF_DATE_KHR: {
 
       g_swapchain.is_dirty = 1;
 
       return;
     }
-#ifdef BUILD_DEBUG
-    default: {
-      __debugbreak();
-    }
-#endif // BUILD_DEBUG
   }
 }
 void renderer_debug(void) {
