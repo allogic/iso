@@ -36,8 +36,6 @@
 #include <physic/plane.h>
 #include <physic/ray.h>
 
-#include <map.h>
-
 #include <fsutil.h>
 #include <imgutil.h>
 #include <vkutil.h>
@@ -49,7 +47,8 @@
 #include <image.h>
 #include <pipeline.h>
 
-#include <chunk.h>
+#include <chunktbl.h>
+#include <chunkmap.h>
 #include <chunkpool.h>
 #include <chunkmgr.h>
 

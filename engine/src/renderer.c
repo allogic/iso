@@ -195,7 +195,14 @@ void renderer_draw(void) {
   VK_CHECK(vkWaitForFences(g_window.device, 1, &s_frame_fence, 1, UINT64_MAX));
   VK_CHECK(vkResetFences(g_window.device, 1, &s_frame_fence));
 
-  g_chunkmgr.state = CHUNKMGR_STATE_IDLE;
+  if (g_chunkmgr.async_state == CHUNKMGR_ASYNC_STATE_IN_FLIGHT) {
+
+    if (g_chunkmgr.build_state == CHUNKMGR_BUILD_STATE_DIRTY) {
+      g_chunkmgr.build_state = CHUNKMGR_BUILD_STATE_READY;
+    }
+
+    g_chunkmgr.async_state = CHUNKMGR_ASYNC_STATE_IDLE;
+  }
 
   svdb_swap_buffer();
 
@@ -212,11 +219,17 @@ void renderer_draw(void) {
   VK_CHECK(vkResetCommandBuffer(g_renderer.command_buffer, 0));
   VK_CHECK(vkBeginCommandBuffer(g_renderer.command_buffer, &command_buffer_begin_info));
 
-  if (g_chunkmgr.state == CHUNKMGR_STATE_READY) {
+  if (g_chunkmgr.async_state == CHUNKMGR_ASYNC_STATE_READY) {
 
-    vkCmdExecuteCommands(g_renderer.command_buffer, 1, &g_chunkmgr.command_buffer);
+    if (g_chunkmgr.build_state == CHUNKMGR_BUILD_STATE_READY) {
+      vkCmdExecuteCommands(g_renderer.command_buffer, g_chunkmgr.chunk_count, g_chunkmgr.graphics_command_buffer);
+    }
 
-    g_chunkmgr.state = CHUNKMGR_STATE_IN_FLIGHT;
+    if (g_chunkmgr.build_state == CHUNKMGR_BUILD_STATE_DIRTY) {
+      vkCmdExecuteCommands(g_renderer.command_buffer, g_chunkmgr.chunk_count, g_chunkmgr.compute_command_buffer);
+    }
+
+    g_chunkmgr.async_state = CHUNKMGR_ASYNC_STATE_IN_FLIGHT;
   }
 
   renderer_record_compute_pass();
@@ -623,40 +636,40 @@ static void renderer_record_compute_pass(void) {
     g_svdb.generate_world = 0;
     g_svdb.is_dirty = 1;
 
-    uint32_t chunk_index = 0;
-    uint32_t chunk_count = SVDB_CHUNK_COUNT;
-
-    while (chunk_index < chunk_count) {
-
-      svdb_generate_world(chunk_index);
-      svdb_generate_mask(chunk_index);
-      svdb_generate_mesh(chunk_index);
-
-      chunk_index++;
-    }
+    // uint32_t chunk_index = 0;
+    // uint32_t chunk_count = SVDB_CHUNK_COUNT;
+    //
+    // while (chunk_index < chunk_count) {
+    //
+    //   svdb_generate_world(g_renderer.command_buffer, chunk_index);
+    //   svdb_generate_mask(g_renderer.command_buffer, chunk_index);
+    //   svdb_generate_mesh(g_renderer.command_buffer, chunk_index);
+    //
+    //   chunk_index++;
+    // }
   }
 
-  if (g_svdb.rebuild_chunk) {
-
-    g_svdb.rebuild_chunk = 0;
-    g_svdb.is_dirty = 1;
-
-    // TODO: handle rebuild depending for surrounding chunks..
-    svdb_generate_mask(0);
-    svdb_generate_mesh(0);
-  }
+  // if (g_svdb.rebuild_chunk) {
+  //
+  //   g_svdb.rebuild_chunk = 0;
+  //   g_svdb.is_dirty = 1;
+  //
+  //   // TODO: handle rebuild depending for surrounding chunks..
+  //   // svdb_generate_mask(g_renderer.command_buffer, 0);
+  //   // svdb_generate_mesh(g_renderer.command_buffer, 0);
+  // }
 
   // TODO: handle selection that go outside the current chunk..
-  svdb_select_voxel();
+  // svdb_select_voxel();
 
-  if (g_player.place_voxel) {
-
-    g_player.place_voxel = 0;
-
-    svdb_place_voxel();
-
-    g_svdb.rebuild_chunk = 1;
-  }
+  // if (g_player.place_voxel) {
+  //
+  //   g_player.place_voxel = 0;
+  //
+  //   svdb_place_voxel();
+  //
+  //   g_svdb.rebuild_chunk = 1;
+  // }
 }
 static void renderer_record_main_pass(void) {
   VkClearValue color_clear_value = {

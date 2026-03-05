@@ -123,9 +123,9 @@ void svdb_destroy(void);
 void svdb_select_voxel(void);
 void svdb_place_voxel(void);
 
-void svdb_generate_world(uint32_t chunk_index);
-void svdb_generate_mask(uint32_t chunk_index);
-void svdb_generate_mesh(uint32_t chunk_index);
+void svdb_generate_world(VkCommandBuffer command_buffer, uint32_t chunk_index);
+void svdb_generate_mask(VkCommandBuffer command_buffer, uint32_t chunk_index);
+void svdb_generate_mesh(VkCommandBuffer command_buffer, uint32_t chunk_index);
 
 void svdb_swap_buffer(void);
 

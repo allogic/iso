@@ -2,7 +2,6 @@
 #define CHUNKPOOL_H
 
 typedef struct chunkpool_t {
-  chunk_t *chunk;
   uint32_t *free_stack;
   uint32_t capacity;
   uint32_t free_count;
@@ -12,9 +11,8 @@ typedef struct chunkpool_t {
 extern "C" {
 #endif // __cplusplus
 
-void chunkpool_create(chunkpool_t *pool);
+void chunkpool_create(chunkpool_t *pool, uint32_t capacity);
 uint32_t chunkpool_alloc(chunkpool_t *pool);
-chunk_t *chunkpool_lookup(chunkpool_t *pool, uint32_t handle);
 void chunkpool_free(chunkpool_t *pool, uint32_t handle);
 void chunkpool_destroy(chunkpool_t *pool);
 
