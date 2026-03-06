@@ -196,9 +196,6 @@ void dvdb_create(void) {
 
   pipeline_create(&s_renderer_pipeline);
 
-  dvdb_update_descriptors();
-}
-void dvdb_update_descriptors(void) {
   dvdb_update_renderer_descriptor_set();
 }
 void dvdb_draw(void) {
@@ -211,30 +208,6 @@ void dvdb_draw(void) {
   VkStridedDeviceAddressRegionKHR *callable_region = &s_renderer_pipeline.callable_region;
 
   vkCmdTraceRaysKHR_proc(g_renderer.command_buffer, ray_gen_region, ray_miss_region, ray_hit_region, callable_region, g_window.window_width, g_window.window_height, 1);
-}
-void dvdb_debug(void) {
-  uint32_t chunk_index = 0;
-  uint32_t chunk_count = DVDB_CHUNK_COUNT;
-
-  while (chunk_index < chunk_count) {
-
-    ivector3_t chunk_position = dvdb_chunk_index_to_position(chunk_index);
-
-    vector4_t chunk_color = {0};
-
-    if (g_dvdb.chunk_info[chunk_index].is_dirty) {
-      chunk_color = vector4_xyzw(1.0F, 0.0F, 0.0F, 1.0F);
-    } else {
-      chunk_color = vector4_xyzw(1.0F, 1.0F, 1.0F, 1.0F);
-    }
-
-    renderer_draw_debug_box(
-      (vector3_t){(float)chunk_position.x * DVDB_CHUNK_SIZE, (float)chunk_position.y * DVDB_CHUNK_SIZE, (float)chunk_position.z * DVDB_CHUNK_SIZE},
-      (vector3_t){(float)DVDB_CHUNK_SIZE, (float)DVDB_CHUNK_SIZE, (float)DVDB_CHUNK_SIZE},
-      chunk_color);
-
-    chunk_index++;
-  }
 }
 void dvdb_destroy(void) {
   pipeline_destroy(&s_renderer_pipeline);

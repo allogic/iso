@@ -180,16 +180,7 @@ void renderer_create(void) {
 
   pipeline_create(&s_debug_line_renderer_pipeline);
 
-  svdb_create();
-  dvdb_create();
-
-  renderer_update_descriptors();
-}
-void renderer_update_descriptors(void) {
   renderer_update_debug_line_descriptor_set();
-
-  svdb_update_descriptors();
-  dvdb_update_descriptors();
 }
 void renderer_draw(void) {
   VK_CHECK(vkWaitForFences(g_window.device, 1, &s_frame_fence, 1, UINT64_MAX));
@@ -203,8 +194,6 @@ void renderer_draw(void) {
 
     g_chunkmgr.async_state = CHUNKMGR_ASYNC_STATE_IDLE;
   }
-
-  svdb_swap_buffer();
 
   VK_CHECK(vkAcquireNextImageKHR(g_window.device, g_swapchain.handle, UINT64_MAX, s_image_available_semaphore, 0, &g_renderer.image_index));
 
@@ -221,12 +210,8 @@ void renderer_draw(void) {
 
   if (g_chunkmgr.async_state == CHUNKMGR_ASYNC_STATE_READY) {
 
-    if (g_chunkmgr.build_state == CHUNKMGR_BUILD_STATE_READY) {
-      vkCmdExecuteCommands(g_renderer.command_buffer, g_chunkmgr.chunk_count, g_chunkmgr.graphics_command_buffer);
-    }
-
     if (g_chunkmgr.build_state == CHUNKMGR_BUILD_STATE_DIRTY) {
-      vkCmdExecuteCommands(g_renderer.command_buffer, g_chunkmgr.chunk_count, g_chunkmgr.compute_command_buffer);
+      vkCmdExecuteCommands(g_renderer.command_buffer, 1, &g_chunkmgr.command_buffer);
     }
 
     g_chunkmgr.async_state = CHUNKMGR_ASYNC_STATE_IN_FLIGHT;
@@ -399,15 +384,7 @@ void renderer_draw(void) {
     }
   }
 }
-void renderer_debug(void) {
-  // TODO
-  // svdb_debug();
-  // dvdb_debug();
-}
 void renderer_destroy(void) {
-  dvdb_destroy();
-  svdb_destroy();
-
   pipeline_destroy(&s_debug_line_renderer_pipeline);
 
   renderer_destroy_buffer();
@@ -733,14 +710,12 @@ static void renderer_record_main_pass(void) {
 
   vkCmdSetScissor(g_renderer.command_buffer, 0, 1, &scissor);
 
-  svdb_draw();
-
   if (g_renderer.is_debug_enabled) {
 
-    VkDeviceSize vertex_offset[] = {0};
+    VkDeviceSize vertex_offset = 0;
 
     vkCmdBindPipeline(g_renderer.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_debug_line_renderer_pipeline.pipeline_handle);
-    vkCmdBindVertexBuffers(g_renderer.command_buffer, 0, 1, &s_debug_line_vertex_buffer.buffer_handle, vertex_offset);
+    vkCmdBindVertexBuffers(g_renderer.command_buffer, 0, 1, &s_debug_line_vertex_buffer.buffer_handle, &vertex_offset);
     vkCmdBindIndexBuffer(g_renderer.command_buffer, s_debug_line_index_buffer.buffer_handle, 0, VK_INDEX_TYPE_UINT32);
     vkCmdBindDescriptorSets(g_renderer.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_debug_line_renderer_pipeline.pipeline_layout, 0, 1, &s_debug_line_renderer_pipeline.descriptor_set[0], 0, 0);
     vkCmdDrawIndexed(g_renderer.command_buffer, s_debug_line_index_offset, 1, 0, 0, 0);
@@ -798,7 +773,7 @@ static void renderer_record_ray_tracing_pass(void) {
     vkCmdPipelineBarrier(g_renderer.command_buffer, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 0, 0, 0, 0, 1, &image_memory_barrier);
   }
 
-  dvdb_draw();
+  // dvdb_draw();
 
   {
     VkImageMemoryBarrier image_memory_barrier = {

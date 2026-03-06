@@ -194,8 +194,6 @@ void window_run(void) {
 
       swapchain_create();
       framebuffer_create();
-
-      renderer_update_descriptors();
     }
 
     while (PeekMessageA(&g_window.window_message, 0, 0, 0, PM_REMOVE)) {
@@ -206,7 +204,6 @@ void window_run(void) {
 
     player_update();
 
-    renderer_debug();
     renderer_draw();
 
     QueryPerformanceCounter(&g_window.time_curr);

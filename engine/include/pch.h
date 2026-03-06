@@ -47,13 +47,13 @@
 #include <image.h>
 #include <pipeline.h>
 
+#include <svdb.h>
+#include <dvdb.h>
+
 #include <chunktbl.h>
 #include <chunkmap.h>
 #include <chunkpool.h>
 #include <chunkmgr.h>
-
-#include <svdb.h>
-#include <dvdb.h>
 
 #include <block.h>
 #include <structure.h>

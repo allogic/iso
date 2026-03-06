@@ -28,9 +28,7 @@ extern "C" {
 extern dvdb_t g_dvdb;
 
 void dvdb_create(void);
-void dvdb_update_descriptors(void);
 void dvdb_draw(void);
-void dvdb_debug(void);
 void dvdb_destroy(void);
 
 uint32_t dvdb_chunk_position_to_index(ivector3_t chunk_position);

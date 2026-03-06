@@ -102,6 +102,7 @@ typedef struct svdb_t {
   uint32_t is_dirty;
   uint32_t generate_world;
   uint32_t rebuild_chunk;
+  uint32_t chunk_count;
   svdb_select_result_t *select_result;
   svdb_place_info_t *place_info;
   svdb_place_result_t *place_result;
@@ -113,11 +114,7 @@ extern "C" {
 
 extern svdb_t g_svdb;
 
-void svdb_create(void);
-void svdb_update(void);
-void svdb_update_descriptors(void);
-void svdb_draw(void);
-void svdb_debug(void);
+void svdb_create(uint32_t chunk_count);
 void svdb_destroy(void);
 
 void svdb_select_voxel(void);
@@ -127,7 +124,7 @@ void svdb_generate_world(VkCommandBuffer command_buffer, uint32_t chunk_index);
 void svdb_generate_mask(VkCommandBuffer command_buffer, uint32_t chunk_index);
 void svdb_generate_mesh(VkCommandBuffer command_buffer, uint32_t chunk_index);
 
-void svdb_swap_buffer(void);
+void svdb_draw_mesh(VkCommandBuffer command_buffer, uint32_t chunk_index);
 
 uint32_t svdb_chunk_position_to_index(ivector3_t chunk_position);
 ivector3_t svdb_chunk_index_to_position(uint32_t chunk_index);

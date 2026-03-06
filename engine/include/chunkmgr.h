@@ -20,10 +20,8 @@ typedef struct chunkmgr_t {
   ivector3_t prev_chunk_position;
   ivector3_t curr_chunk_position;
   uint32_t is_running;
-  uint32_t chunk_count;
   VkCommandPool command_pool;
-  VkCommandBuffer *compute_command_buffer;
-  VkCommandBuffer *graphics_command_buffer;
+  VkCommandBuffer command_buffer;
 } chunkmgr_t;
 
 #ifdef __cplusplus
