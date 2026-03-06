@@ -21,11 +21,6 @@ layout (location = 3) out uint output_atlas_id;
 
 layout (binding = 0) uniform camera_info_uniform_t { camera_info_t camera_info; } camera_info_uniform;
 
-layout (push_constant) uniform push_constant_t {
-	ivec3 chunk_position;
-	uint chunk_index;
-} pc;
-
 vec3 face_to_normal(uint face) {
 	switch (face) {
 		case SVDB_FACE_PX: return vec3( 1, 0, 0);
@@ -69,7 +64,7 @@ void main() {
 	vec3 vertex_color = unpack_color(packed_color);
 	vec2 vertex_uv = unpack_uv(packed_uv);
 
-	vec4 world_position = vec4(pc.chunk_position * SVDB_CHUNK_SIZE, 0) + vec4(x, y, z, 1);
+	vec4 world_position = vec4(x, y, z, 1); // TODO: add instance position..
 	vec4 clip_position  = camera_info_uniform.camera_info.view_projection * world_position;
 
 	output_normal = vertex_normal;

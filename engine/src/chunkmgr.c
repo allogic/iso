@@ -123,6 +123,8 @@ DWORD WINAPI chunkmgr_worker(LPVOID param) {
           chunkmap_iterate(s_prev_active_position_ptr, chunkmgr_find_store_chunk);
           chunkmap_iterate(s_curr_active_position_ptr, chunkmgr_find_load_chunk);
 
+          svdb_generate_idraw(g_chunkmgr.command_buffer);
+
           VK_CHECK(vkEndCommandBuffer(g_chunkmgr.command_buffer));
 
           s_active_chunk_count = s_chunktbl.dense_count;

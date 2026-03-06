@@ -31,13 +31,13 @@ static VkFence s_frame_fence = 0;
 static VkSemaphore s_render_finished_semaphore[SWAPCHAIN_MAX_IMAGE_COUNT] = {0};
 static VkSemaphore s_image_available_semaphore = {0};
 
-static full_screen_vertex_t const s_full_screen_vertices[] = {
+static full_screen_vertex_t s_full_screen_vertices[] = {
   {-1.0F, -1.0F, 0.0F, 1.0F},
   {1.0F, -1.0F, 0.0F, 1.0F},
   {-1.0F, 1.0F, 0.0F, 1.0F},
   {1.0F, 1.0F, 0.0F, 1.0F},
 };
-static full_screen_index_t const s_full_screen_indices[] = {
+static full_screen_index_t s_full_screen_indices[] = {
   0,
   1,
   2,
@@ -46,14 +46,14 @@ static full_screen_index_t const s_full_screen_indices[] = {
   1,
 };
 
-static VkVertexInputBindingDescription const s_full_screen_vertex_input_binding_description[] = {
+static VkVertexInputBindingDescription s_full_screen_vertex_input_binding_description[] = {
   {
     .binding = 0,
     .stride = sizeof(full_screen_vertex_t),
     .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
   },
 };
-static VkVertexInputBindingDescription const s_debug_line_vertex_input_binding_description[] = {
+static VkVertexInputBindingDescription s_debug_line_vertex_input_binding_description[] = {
   {
     .binding = 0,
     .stride = sizeof(debug_line_vertex_t),
@@ -61,7 +61,7 @@ static VkVertexInputBindingDescription const s_debug_line_vertex_input_binding_d
   },
 };
 
-static VkVertexInputAttributeDescription const s_full_screen_vertex_input_attribute_description[] = {
+static VkVertexInputAttributeDescription s_full_screen_vertex_input_attribute_description[] = {
   {
     .location = 0,
     .binding = 0,
@@ -69,7 +69,7 @@ static VkVertexInputAttributeDescription const s_full_screen_vertex_input_attrib
     .offset = 0,
   },
 };
-static VkVertexInputAttributeDescription const s_debug_line_vertex_input_attribute_description[] = {
+static VkVertexInputAttributeDescription s_debug_line_vertex_input_attribute_description[] = {
   {
     .location = 0,
     .binding = 0,
@@ -84,14 +84,14 @@ static VkVertexInputAttributeDescription const s_debug_line_vertex_input_attribu
   },
 };
 
-static VkDescriptorPoolSize const s_debug_line_renderer_descriptor_pool_size[] = {
+static VkDescriptorPoolSize s_debug_line_renderer_descriptor_pool_size[] = {
   {
     .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
     .descriptorCount = 1,
   },
 };
 
-static VkDescriptorSetLayoutBinding const s_debug_line_renderer_descriptor_set_layout_binding[] = {
+static VkDescriptorSetLayoutBinding s_debug_line_renderer_descriptor_set_layout_binding[] = {
   {
     .binding = 0,
     .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -112,7 +112,7 @@ static buffer_t s_debug_line_index_buffer = {
   .memory_property_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 };
 static buffer_t s_full_screen_vertex_buffer = {
-  .host_data = (void *)s_full_screen_vertices,
+  .host_data = s_full_screen_vertices,
   .size = sizeof(s_full_screen_vertices),
   .buffer_usage_flags = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
   .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -608,23 +608,23 @@ static void renderer_update_coherent_buffer(void) {
 }
 
 static void renderer_record_compute_pass(void) {
-  if (g_svdb.generate_world) {
-
-    g_svdb.generate_world = 0;
-    g_svdb.is_dirty = 1;
-
-    // uint32_t chunk_index = 0;
-    // uint32_t chunk_count = SVDB_CHUNK_COUNT;
-    //
-    // while (chunk_index < chunk_count) {
-    //
-    //   svdb_generate_world(g_renderer.command_buffer, chunk_index);
-    //   svdb_generate_mask(g_renderer.command_buffer, chunk_index);
-    //   svdb_generate_mesh(g_renderer.command_buffer, chunk_index);
-    //
-    //   chunk_index++;
-    // }
-  }
+  // if (g_svdb.generate_world) {
+  //
+  //   g_svdb.generate_world = 0;
+  //   g_svdb.is_dirty = 1;
+  //
+  //   // uint32_t chunk_index = 0;
+  //   // uint32_t chunk_count = SVDB_CHUNK_COUNT;
+  //   //
+  //   // while (chunk_index < chunk_count) {
+  //   //
+  //   //   svdb_generate_world(g_renderer.command_buffer, chunk_index);
+  //   //   svdb_generate_mask(g_renderer.command_buffer, chunk_index);
+  //   //   svdb_generate_mesh(g_renderer.command_buffer, chunk_index);
+  //   //
+  //   //   chunk_index++;
+  //   // }
+  // }
 
   // if (g_svdb.rebuild_chunk) {
   //
@@ -710,6 +710,8 @@ static void renderer_record_main_pass(void) {
 
   vkCmdSetScissor(g_renderer.command_buffer, 0, 1, &scissor);
 
+  svdb_draw_mesh(g_renderer.command_buffer);
+
   if (g_renderer.is_debug_enabled) {
 
     VkDeviceSize vertex_offset = 0;
@@ -724,7 +726,7 @@ static void renderer_record_main_pass(void) {
     s_debug_line_index_offset = 0;
   }
 
-  dbgui_draw();
+  dbgui_draw(g_renderer.command_buffer);
 
   vkCmdEndRenderPass(g_renderer.command_buffer);
 }
@@ -773,7 +775,7 @@ static void renderer_record_ray_tracing_pass(void) {
     vkCmdPipelineBarrier(g_renderer.command_buffer, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 0, 0, 0, 0, 1, &image_memory_barrier);
   }
 
-  // dvdb_draw();
+  // dvdb_draw(g_renderer.command_buffer);
 
   {
     VkImageMemoryBarrier image_memory_barrier = {

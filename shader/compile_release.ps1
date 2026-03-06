@@ -14,3 +14,4 @@ glslangValidator -I"." -V --target-env vulkan1.3 -o svdb/voxel_placer.comp.spv s
 glslangValidator -I"." -V --target-env vulkan1.3 -o svdb/world_generator.comp.spv svdb/world_generator.comp
 glslangValidator -I"." -V --target-env vulkan1.3 -o svdb/mask_generator.comp.spv svdb/mask_generator.comp
 glslangValidator -I"." -V --target-env vulkan1.3 -o svdb/mesh_generator.comp.spv svdb/mesh_generator.comp
+glslangValidator -I"." -V --target-env vulkan1.3 -o svdb/idcall_generator.comp.spv svdb/idcall_generator.comp

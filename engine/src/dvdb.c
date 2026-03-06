@@ -33,7 +33,7 @@ static VkAabbPositionsKHR s_aabb = {
   .maxZ = 32.0F,
 };
 
-static VkDescriptorPoolSize const s_renderer_descriptor_pool_size[] = {
+static VkDescriptorPoolSize s_renderer_descriptor_pool_size[] = {
   {
     .type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
     .descriptorCount = SWAPCHAIN_IMAGE_COUNT, // TODO: make seperate executables for single/double and tripple buffering.. (only static way!)
@@ -52,7 +52,7 @@ static VkDescriptorPoolSize const s_renderer_descriptor_pool_size[] = {
   },
 };
 
-static VkDescriptorSetLayoutBinding const s_renderer_descriptor_set_layout_binding[] = {
+static VkDescriptorSetLayoutBinding s_renderer_descriptor_set_layout_binding[] = {
   {
     .binding = 0,
     .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,

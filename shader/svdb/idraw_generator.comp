@@ -1,0 +1,41 @@
+#version 460 core
+
+#extension GL_ARB_shading_language_include : require
+#extension GL_EXT_nonuniform_qualifier : require
+#extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
+
+#include "../global.glsl"
+
+#include "../svdb/common.glsl"
+
+layout (
+	local_size_x = 64,
+	local_size_y = 1,
+	local_size_z = 1
+) in;
+
+layout (binding = 0) uniform svdb_cluster_info_buffer_t { svdb_cluster_info_t cluster_info; } svdb_cluster_info_buffer;
+layout (binding = 1, std430) readonly buffer svdb_mesh_count_buffer_t { svdb_mesh_count_t mesh_count[]; } svdb_mesh_count_buffer;
+layout (binding = 2, std430) writeonly buffer svdb_indirect_draw_buffer_t { svdb_indirect_draw_t indirect_draw[]; } svdb_indirect_draw_buffer;
+
+void main() {
+	uint chunk_index = gl_GlobalInvocationID.x;
+
+	if (chunk_index < svdb_cluster_info_buffer.cluster_info.chunk_count) {
+
+		uint index_count = svdb_mesh_count_buffer.mesh_count[chunk_index].index_count;
+		uint vertex_count = svdb_mesh_count_buffer.mesh_count[chunk_index].vertex_count;
+
+		uint first_index = chunk_index * WORST_CASE_GREEDY_MESH_INDEX_COUNT;
+		uint vertex_offset = chunk_index * WORST_CASE_GREEDY_MESH_VERTEX_COUNT;
+
+		uint instance_count = index_count > 0 ? 1 : 0;
+
+		svdb_indirect_draw_buffer.indirect_draw[chunk_index].index_count = index_count;
+		svdb_indirect_draw_buffer.indirect_draw[chunk_index].instance_count = instance_count;
+		svdb_indirect_draw_buffer.indirect_draw[chunk_index].first_index = first_index;
+		svdb_indirect_draw_buffer.indirect_draw[chunk_index].vertex_offset = int(vertex_offset);
+		svdb_indirect_draw_buffer.indirect_draw[chunk_index].first_instance = chunk_index;
+	}
+}

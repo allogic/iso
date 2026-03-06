@@ -18,7 +18,7 @@ layout (
 layout (binding = 0, std430) readonly buffer svdb_chunk_mask_buffer_t { svdb_chunk_mask_t chunk_mask[]; } svdb_chunk_mask_buffer;
 layout (binding = 1, std430) writeonly buffer svdb_chunk_vertex_buffer_t { svdb_chunk_vertex_t chunk_vertex[]; } svdb_chunk_vertex_buffer;
 layout (binding = 2, std430) writeonly buffer svdb_chunk_index_buffer_t { uint chunk_index[]; } svdb_chunk_index_buffer;
-layout (binding = 3, std430) writeonly buffer svdb_chunk_info_buffer_t { svdb_chunk_info_t chunk_info[]; } svdb_chunk_info_buffer;
+layout (binding = 3, std430) writeonly buffer svdb_mesh_count_buffer_t { svdb_mesh_count_t mesh_count[]; } svdb_mesh_count_buffer;
 layout (binding = 4, std430) readonly buffer svdb_block_buffer_t { svdb_block_t block[]; } svdb_block_buffer;
 layout (binding = 5, r32ui) uniform uimage3D svdb_voxel_data;
 
@@ -135,8 +135,11 @@ svdb_chunk_vertex_t make_vertex(vec3 position, vec2 uv, vec3 color, uint face, u
 }
 
 void emit_quad(uint face, uint slice, uint y, uint z, uint width, uint height, uint block_type) {
-	uint v = atomicAdd(svdb_chunk_info_buffer.chunk_info[pc.chunk_index].vertex_count, 4);
-	uint i = atomicAdd(svdb_chunk_info_buffer.chunk_info[pc.chunk_index].index_count, 6);
+	uint vb = pc.chunk_index * WORST_CASE_GREEDY_MESH_VERTEX_COUNT;
+	uint ib  = pc.chunk_index * WORST_CASE_GREEDY_MESH_INDEX_COUNT;
+
+	uint v = atomicAdd(svdb_mesh_count_buffer.mesh_count[pc.chunk_index].vertex_count, 4);
+	uint i = atomicAdd(svdb_mesh_count_buffer.mesh_count[pc.chunk_index].index_count, 6);
 
 	vec2 uv0, uv1, uv2, uv3;
 
@@ -154,59 +157,59 @@ void emit_quad(uint face, uint slice, uint y, uint z, uint width, uint height, u
 	svdb_chunk_vertex_t v2 = make_vertex(p2, uv2, vec3(1), face, atlas_id, 0);
 	svdb_chunk_vertex_t v3 = make_vertex(p3, uv3, vec3(1), face, atlas_id, 0);
 
-	svdb_chunk_vertex_buffer.chunk_vertex[v + 0] = v0;
-	svdb_chunk_vertex_buffer.chunk_vertex[v + 1] = v1;
-	svdb_chunk_vertex_buffer.chunk_vertex[v + 2] = v2;
-	svdb_chunk_vertex_buffer.chunk_vertex[v + 3] = v3;
+	svdb_chunk_vertex_buffer.chunk_vertex[vb + v + 0] = v0;
+	svdb_chunk_vertex_buffer.chunk_vertex[vb + v + 1] = v1;
+	svdb_chunk_vertex_buffer.chunk_vertex[vb + v + 2] = v2;
+	svdb_chunk_vertex_buffer.chunk_vertex[vb + v + 3] = v3;
 
 	switch (face) {
 		case SVDB_FACE_PX:
-			svdb_chunk_index_buffer.chunk_index[i + 0] = v + 0;
-			svdb_chunk_index_buffer.chunk_index[i + 1] = v + 2;
-			svdb_chunk_index_buffer.chunk_index[i + 2] = v + 1;
-			svdb_chunk_index_buffer.chunk_index[i + 3] = v + 0;
-			svdb_chunk_index_buffer.chunk_index[i + 4] = v + 3;
-			svdb_chunk_index_buffer.chunk_index[i + 5] = v + 2;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 0] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 1] = v + 2;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 2] = v + 1;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 3] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 4] = v + 3;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 5] = v + 2;
 			break;
 		case SVDB_FACE_PY:
-			svdb_chunk_index_buffer.chunk_index[i + 0] = v + 0;
-			svdb_chunk_index_buffer.chunk_index[i + 1] = v + 1;
-			svdb_chunk_index_buffer.chunk_index[i + 2] = v + 2;
-			svdb_chunk_index_buffer.chunk_index[i + 3] = v + 0;
-			svdb_chunk_index_buffer.chunk_index[i + 4] = v + 2;
-			svdb_chunk_index_buffer.chunk_index[i + 5] = v + 3;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 0] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 1] = v + 1;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 2] = v + 2;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 3] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 4] = v + 2;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 5] = v + 3;
 			break;
 		case SVDB_FACE_PZ:
-			svdb_chunk_index_buffer.chunk_index[i + 0] = v + 0;
-			svdb_chunk_index_buffer.chunk_index[i + 1] = v + 2;
-			svdb_chunk_index_buffer.chunk_index[i + 2] = v + 1;
-			svdb_chunk_index_buffer.chunk_index[i + 3] = v + 0;
-			svdb_chunk_index_buffer.chunk_index[i + 4] = v + 3;
-			svdb_chunk_index_buffer.chunk_index[i + 5] = v + 2;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 0] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 1] = v + 2;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 2] = v + 1;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 3] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 4] = v + 3;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 5] = v + 2;
 			break;
 		case SVDB_FACE_NX:
-			svdb_chunk_index_buffer.chunk_index[i + 0] = v + 0;
-			svdb_chunk_index_buffer.chunk_index[i + 1] = v + 1;
-			svdb_chunk_index_buffer.chunk_index[i + 2] = v + 2;
-			svdb_chunk_index_buffer.chunk_index[i + 3] = v + 0;
-			svdb_chunk_index_buffer.chunk_index[i + 4] = v + 2;
-			svdb_chunk_index_buffer.chunk_index[i + 5] = v + 3;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 0] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 1] = v + 1;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 2] = v + 2;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 3] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 4] = v + 2;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 5] = v + 3;
 			break;
 		case SVDB_FACE_NY:
-			svdb_chunk_index_buffer.chunk_index[i + 0] = v + 0;
-			svdb_chunk_index_buffer.chunk_index[i + 1] = v + 2;
-			svdb_chunk_index_buffer.chunk_index[i + 2] = v + 1;
-			svdb_chunk_index_buffer.chunk_index[i + 3] = v + 0;
-			svdb_chunk_index_buffer.chunk_index[i + 4] = v + 3;
-			svdb_chunk_index_buffer.chunk_index[i + 5] = v + 2;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 0] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 1] = v + 2;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 2] = v + 1;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 3] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 4] = v + 3;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 5] = v + 2;
 			break;
 		case SVDB_FACE_NZ:
-			svdb_chunk_index_buffer.chunk_index[i + 0] = v + 0;
-			svdb_chunk_index_buffer.chunk_index[i + 1] = v + 1;
-			svdb_chunk_index_buffer.chunk_index[i + 2] = v + 2;
-			svdb_chunk_index_buffer.chunk_index[i + 3] = v + 0;
-			svdb_chunk_index_buffer.chunk_index[i + 4] = v + 2;
-			svdb_chunk_index_buffer.chunk_index[i + 5] = v + 3;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 0] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 1] = v + 1;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 2] = v + 2;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 3] = v + 0;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 4] = v + 2;
+			svdb_chunk_index_buffer.chunk_index[ib + i + 5] = v + 3;
 			break;
 	}
 }

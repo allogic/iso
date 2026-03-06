@@ -16,6 +16,9 @@
 #define SVDB_SET_VOXEL_BLOCK_TYPE(VOXEL, BLOCK_TYPE) \
 	((VOXEL & ~(0xFF << 8)) | ((BLOCK_TYPE & 0xFF) << 8))
 
+const uint WORST_CASE_GREEDY_MESH_VERTEX_COUNT = 40000;
+const uint WORST_CASE_GREEDY_MESH_INDEX_COUNT = 60000;
+
 const uint SVDB_DIM_X = 3;
 const uint SVDB_DIM_Y = 3;
 const uint SVDB_DIM_Z = 3;
@@ -52,11 +55,21 @@ const uint SVDB_BLOCK_FACE_TOP = 4;
 const uint SVDB_BLOCK_FACE_BOTTOM = 5;
 const uint SVDB_BLOCK_FACE_COUNT = 6;
 
-struct svdb_chunk_info_t {
-	uint is_dirty;
+struct svdb_cluster_info_t {
+	uint chunk_count;
+};
+
+struct svdb_mesh_count_t {
 	uint vertex_count;
 	uint index_count;
-	uint reserved0;
+};
+
+struct svdb_indirect_draw_t {
+	uint index_count;
+	uint instance_count;
+	uint first_index;
+	int vertex_offset;
+	uint first_instance;
 };
 
 struct svdb_chunk_mask_t {

@@ -1,5 +1,6 @@
 #include <pch.h>
 
+// TODO: re-validate all vkCmdDispatch(); calles and compare global vs. local sizes!!
 // TODO: remove every VkDescriptorPoolSize and compute it inside pipeline_t
 // TODO: check out face buffers so vertex cost can be further minimized..
 // TODO: refactor uniforms with "_uniform_t" and make structs..
