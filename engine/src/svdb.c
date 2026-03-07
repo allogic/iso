@@ -5,11 +5,14 @@
 // 16384 x 6 faces        = 98304
 // 98304 x 4 vertices     = 393216
 // 98304 x 6 indices      = 589824
+#define WORST_CASE_GREEDY_MESH_FACE_COUNT (32767)
 #define WORST_CASE_GREEDY_MESH_VERTEX_COUNT (40000)
 #define WORST_CASE_GREEDY_MESH_INDEX_COUNT (60000)
 
 static void svdb_create_cluster_info_buffer(void);
 static void svdb_create_chunk_mask_buffer(void);
+static void svdb_create_chunk_instance_buffer(void);
+static void svdb_create_chunk_face_buffer(void);
 static void svdb_create_chunk_vertex_buffer(void);
 static void svdb_create_chunk_index_buffer(void);
 static void svdb_create_mesh_count_buffer(void);
@@ -33,38 +36,31 @@ static void svdb_update_renderer_descriptor_set(void);
 static void svdb_destroy_buffer(void);
 static void svdb_destroy_image(void);
 
-static VkVertexInputBindingDescription s_chunk_vertex_input_binding_description[] = {
+static VkVertexInputBindingDescription s_vertex_input_binding_description[] = {
   {
     .binding = 0,
     .stride = sizeof(svdb_chunk_vertex_t),
     .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
   },
+  {
+    .binding = 1,
+    .stride = sizeof(svdb_chunk_instance_t),
+    .inputRate = VK_VERTEX_INPUT_RATE_INSTANCE,
+  },
 };
 
-static VkVertexInputAttributeDescription s_chunk_vertex_input_attribute_description[] = {
+static VkVertexInputAttributeDescription s_vertex_input_attribute_description[] = {
   {
     .location = 0,
     .binding = 0,
     .format = VK_FORMAT_R32_UINT,
-    .offset = OFFSET_OF(svdb_chunk_vertex_t, word0),
+    .offset = 0,
   },
   {
     .location = 1,
-    .binding = 0,
-    .format = VK_FORMAT_R32_UINT,
-    .offset = OFFSET_OF(svdb_chunk_vertex_t, word1),
-  },
-  {
-    .location = 2,
-    .binding = 0,
-    .format = VK_FORMAT_R32_UINT,
-    .offset = OFFSET_OF(svdb_chunk_vertex_t, word2),
-  },
-  {
-    .location = 3,
-    .binding = 0,
-    .format = VK_FORMAT_R32_UINT,
-    .offset = OFFSET_OF(svdb_chunk_vertex_t, word3),
+    .binding = 1,
+    .format = VK_FORMAT_R32G32B32A32_SINT,
+    .offset = 0,
   },
 };
 
@@ -98,6 +94,10 @@ static VkDescriptorPoolSize s_voxel_placer_descriptor_pool_size[] = {
 };
 static VkDescriptorPoolSize s_world_generator_descriptor_pool_size[] = {
   {
+    .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    .descriptorCount = 1,
+  },
+  {
     .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
     .descriptorCount = 1,
   },
@@ -115,7 +115,7 @@ static VkDescriptorPoolSize s_mask_generator_descriptor_pool_size[] = {
 static VkDescriptorPoolSize s_mesh_generator_descriptor_pool_size[] = {
   {
     .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-    .descriptorCount = 5,
+    .descriptorCount = 6,
   },
   {
     .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
@@ -135,6 +135,10 @@ static VkDescriptorPoolSize s_idraw_generator_descriptor_pool_size[] = {
 static VkDescriptorPoolSize s_renderer_descriptor_pool_size[] = {
   {
     .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    .descriptorCount = 1,
+  },
+  {
+    .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
     .descriptorCount = 1,
   },
   {
@@ -192,6 +196,13 @@ static VkDescriptorSetLayoutBinding s_voxel_placer_descriptor_set_layout_binding
 static VkDescriptorSetLayoutBinding s_world_generator_descriptor_set_layout_binding[] = {
   {
     .binding = 0,
+    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    .descriptorCount = 1,
+    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+    .pImmutableSamplers = 0,
+  },
+  {
+    .binding = 1,
     .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
     .descriptorCount = 1,
     .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
@@ -252,6 +263,13 @@ static VkDescriptorSetLayoutBinding s_mesh_generator_descriptor_set_layout_bindi
   },
   {
     .binding = 5,
+    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    .descriptorCount = 1,
+    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+    .pImmutableSamplers = 0,
+  },
+  {
+    .binding = 6,
     .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
     .descriptorCount = 1,
     .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
@@ -291,6 +309,13 @@ static VkDescriptorSetLayoutBinding s_renderer_descriptor_set_layout_binding[] =
   },
   {
     .binding = 1,
+    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    .descriptorCount = 1,
+    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+    .pImmutableSamplers = 0,
+  },
+  {
+    .binding = 2,
     .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
     .descriptorCount = 1,
     .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -327,6 +352,14 @@ static buffer_t s_cluster_info_buffer = {
 };
 static buffer_t s_chunk_mask_buffer = {
   .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+  .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+};
+static buffer_t s_chunk_instance_buffer = {
+  .buffer_usage_flags = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+  .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+};
+static buffer_t s_chunk_face_buffer = {
+  .buffer_usage_flags = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
   .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 };
 static buffer_t s_chunk_vertex_buffer = {
@@ -398,6 +431,8 @@ static image_t s_block_atlas_image = {
 
 static VkDescriptorBufferInfo s_cluster_info_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_chunk_mask_descriptor_buffer_info = {0};
+static VkDescriptorBufferInfo s_chunk_instance_descriptor_buffer_info = {0};
+static VkDescriptorBufferInfo s_chunk_face_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_chunk_vertex_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_chunk_index_descriptor_buffer_info = {0};
 static VkDescriptorBufferInfo s_mesh_count_descriptor_buffer_info = {0};
@@ -480,10 +515,10 @@ static pipeline_t s_renderer_pipeline = {
   .primitive_topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
   .polygon_mode = VK_POLYGON_MODE_FILL,
   .cull_mode = VK_CULL_MODE_BACK_BIT,
-  .vertex_input_binding_description = s_chunk_vertex_input_binding_description,
-  .vertex_input_binding_description_count = ARRAY_COUNT(s_chunk_vertex_input_binding_description),
-  .vertex_input_attribute_description = s_chunk_vertex_input_attribute_description,
-  .vertex_input_attribute_description_count = ARRAY_COUNT(s_chunk_vertex_input_attribute_description),
+  .vertex_input_binding_description = s_vertex_input_binding_description,
+  .vertex_input_binding_description_count = ARRAY_COUNT(s_vertex_input_binding_description),
+  .vertex_input_attribute_description = s_vertex_input_attribute_description,
+  .vertex_input_attribute_description_count = ARRAY_COUNT(s_vertex_input_attribute_description),
   .descriptor_pool_size = s_renderer_descriptor_pool_size,
   .descriptor_pool_size_count = ARRAY_COUNT(s_renderer_descriptor_pool_size),
   .descriptor_set_layout_binding = s_renderer_descriptor_set_layout_binding,
@@ -499,6 +534,8 @@ void svdb_create(uint32_t chunk_count) {
 
   svdb_create_cluster_info_buffer();
   svdb_create_chunk_mask_buffer();
+  svdb_create_chunk_instance_buffer();
+  svdb_create_chunk_face_buffer();
   svdb_create_chunk_vertex_buffer();
   svdb_create_chunk_index_buffer();
   svdb_create_mesh_count_buffer();
@@ -570,7 +607,7 @@ void svdb_place_voxel(void) {
   vkCmdPipelineBarrier(g_renderer.command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &voxel_image_memory_barrier);
 }
 
-void svdb_generate_world(VkCommandBuffer command_buffer, uint32_t chunk_index) {
+void svdb_generate_world(VkCommandBuffer command_buffer, ivector3_t chunk_position, uint32_t chunk_index) {
   VkImageMemoryBarrier voxel_image_memory_barrier = {
     .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
     .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
@@ -590,7 +627,7 @@ void svdb_generate_world(VkCommandBuffer command_buffer, uint32_t chunk_index) {
   };
 
   svdb_world_generator_push_constant_t push_constant = {
-    .chunk_position = svdb_chunk_index_to_position(chunk_index),
+    .chunk_position = chunk_position,
     .chunk_index = chunk_index,
   };
 
@@ -615,7 +652,7 @@ void svdb_generate_world(VkCommandBuffer command_buffer, uint32_t chunk_index) {
   vkCmdDispatch(command_buffer, 5, 5, 5);
   vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &voxel_image_memory_barrier);
 }
-void svdb_generate_mask(VkCommandBuffer command_buffer, uint32_t chunk_index) {
+void svdb_generate_mask(VkCommandBuffer command_buffer, ivector3_t chunk_position, uint32_t chunk_index) {
   VkBufferMemoryBarrier mask_buffer_memory_barrier = {
     .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
     .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
@@ -628,7 +665,7 @@ void svdb_generate_mask(VkCommandBuffer command_buffer, uint32_t chunk_index) {
   };
 
   svdb_mask_generator_push_constant_t push_constant = {
-    .chunk_position = svdb_chunk_index_to_position(chunk_index),
+    .chunk_position = chunk_position,
     .chunk_index = chunk_index,
   };
 
@@ -638,7 +675,7 @@ void svdb_generate_mask(VkCommandBuffer command_buffer, uint32_t chunk_index) {
   vkCmdDispatch(command_buffer, SVDB_CHUNK_SIZE, SVDB_CHUNK_SIZE, 6);
   vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 1, &mask_buffer_memory_barrier, 0, 0);
 }
-void svdb_generate_mesh(VkCommandBuffer command_buffer, uint32_t chunk_index) {
+void svdb_generate_mesh(VkCommandBuffer command_buffer, ivector3_t chunk_position, uint32_t chunk_index) {
   VkBufferMemoryBarrier buffer_memory_barrier[] = {
     {
       .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
@@ -673,7 +710,7 @@ void svdb_generate_mesh(VkCommandBuffer command_buffer, uint32_t chunk_index) {
   };
 
   svdb_mesh_generator_push_constant_t push_constant = {
-    .chunk_position = svdb_chunk_index_to_position(chunk_index),
+    .chunk_position = chunk_position,
     .chunk_index = chunk_index,
   };
 
@@ -706,27 +743,15 @@ void svdb_generate_idraw(VkCommandBuffer command_buffer) {
 }
 
 void svdb_draw_mesh(VkCommandBuffer command_buffer) {
-  VkDeviceSize vertex_offset = 0;
+  VkBuffer buffer[] = {s_chunk_vertex_buffer.buffer_handle, s_chunk_instance_buffer.buffer_handle};
+  VkDeviceSize offset[] = {0, 0};
 
   vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_renderer_pipeline.pipeline_handle);
-  vkCmdBindVertexBuffers(command_buffer, 0, 1, &s_chunk_vertex_buffer.buffer_handle, &vertex_offset);
+  vkCmdBindVertexBuffers(command_buffer, 0, 2, buffer, offset);
   vkCmdBindIndexBuffer(command_buffer, s_chunk_index_buffer.buffer_handle, 0, VK_INDEX_TYPE_UINT32);
   vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s_renderer_pipeline.pipeline_layout, 0, 1, &s_renderer_pipeline.descriptor_set[0], 0, 0);
   vkCmdDrawIndexedIndirect(command_buffer, s_indirect_draw_buffer.buffer_handle, 0, g_svdb.chunk_count, sizeof(VkDrawIndexedIndirectCommand)); // TODO revalidate draw_count here..
   // vkCmdDrawIndexedIndirectCount(); /// Use this for when frustum culling comes back online..
-}
-
-uint32_t svdb_chunk_position_to_index(ivector3_t chunk_position) {
-  return (chunk_position.x) +
-         (chunk_position.y * SVDB_DIM_X) +
-         (chunk_position.z * SVDB_DIM_X * SVDB_DIM_Y);
-}
-ivector3_t svdb_chunk_index_to_position(uint32_t chunk_index) {
-  return (ivector3_t){
-    chunk_index % SVDB_DIM_X,
-    (chunk_index / SVDB_DIM_X) % SVDB_DIM_Y,
-    chunk_index / (SVDB_DIM_X * SVDB_DIM_Y),
-  };
 }
 
 static void svdb_create_cluster_info_buffer(void) {
@@ -750,6 +775,24 @@ static void svdb_create_chunk_mask_buffer(void) {
   s_chunk_mask_descriptor_buffer_info.offset = 0;
   s_chunk_mask_descriptor_buffer_info.buffer = s_chunk_mask_buffer.buffer_handle;
   s_chunk_mask_descriptor_buffer_info.range = VK_WHOLE_SIZE;
+}
+static void svdb_create_chunk_instance_buffer(void) {
+  s_chunk_instance_buffer.size = sizeof(svdb_chunk_instance_t) * g_svdb.chunk_count,
+
+  buffer_create(&s_chunk_instance_buffer);
+
+  s_chunk_instance_descriptor_buffer_info.offset = 0;
+  s_chunk_instance_descriptor_buffer_info.buffer = s_chunk_instance_buffer.buffer_handle;
+  s_chunk_instance_descriptor_buffer_info.range = VK_WHOLE_SIZE;
+}
+static void svdb_create_chunk_face_buffer(void) {
+  s_chunk_face_buffer.size = sizeof(svdb_chunk_face_t) * WORST_CASE_GREEDY_MESH_FACE_COUNT,
+
+  buffer_create(&s_chunk_face_buffer);
+
+  s_chunk_face_descriptor_buffer_info.offset = 0;
+  s_chunk_face_descriptor_buffer_info.buffer = s_chunk_face_buffer.buffer_handle;
+  s_chunk_face_descriptor_buffer_info.range = VK_WHOLE_SIZE;
 }
 static void svdb_create_chunk_vertex_buffer(void) {
   s_chunk_vertex_buffer.size = sizeof(svdb_chunk_vertex_t) * WORST_CASE_GREEDY_MESH_VERTEX_COUNT,
@@ -943,6 +986,18 @@ static void svdb_update_world_generator_descriptor_set(void) {
       .dstSet = s_world_generator_pipeline.descriptor_set[0],
       .dstBinding = 0,
       .dstArrayElement = 0,
+      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+      .descriptorCount = 1,
+      .pImageInfo = 0,
+      .pBufferInfo = &s_chunk_instance_descriptor_buffer_info,
+      .pTexelBufferView = 0,
+    },
+    {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = 0,
+      .dstSet = s_world_generator_pipeline.descriptor_set[0],
+      .dstBinding = 1,
+      .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
       .descriptorCount = 1,
       .pImageInfo = &s_chunk_voxel_descriptor_image_info,
@@ -1006,7 +1061,7 @@ static void svdb_update_mesh_generator_descriptor_set(void) {
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
       .descriptorCount = 1,
       .pImageInfo = 0,
-      .pBufferInfo = &s_chunk_vertex_descriptor_buffer_info,
+      .pBufferInfo = &s_chunk_face_descriptor_buffer_info,
       .pTexelBufferView = 0,
     },
     {
@@ -1018,7 +1073,7 @@ static void svdb_update_mesh_generator_descriptor_set(void) {
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
       .descriptorCount = 1,
       .pImageInfo = 0,
-      .pBufferInfo = &s_chunk_index_descriptor_buffer_info,
+      .pBufferInfo = &s_chunk_vertex_descriptor_buffer_info,
       .pTexelBufferView = 0,
     },
     {
@@ -1030,7 +1085,7 @@ static void svdb_update_mesh_generator_descriptor_set(void) {
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
       .descriptorCount = 1,
       .pImageInfo = 0,
-      .pBufferInfo = &s_mesh_count_descriptor_buffer_info,
+      .pBufferInfo = &s_chunk_index_descriptor_buffer_info,
       .pTexelBufferView = 0,
     },
     {
@@ -1042,7 +1097,7 @@ static void svdb_update_mesh_generator_descriptor_set(void) {
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
       .descriptorCount = 1,
       .pImageInfo = 0,
-      .pBufferInfo = &s_block_descriptor_buffer_info,
+      .pBufferInfo = &s_mesh_count_descriptor_buffer_info,
       .pTexelBufferView = 0,
     },
     {
@@ -1050,6 +1105,18 @@ static void svdb_update_mesh_generator_descriptor_set(void) {
       .pNext = 0,
       .dstSet = s_mesh_generator_pipeline.descriptor_set[0],
       .dstBinding = 5,
+      .dstArrayElement = 0,
+      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+      .descriptorCount = 1,
+      .pImageInfo = 0,
+      .pBufferInfo = &s_block_descriptor_buffer_info,
+      .pTexelBufferView = 0,
+    },
+    {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = 0,
+      .dstSet = s_mesh_generator_pipeline.descriptor_set[0],
+      .dstBinding = 6,
       .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
       .descriptorCount = 1,
@@ -1123,6 +1190,18 @@ static void svdb_update_renderer_descriptor_set(void) {
       .dstSet = s_renderer_pipeline.descriptor_set[0],
       .dstBinding = 1,
       .dstArrayElement = 0,
+      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+      .descriptorCount = 1,
+      .pImageInfo = 0,
+      .pBufferInfo = &s_chunk_face_descriptor_buffer_info,
+      .pTexelBufferView = 0,
+    },
+    {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = 0,
+      .dstSet = s_renderer_pipeline.descriptor_set[0],
+      .dstBinding = 2,
+      .dstArrayElement = 0,
       .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
       .descriptorCount = 1,
       .pImageInfo = &s_block_atlas_descriptor_image_info,
@@ -1136,6 +1215,8 @@ static void svdb_update_renderer_descriptor_set(void) {
 
 static void svdb_destroy_buffer(void) {
   buffer_destroy(&s_cluster_info_buffer);
+  buffer_destroy(&s_chunk_instance_buffer);
+  buffer_destroy(&s_chunk_face_buffer);
   buffer_destroy(&s_chunk_vertex_buffer);
   buffer_destroy(&s_chunk_index_buffer);
   buffer_destroy(&s_chunk_mask_buffer);

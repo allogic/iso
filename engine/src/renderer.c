@@ -192,7 +192,8 @@ void renderer_draw(void) {
       g_chunkmgr.build_state = CHUNKMGR_BUILD_STATE_READY;
     }
 
-    g_chunkmgr.async_state = CHUNKMGR_ASYNC_STATE_IDLE;
+    // g_chunkmgr.async_state = CHUNKMGR_ASYNC_STATE_IDLE;
+    g_chunkmgr.async_state = CHUNKMGR_ASYNC_STATE_COUNT;
   }
 
   VK_CHECK(vkAcquireNextImageKHR(g_window.device, g_swapchain.handle, UINT64_MAX, s_image_available_semaphore, 0, &g_renderer.image_index));

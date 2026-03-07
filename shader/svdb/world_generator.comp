@@ -22,7 +22,8 @@ layout (
 	local_size_z = 8
 ) in;
 
-layout (binding = 0, r32ui) uniform uimage3D svdb_voxel_data;
+layout (binding = 0, std430) writeonly buffer svdb_chunk_instance_buffer_t { ivec4 chunk_instance[]; } svdb_chunk_instance_buffer;
+layout (binding = 1, r32ui) uniform uimage3D svdb_voxel_data;
 
 layout (push_constant) uniform push_constant_t {
 	ivec3 chunk_position;
@@ -135,5 +136,8 @@ void main() {
 			case 1: stage_1(voxel_position); break;
 			case 2: stage_2(voxel_position); break;
 		}
+
+		// TODO: only the first thread shall write this value..
+		svdb_chunk_instance_buffer.chunk_instance[pc.chunk_index] = ivec4(pc.chunk_position, 0) * int(SVDB_CHUNK_SIZE);
 	}
 }

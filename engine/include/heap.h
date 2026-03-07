@@ -1,8 +1,6 @@
 #ifndef HEAP_H
 #define HEAP_H
 
-#define ENABLE_HEAP_TRACE
-
 typedef struct mem_block_t {
   char const *file_name;
   char const *function_name;

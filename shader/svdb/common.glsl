@@ -16,6 +16,7 @@
 #define SVDB_SET_VOXEL_BLOCK_TYPE(VOXEL, BLOCK_TYPE) \
 	((VOXEL & ~(0xFF << 8)) | ((BLOCK_TYPE & 0xFF) << 8))
 
+const uint WORST_CASE_GREEDY_MESH_FACE_COUNT = 32767;
 const uint WORST_CASE_GREEDY_MESH_VERTEX_COUNT = 40000;
 const uint WORST_CASE_GREEDY_MESH_INDEX_COUNT = 60000;
 
@@ -60,6 +61,7 @@ struct svdb_cluster_info_t {
 };
 
 struct svdb_mesh_count_t {
+	uint face_count;
 	uint vertex_count;
 	uint index_count;
 };
@@ -95,13 +97,6 @@ struct svdb_place_info_t {
 
 struct svdb_place_result_t {
 	uint is_obstructed;
-};
-
-struct svdb_chunk_vertex_t {
-	uint word0;
-	uint word1;
-	uint word2;
-	uint word3;
 };
 
 struct svdb_block_t {

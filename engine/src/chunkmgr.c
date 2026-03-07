@@ -12,8 +12,8 @@ static void chunkmgr_create_command_buffer(void);
 static uint32_t chunkmgr_count_position_in_ellipsoid(int32_t radius_x, int32_t radius_y, int32_t radius_z);
 static void chunkmgr_collect_position_in_ellipsoid(int32_t radius_x, int32_t radius_y, int32_t radius_z);
 
-static void chunkmgr_find_store_chunk(ivector3_t key, uint32_t handle);
-static void chunkmgr_find_load_chunk(ivector3_t key, uint32_t handle);
+static void chunkmgr_find_store_chunk(ivector3_t chunk_position, uint32_t chunk_handle);
+static void chunkmgr_find_load_chunk(ivector3_t chunk_position, uint32_t chunk_handle);
 
 static void chunkmgr_destroy_command_pool(void);
 static void chunkmgr_destroy_command_buffer(void);
@@ -198,17 +198,17 @@ static void chunkmgr_collect_position_in_ellipsoid(int32_t radius_x, int32_t rad
 
         if ((dx * dx) * ry2 * rz2 + (dy * dy) * rx2 * rz2 + (dz * dz) * rx2 * ry2 <= rx2 * ry2 * rz2) {
 
-          ivector3_t key = ivector3_add(g_chunkmgr.curr_chunk_position, ivector3_xyz(dx, dy, dz)); // TODO: add chunk_position..?
+          ivector3_t chunk_position = ivector3_add(g_chunkmgr.curr_chunk_position, ivector3_xyz(dx, dy, dz)); // TODO: add chunk_position..?
 
-          uint32_t *prev_handle = chunkmap_lookup(s_prev_active_position_ptr, key);
+          uint32_t *prev_chunk_handle = chunkmap_lookup(s_prev_active_position_ptr, chunk_position);
 
-          if (prev_handle) {
-            chunkmap_insert(s_curr_active_position_ptr, key, *prev_handle);
+          if (prev_chunk_handle) {
+            chunkmap_insert(s_curr_active_position_ptr, chunk_position, *prev_chunk_handle);
           } else {
-            uint32_t handle = chunkpool_alloc(&s_chunkpool);
+            uint32_t chunk_handle = chunkpool_alloc(&s_chunkpool);
 
-            chunktbl_insert(&s_chunktbl, handle);
-            chunkmap_insert(s_curr_active_position_ptr, key, handle);
+            chunktbl_insert(&s_chunktbl, chunk_handle);
+            chunkmap_insert(s_curr_active_position_ptr, chunk_position, chunk_handle);
           }
         }
       }
@@ -216,28 +216,28 @@ static void chunkmgr_collect_position_in_ellipsoid(int32_t radius_x, int32_t rad
   }
 }
 
-static void chunkmgr_find_store_chunk(ivector3_t key, uint32_t handle) {
-  if (chunkmap_lookup(s_curr_active_position_ptr, key) == 0) {
+static void chunkmgr_find_store_chunk(ivector3_t chunk_position, uint32_t chunk_handle) {
+  if (chunkmap_lookup(s_curr_active_position_ptr, chunk_position) == 0) {
 
-    uint32_t index = chunktbl_lookup(&s_chunktbl, handle);
+    uint32_t dense_index = chunktbl_lookup(&s_chunktbl, chunk_handle);
 
     // TODO: Handle chunk store..
 
-    chunktbl_remove(&s_chunktbl, handle);
+    chunktbl_remove(&s_chunktbl, chunk_handle);
 
-    chunkpool_free(&s_chunkpool, handle);
+    chunkpool_free(&s_chunkpool, chunk_handle);
 
     s_store_chunk_count++;
   }
 }
-static void chunkmgr_find_load_chunk(ivector3_t key, uint32_t handle) {
-  if (chunkmap_lookup(s_prev_active_position_ptr, key) == 0) {
+static void chunkmgr_find_load_chunk(ivector3_t chunk_position, uint32_t chunk_handle) {
+  if (chunkmap_lookup(s_prev_active_position_ptr, chunk_position) == 0) {
 
-    uint32_t index = chunktbl_lookup(&s_chunktbl, handle);
+    uint32_t dense_index = chunktbl_lookup(&s_chunktbl, chunk_handle);
 
-    svdb_generate_world(g_chunkmgr.command_buffer, index);
-    svdb_generate_mask(g_chunkmgr.command_buffer, index);
-    svdb_generate_mesh(g_chunkmgr.command_buffer, index);
+    svdb_generate_world(g_chunkmgr.command_buffer, chunk_position, dense_index);
+    svdb_generate_mask(g_chunkmgr.command_buffer, chunk_position, dense_index);
+    svdb_generate_mesh(g_chunkmgr.command_buffer, chunk_position, dense_index);
 
     s_load_chunk_count++;
   }

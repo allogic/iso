@@ -1,5 +1,7 @@
 #include <pch.h>
 
+// #define ENABLE_HEAP_TRACE
+
 #ifdef BUILD_DEBUG
 uint64_t g_heap_allocated_blocks = 0;
 uint64_t g_heap_allocated_bytes = 0;

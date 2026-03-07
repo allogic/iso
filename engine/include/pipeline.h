@@ -31,11 +31,11 @@ typedef struct pipeline_t {
   VkPrimitiveTopology primitive_topology;
   VkPolygonMode polygon_mode;
   VkCullModeFlags cull_mode;
-  VkVertexInputBindingDescription const *vertex_input_binding_description;
-  VkVertexInputAttributeDescription const *vertex_input_attribute_description;
-  VkPushConstantRange const *push_constant_range;
-  VkDescriptorPoolSize const *descriptor_pool_size;
-  VkDescriptorSetLayoutBinding const *descriptor_set_layout_binding;
+  VkVertexInputBindingDescription *vertex_input_binding_description;
+  VkVertexInputAttributeDescription *vertex_input_attribute_description;
+  VkPushConstantRange *push_constant_range;
+  VkDescriptorPoolSize *descriptor_pool_size;
+  VkDescriptorSetLayoutBinding *descriptor_set_layout_binding;
   VkRenderPass *render_pass;
   VkDescriptorPool descriptor_pool;
   VkDescriptorSetLayout descriptor_set_layout_base;

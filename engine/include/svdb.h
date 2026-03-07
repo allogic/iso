@@ -27,16 +27,15 @@
 #define SVDB_CHUNK_SIZE (32)
 #define SVDB_CHUNK_COUNT (27)
 
-typedef struct svdb_chunk_vertex_t {
-  uint32_t word0;
-  uint32_t word1;
-  uint32_t word2;
-  uint32_t word3;
-} svdb_chunk_vertex_t;
-
-STATIC_ASSERT(ALIGN_OF(svdb_chunk_vertex_t) == 4);
-
+typedef ivector4_t svdb_chunk_instance_t;
+typedef uint32_t svdb_chunk_face_t;
+typedef uint32_t svdb_chunk_vertex_t;
 typedef uint32_t svdb_chunk_index_t;
+
+STATIC_ASSERT(ALIGN_OF(svdb_chunk_instance_t) == 4);
+STATIC_ASSERT(ALIGN_OF(svdb_chunk_face_t) == 4);
+STATIC_ASSERT(ALIGN_OF(svdb_chunk_vertex_t) == 4);
+STATIC_ASSERT(ALIGN_OF(svdb_chunk_index_t) == 4);
 
 typedef struct svdb_world_generator_push_constant_t {
   ivector3_t chunk_position;
@@ -63,8 +62,10 @@ typedef struct svdb_cluster_info_t {
   uint32_t chunk_count;
 } svdb_cluster_info_t;
 typedef struct svdb_mesh_count_t {
+  uint32_t face_count;
   uint32_t vertex_count;
   uint32_t index_count;
+  uint32_t reserved0;
 } svdb_mesh_count_t;
 typedef struct svdb_chunk_mask_t {
   uint32_t opaque_px_mask[SVDB_CHUNK_SIZE * SVDB_CHUNK_SIZE];
@@ -90,6 +91,7 @@ typedef struct svdb_place_result_t {
 
 STATIC_ASSERT(ALIGN_OF(svdb_cluster_info_t) == 4);
 STATIC_ASSERT(ALIGN_OF(svdb_mesh_count_t) == 4);
+STATIC_ASSERT(ALIGN_OF(svdb_chunk_face_t) == 4);
 STATIC_ASSERT(ALIGN_OF(svdb_chunk_mask_t) == 4);
 STATIC_ASSERT(ALIGN_OF(svdb_select_result_t) == 4);
 STATIC_ASSERT(ALIGN_OF(svdb_place_info_t) == 4);
@@ -115,15 +117,12 @@ void svdb_destroy(void);
 void svdb_select_voxel(void);
 void svdb_place_voxel(void);
 
-void svdb_generate_world(VkCommandBuffer command_buffer, uint32_t chunk_index);
-void svdb_generate_mask(VkCommandBuffer command_buffer, uint32_t chunk_index);
-void svdb_generate_mesh(VkCommandBuffer command_buffer, uint32_t chunk_index);
+void svdb_generate_world(VkCommandBuffer command_buffer, ivector3_t chunk_position, uint32_t chunk_index);
+void svdb_generate_mask(VkCommandBuffer command_buffer, ivector3_t chunk_position, uint32_t chunk_index);
+void svdb_generate_mesh(VkCommandBuffer command_buffer, ivector3_t chunk_position, uint32_t chunk_index);
 void svdb_generate_idraw(VkCommandBuffer command_buffer);
 
 void svdb_draw_mesh(VkCommandBuffer command_buffer);
-
-uint32_t svdb_chunk_position_to_index(ivector3_t chunk_position);
-ivector3_t svdb_chunk_index_to_position(uint32_t chunk_index);
 
 #ifdef __cplusplus
 }

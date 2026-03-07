@@ -9,10 +9,8 @@
 
 #include "../svdb/common.glsl"
 
-layout (location = 0) in uint input_word0;
-layout (location = 1) in uint input_word1;
-layout (location = 2) in uint input_word2;
-layout (location = 3) in uint input_word3;
+layout (location = 0) in uint input_vertex;
+layout (location = 1) in ivec4 input_instance;
 
 layout (location = 0) out vec3 output_normal;
 layout (location = 1) out vec3 output_color;
@@ -20,6 +18,22 @@ layout (location = 2) out vec2 output_uv;
 layout (location = 3) out uint output_atlas_id;
 
 layout (binding = 0) uniform camera_info_uniform_t { camera_info_t camera_info; } camera_info_uniform;
+layout (binding = 1, std430) readonly buffer svdb_chunk_face_buffer_t { uint chunk_face[]; } svdb_chunk_face_buffer;
+
+void unpack_face(uint f, out uint width, out uint height, out uint face, out uint atlas_id) {
+	width    = (f >>  0) & 0x1F;
+	height   = (f >>  5) & 0x1F;
+	face     = (f >> 10) & 0x7;
+	atlas_id = (f >> 13) & 0x7FFFF;
+}
+
+void unpack_vertex(uint v, out ivec3 position, out uint corner, out uint face_id) {
+	position.x = int((v >>  0) & 0x1F);
+	position.y = int((v >>  5) & 0x1F);
+	position.z = int((v >> 10) & 0x1F);
+	corner     =     (v >> 15) & 0x3;
+	face_id    =     (v >> 17) & 0x7FFF;
+}
 
 vec3 face_to_normal(uint face) {
 	switch (face) {
@@ -33,44 +47,45 @@ vec3 face_to_normal(uint face) {
 
 	return vec3(0);
 }
+vec2 corner_to_uv(uint corner, uint width, uint height) {
+	switch (corner) {
+		case 0: return vec2(0, height); // TODO: make same as vertex inserts..
+		case 1: return vec2(width, height);
+		case 2: return vec2(width, 0);
+		case 3: return vec2(0, 0);
+	}
 
-vec2 unpack_uv(uint p) {
-	float u = p & 0xFF;
-	float v = (p >> 8) & 0xFF;
-
-	return vec2(u, v);
-}
-vec3 unpack_color(uint p) {
-	float r = float((p >> 11) & 0x1F) / 31.0;
-	float g = float((p >> 5)  & 0x3F) / 63.0;
-	float b = float(p & 0x1F) / 31.0;
-
-	return vec3(r, g, b);
+	return vec2(0);
 }
 
 void main() {
-	float x = float((input_word0 >> 16) & 0xFFFF);
-	float y = float(input_word0 & 0xFFFF);
-	float z = float((input_word1 >> 16) & 0xFFFF);
+	uint v = input_vertex;
 
-	uint packed_uv = input_word1 & 0xFFFF;
-	uint packed_color = (input_word2 >> 16) & 0xFFFF;
-	uint packed_aux = input_word2 & 0xFFFF;
+	ivec3 position;
+	uint corner;
+	uint face_id;
 
-	uint vertex_face = (packed_aux >> 13) & 0x7;
-	uint vertex_atlas_id = (packed_aux >> 7)  & 0x3F;
+	unpack_vertex(v, position, corner, face_id);
 
-	vec3 vertex_normal = face_to_normal(vertex_face);
-	vec3 vertex_color = unpack_color(packed_color);
-	vec2 vertex_uv = unpack_uv(packed_uv);
+	uint f = svdb_chunk_face_buffer.chunk_face[face_id];
 
-	vec4 world_position = vec4(x, y, z, 1); // TODO: add instance position..
+	uint width;
+	uint height;
+	uint face;
+	uint atlas_id;
+
+	unpack_face(f, width, height, face, atlas_id);
+
+	vec3 normal = face_to_normal(face);
+	vec2 uv = corner_to_uv(corner, width, height);
+
+	vec4 world_position = vec4(input_instance.xyz + position, 1);
 	vec4 clip_position  = camera_info_uniform.camera_info.view_projection * world_position;
 
-	output_normal = vertex_normal;
-	output_color = vertex_color;
-	output_uv = vertex_uv;
-	output_atlas_id = vertex_atlas_id;
+	output_normal = normal;
+	output_color = vec3(1); // TODO
+	output_uv = uv;
+	output_atlas_id = atlas_id;
 
 	gl_Position = clip_position;
 }

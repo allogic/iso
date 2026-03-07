@@ -72,6 +72,16 @@ void pipeline_destroy(pipeline_t *pipeline) {
 }
 
 static void pipeline_create_descriptor_pool(pipeline_t *pipeline) {
+  uint32_t descriptor_pool_index = 0;
+  uint32_t descriptor_pool_count = pipeline->descriptor_pool_size_count;
+
+  while (descriptor_pool_index < descriptor_pool_count) {
+
+    pipeline->descriptor_pool_size[descriptor_pool_index].descriptorCount *= pipeline->descriptor_set_count;
+
+    descriptor_pool_index++;
+  }
+
   VkDescriptorPoolCreateInfo descriptor_pool_create_info = {
     .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
     .pPoolSizes = pipeline->descriptor_pool_size,
